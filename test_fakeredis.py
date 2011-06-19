@@ -16,7 +16,7 @@ class TestFakeRedis(unittest.TestCase):
         return fakeredis.FakeRedis()
 
     def test_set_then_get(self):
-        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.set('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'), 'bar')
 
     def test_get_does_not_exist(self):
@@ -25,8 +25,8 @@ class TestFakeRedis(unittest.TestCase):
     ## Tests for the list type.
 
     def test_lpush_then_lrange_all(self):
-        self.redis.lpush('foo', 'bar')
-        self.redis.lpush('foo', 'baz')
+        self.assertEqual(self.redis.lpush('foo', 'bar'), 1)
+        self.assertEqual(self.redis.lpush('foo', 'baz'), 2)
         self.assertEqual(self.redis.lrange('foo', 0, -1), ['baz', 'bar'])
 
     def test_lpush_then_lrange_portion(self):
@@ -105,9 +105,9 @@ class TestFakeRedis(unittest.TestCase):
                          ['one', 'two', 'three'])
 
     def test_lpop(self):
-        self.redis.rpush('foo', 'one')
-        self.redis.rpush('foo', 'two')
-        self.redis.rpush('foo', 'three')
+        self.assertEqual(self.redis.rpush('foo', 'one'), 1)
+        self.assertEqual(self.redis.rpush('foo', 'two'), 2)
+        self.assertEqual(self.redis.rpush('foo', 'three'), 3)
         self.assertEqual(self.redis.lpop('foo'), 'one')
         self.assertEqual(self.redis.lpop('foo'), 'two')
         self.assertEqual(self.redis.lpop('foo'), 'three')
@@ -174,7 +174,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.rpush('foo', 'two')
         self.redis.rpush('bar', 'one')
 
-        self.redis.rpoplpush('foo', 'bar')
+        self.assertEqual(self.redis.rpoplpush('foo', 'bar'), 'two')
         self.assertEqual(self.redis.lrange('foo', 0, -1), ['one'])
         self.assertEqual(self.redis.lrange('bar', 0, -1), ['two', 'one'])
 
@@ -215,7 +215,6 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.rpush('foo', 'two')
         self.assertEqual(self.redis.brpop('foo', timeout=1),
                          ('foo', 'two'))
-
 
     def test_brpoplpush_multi_keys(self):
         self.redis.rpush('foo', 'one')

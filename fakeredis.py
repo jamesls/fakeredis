@@ -13,9 +13,11 @@ class FakeRedis(object):
 
     def set(self, name, value):
         self._db[name] = value
+        return True
 
     def lpush(self, name, value):
         self._db.setdefault(name, []).insert(0, value)
+        return len(self._db[name])
 
     def lrange(self, name, start, end):
         if end == -1:
@@ -47,6 +49,7 @@ class FakeRedis(object):
 
     def rpush(self, name, value):
         self._db.setdefault(name, []).append(value)
+        return len(self._db[name])
 
     def lpop(self, name):
         try:
@@ -92,7 +95,12 @@ class FakeRedis(object):
         self._db.get(name, []).insert(index, value)
 
     def rpoplpush(self, src, dst):
-        self._db.get(dst, []).insert(0, self._db.get(src).pop())
+        el = self._db.get(src).pop()
+        try:
+            self._db[dst].insert(0, el)
+        except KeyError:
+            self._db[dst] = [el]
+        return el
 
     def blpop(self, keys, timeout=0):
         # This has to be a best effort approximation which follows
