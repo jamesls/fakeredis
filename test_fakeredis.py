@@ -178,6 +178,52 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrange('foo', 0, -1), ['one'])
         self.assertEqual(self.redis.lrange('bar', 0, -1), ['two', 'one'])
 
+    def test_blpop_single_list(self):
+        self.redis.rpush('foo', 'one')
+        self.redis.rpush('foo', 'two')
+        self.redis.rpush('foo', 'three')
+        self.assertEqual(self.redis.blpop(['foo'], timeout=1), ('foo', 'one'))
+
+    def test_blpop_test_multiple_lists(self):
+        self.redis.rpush('foo', 'one')
+        self.redis.rpush('foo', 'two')
+        # bar has nothing, so the returned value should come
+        # from foo.
+        self.assertEqual(self.redis.blpop(['bar', 'foo'], timeout=1),
+                         ('foo', 'one'))
+        self.redis.rpush('bar', 'three')
+        # bar now has something, so the returned value should come
+        # from bar.
+        self.assertEqual(self.redis.blpop(['bar', 'foo'], timeout=1),
+                         ('bar', 'three'))
+        self.assertEqual(self.redis.blpop(['bar', 'foo'], timeout=1),
+                         ('foo', 'two'))
+
+    def test_blpop_allow_single_key(self):
+        # blpop converts single key arguments to a one element list.
+        self.redis.rpush('foo', 'one')
+        self.assertEqual(self.redis.blpop('foo', timeout=1), ('foo', 'one'))
+
+    def test_brpop_test_multiple_lists(self):
+        self.redis.rpush('foo', 'one')
+        self.redis.rpush('foo', 'two')
+        self.assertEqual(self.redis.brpop(['bar', 'foo'], timeout=1),
+                         ('foo', 'two'))
+
+    def test_brpop_single_key(self):
+        self.redis.rpush('foo', 'one')
+        self.redis.rpush('foo', 'two')
+        self.assertEqual(self.redis.brpop('foo', timeout=1),
+                         ('foo', 'two'))
+
+
+    def test_brpoplpush_multi_keys(self):
+        self.redis.rpush('foo', 'one')
+        self.redis.rpush('foo', 'two')
+        self.assertEqual(self.redis.brpoplpush('foo', 'bar', timeout=1),
+                         'two')
+        self.assertEqual(self.redis.lrange('bar', 0, -1), ['two'])
+
 
 class TestRealRedis(TestFakeRedis):
     integration = True

@@ -95,10 +95,33 @@ class FakeRedis(object):
         self._db.get(dst, []).insert(0, self._db.get(src).pop())
 
     def blpop(self, keys, timeout=0):
-        raise NotImplementedError()
+        # This has to be a best effort approximation which follows
+        # these rules:
+        # 1) For each of those keys see if there's something we can
+        #    pop from.
+        # 2) If this is not the case then simulate a timeout.
+        # This means that there's not really any blocking behavior here.
+        if isinstance(keys, basestring):
+            keys = [keys]
+        else:
+            keys = list(keys)
+        for key in keys:
+            if self._db.get(key, []):
+                return (key, self._db[key].pop(0))
 
     def brpop(self, keys, timeout=0):
-        raise NotImplementedError()
+        if isinstance(keys, basestring):
+            keys = [keys]
+        else:
+            keys = list(keys)
+        for key in keys:
+            if self._db.get(key, []):
+                return (key, self._db[key].pop())
 
     def brpoplpush(self, src, dst, timeout=0):
-        raise NotImplementedError()
+        el = self._db.get(src).pop()
+        try:
+            self._db[dst].insert(0, el)
+        except KeyError:
+            self._db[dst] = [el]
+        return el
