@@ -223,6 +223,93 @@ class TestFakeRedis(unittest.TestCase):
                          'two')
         self.assertEqual(self.redis.lrange('bar', 0, -1), ['two'])
 
+    ## Tests for the hash type.
+
+    def test_hset_then_hget(self):
+        self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
+        self.assertEqual(self.redis.hget('foo', 'key'), 'value')
+
+    def test_hgetall(self):
+        self.assertEqual(self.redis.hset('foo', 'k1', 'v1'), 1)
+        self.assertEqual(self.redis.hset('foo', 'k2', 'v2'), 1)
+        self.assertEqual(self.redis.hset('foo', 'k3', 'v3'), 1)
+        self.assertEqual(self.redis.hgetall('foo'), {'k1': 'v1', 'k2': 'v2',
+                                                     'k3': 'v3'})
+
+    def test_hgetall_empty_key(self):
+        self.assertEqual(self.redis.hgetall('foo'), {})
+
+    def test_hexists(self):
+        self.redis.hset('foo', 'bar', 'v1')
+        self.assertEqual(self.redis.hexists('foo', 'bar'), 1)
+        self.assertEqual(self.redis.hexists('foo', 'baz'), 0)
+        self.assertEqual(self.redis.hexists('bar', 'bar'), 0)
+
+    def test_hkeys(self):
+        self.redis.hset('foo', 'k1', 'v1')
+        self.redis.hset('foo', 'k2', 'v2')
+        self.assertEqual(set(self.redis.hkeys('foo')), set(['k1', 'k2']))
+        self.assertEqual(set(self.redis.hkeys('bar')), set([]))
+
+    def test_hlen(self):
+        self.redis.hset('foo', 'k1', 'v1')
+        self.redis.hset('foo', 'k2', 'v2')
+        self.assertEqual(self.redis.hlen('foo'), 2)
+
+    def test_hvals(self):
+        self.redis.hset('foo', 'k1', 'v1')
+        self.redis.hset('foo', 'k2', 'v2')
+        self.assertEqual(set(self.redis.hvals('foo')), set(['v1', 'v2']))
+        self.assertEqual(set(self.redis.hvals('bar')), set([]))
+
+    def test_hmget(self):
+        self.redis.hset('foo', 'k1', 'v1')
+        self.redis.hset('foo', 'k2', 'v2')
+        self.redis.hset('foo', 'k3', 'v3')
+        # Normal case.
+        self.assertEqual(self.redis.hmget('foo', ['k1', 'k3']), ['v1', 'v3'])
+        # Key does not exist.
+        self.assertEqual(self.redis.hmget('bar', ['k1', 'k3']), [None, None])
+        # Some keys in the hash do not exist.
+        self.assertEqual(self.redis.hmget('foo', ['k1', 'k500']), ['v1', None])
+
+    def test_hdel(self):
+        self.redis.hset('foo', 'k1', 'v1')
+        self.assertEqual(self.redis.hget('foo', 'k1'), 'v1')
+        self.assertEqual(self.redis.hdel('foo', 'k1'), True)
+        self.assertEqual(self.redis.hget('foo', 'k1'), None)
+        self.assertEqual(self.redis.hdel('foo', 'k1'), False)
+
+    def test_hincrby(self):
+        self.redis.hset('foo', 'counter', 0)
+        self.assertEqual(self.redis.hincrby('foo', 'counter'), 1)
+        self.assertEqual(self.redis.hincrby('foo', 'counter'), 2)
+        self.assertEqual(self.redis.hincrby('foo', 'counter'), 3)
+
+    def test_hincrby_with_no_starting_value(self):
+        self.assertEqual(self.redis.hincrby('foo', 'counter'), 1)
+        self.assertEqual(self.redis.hincrby('foo', 'counter'), 2)
+        self.assertEqual(self.redis.hincrby('foo', 'counter'), 3)
+
+    def test_hincrby_with_range_param(self):
+        self.assertEqual(self.redis.hincrby('foo', 'counter', 2), 2)
+        self.assertEqual(self.redis.hincrby('foo', 'counter', 2), 4)
+        self.assertEqual(self.redis.hincrby('foo', 'counter', 2), 6)
+
+    def test_hsetnx(self):
+        self.assertEqual(self.redis.hsetnx('foo', 'newkey', 'v1'), True)
+        self.assertEqual(self.redis.hsetnx('foo', 'newkey', 'v1'), False)
+        self.assertEqual(self.redis.hget('foo', 'newkey'), 'v1')
+
+    def test_hmsetset_empty_raises_error(self):
+        with self.assertRaises(redis.DataError):
+            self.redis.hmset('foo', {})
+
+    def test_hmsetset(self):
+        self.redis.hset('foo', 'k1', 'v1')
+        self.assertEqual(self.redis.hmset('foo', {'k2': 'v2', 'k3': 'v3'}),
+                         True)
+
 
 class TestRealRedis(TestFakeRedis):
     integration = True

@@ -133,3 +133,76 @@ class FakeRedis(object):
         except KeyError:
             self._db[dst] = [el]
         return el
+
+    def hdel(self, name, key):
+        try:
+            del self._db.get(name, {})[key]
+            return True
+        except KeyError:
+            return False
+
+    def hexists(self, name, key):
+        "Returns a boolean indicating if ``key`` exists within hash ``name``"
+        if self._db.get(name, {}).get(key) is None:
+            return 0
+        else:
+            return 1
+
+    def hget(self, name, key):
+        "Return the value of ``key`` within the hash ``name``"
+        return self._db.get(name, {}).get(key)
+
+    def hgetall(self, name):
+        "Return a Python dict of the hash's name/value pairs"
+        return self._db.get(name, {})
+
+    def hincrby(self, name, key, amount=1):
+        "Increment the value of ``key`` in hash ``name`` by ``amount``"
+        new = self._db.setdefault(name, {}).get(key, 0) + amount
+        self._db[name][key] = new
+        return new
+
+    def hkeys(self, name):
+        "Return the list of keys within hash ``name``"
+        return self._db.get(name, {}).keys()
+
+    def hlen(self, name):
+        "Return the number of elements in hash ``name``"
+        return len(self._db.get(name, {}))
+
+    def hset(self, name, key, value):
+        """
+        Set ``key`` to ``value`` within hash ``name``
+        Returns 1 if HSET created a new field, otherwise 0
+        """
+        self._db.setdefault(name, {})[key] = value
+        return 1
+
+    def hsetnx(self, name, key, value):
+        """
+        Set ``key`` to ``value`` within hash ``name`` if ``key`` does not
+        exist.  Returns 1 if HSETNX created a field, otherwise 0.
+        """
+        if key in self._db.get(name, {}):
+            return False
+        self._db.setdefault(name, {})[key] = value
+        return True
+
+    def hmset(self, name, mapping):
+        """
+        Sets each key in the ``mapping`` dict to its corresponding value
+        in the hash ``name``
+        """
+        if not mapping:
+            raise redis.DataError("'hmset' with 'mapping' of length 0")
+        self._db.setdefault(name, {}).update(mapping)
+        return True
+
+    def hmget(self, name, keys):
+        "Returns a list of values ordered identically to ``keys``"
+        h = self._db.get(name, {})
+        return [h.get(k) for k in keys]
+
+    def hvals(self, name):
+        "Return the list of values within hash ``name``"
+        return self._db.get(name, {}).values()
