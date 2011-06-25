@@ -310,6 +310,104 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.hmset('foo', {'k2': 'v2', 'k3': 'v3'}),
                          True)
 
+    def test_sadd(self):
+        self.assertEqual(self.redis.sadd('foo', 'member1'), True)
+        self.assertEqual(self.redis.sadd('foo', 'member1'), False)
+        self.assertEqual(self.redis.smembers('foo'), set(['member1']))
+
+    def test_scard(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.redis.sadd('foo', 'member2')
+        self.assertEqual(self.redis.scard('foo'), 2)
+
+    def test_sdiff(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.redis.sadd('bar', 'member2')
+        self.redis.sadd('bar', 'member3')
+        self.assertEqual(self.redis.sdiff('foo', 'bar'), set(['member1']))
+
+    def test_sdiff_one_key(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.assertEqual(self.redis.sdiff('foo'), set(['member1', 'member2']))
+
+    def test_sdiff_empty(self):
+        self.assertEqual(self.redis.sdiff('foo'), set())
+
+    def test_sdiffstore(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.redis.sadd('bar', 'member2')
+        self.redis.sadd('bar', 'member3')
+        self.assertEqual(self.redis.sdiffstore('baz', 'foo', 'bar'), 1)
+
+    def test_sinter(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.redis.sadd('bar', 'member2')
+        self.redis.sadd('bar', 'member3')
+        self.assertEqual(self.redis.sinter('foo', 'bar'), set(['member2']))
+        self.assertEqual(self.redis.sinter('foo'), set(['member1', 'member2']))
+
+    def test_sinterstore(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.redis.sadd('bar', 'member2')
+        self.redis.sadd('bar', 'member3')
+        self.assertEqual(self.redis.sinterstore('baz', 'foo', 'bar'), 1)
+
+    def test_sismember(self):
+        self.assertEqual(self.redis.sismember('foo', 'member1'), False)
+        self.redis.sadd('foo', 'member1')
+        self.assertEqual(self.redis.sismember('foo', 'member1'), True)
+
+    def test_smove(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.assertEqual(self.redis.smove('foo', 'bar', 'member1'), True)
+        self.assertEqual(self.redis.smembers('bar'), set(['member1']))
+
+    def test_smove_non_existent_key(self):
+        self.assertEqual(self.redis.smove('foo', 'bar', 'member1'), False)
+
+    def test_spop(self):
+        # This is tricky because it pops a random element.
+        self.redis.sadd('foo', 'member1')
+        self.assertEqual(self.redis.spop('foo'), 'member1')
+        self.assertEqual(self.redis.spop('foo'), None)
+
+    def test_srandmember(self):
+        self.redis.sadd('foo', 'member1')
+        self.assertEqual(self.redis.srandmember('foo'), 'member1')
+        # Shouldn't be removed from the set.
+        self.assertEqual(self.redis.srandmember('foo'), 'member1')
+
+    def test_srem(self):
+        self.redis.sadd('foo', 'member1')
+        self.assertEqual(self.redis.smembers('foo'), set(['member1']))
+        self.assertEqual(self.redis.srem('foo', 'member1'), True)
+        self.assertEqual(self.redis.smembers('foo'), set([]))
+        self.assertEqual(self.redis.srem('foo', 'member1'), False)
+
+    def test_sunion(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.redis.sadd('bar', 'member2')
+        self.redis.sadd('bar', 'member3')
+        self.assertEqual(self.redis.sunion('foo', 'bar'),
+                         set(['member1', 'member2', 'member3']))
+
+    def test_sunionstore(self):
+        self.redis.sadd('foo', 'member1')
+        self.redis.sadd('foo', 'member2')
+        self.redis.sadd('bar', 'member2')
+        self.redis.sadd('bar', 'member3')
+        self.assertEqual(self.redis.sunionstore('baz', 'foo', 'bar'), 3)
+        self.assertEqual(self.redis.smembers('baz'),
+                         set(['member1', 'member2', 'member3']))
+
 
 class TestRealRedis(TestFakeRedis):
     integration = True

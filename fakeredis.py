@@ -1,4 +1,7 @@
+import random
+
 import redis
+import redis.client
 
 
 class FakeRedis(object):
@@ -206,3 +209,105 @@ class FakeRedis(object):
     def hvals(self, name):
         "Return the list of values within hash ``name``"
         return self._db.get(name, {}).values()
+
+    def sadd(self, name, value):
+        "Add ``value`` to set ``name``"
+        a_set = self._db.setdefault(name, set())
+        if value in a_set:
+            return False
+        else:
+            a_set.add(value)
+            return True
+
+    def scard(self, name):
+        "Return the number of elements in set ``name``"
+        return len(self._db.get(name, set()))
+
+    def sdiff(self, keys, *args):
+        "Return the difference of sets specified by ``keys``"
+        all_keys = redis.client.list_or_args(keys, args)
+        diff = self._db.get(all_keys[0], set())
+        for key in all_keys[1:]:
+            diff -= self._db.get(key, set())
+        return diff
+
+    def sdiffstore(self, dest, keys, *args):
+        """
+        Store the difference of sets specified by ``keys`` into a new
+        set named ``dest``.  Returns the number of keys in the new set.
+        """
+        diff = self.sdiff(keys, *args)
+        self._db[dest] = diff
+        return len(diff)
+
+    def sinter(self, keys, *args):
+        "Return the intersection of sets specified by ``keys``"
+        all_keys = redis.client.list_or_args(keys, args)
+        intersect = self._db.get(all_keys[0], set()).copy()
+        for key in all_keys[1:]:
+            intersect.intersection_update(self._db.get(key, set()))
+        return intersect
+
+    def sinterstore(self, dest, keys, *args):
+        """
+        Store the intersection of sets specified by ``keys`` into a new
+        set named ``dest``.  Returns the number of keys in the new set.
+        """
+        intersect = self.sinter(keys, *args)
+        self._db[dest] = intersect
+        return len(intersect)
+
+    def sismember(self, name, value):
+        "Return a boolean indicating if ``value`` is a member of set ``name``"
+        return value in self._db.get(name, set())
+
+    def smembers(self, name):
+        "Return all members of the set ``name``"
+        return self._db.get(name)
+
+    def smove(self, src, dst, value):
+        try:
+            self._db.get(src, set()).remove(value)
+            self._db.setdefault(dst, set()).add(value)
+            return True
+        except KeyError:
+            return False
+
+    def spop(self, name):
+        "Remove and return a random member of set ``name``"
+        try:
+            return self._db.get(name, set()).pop()
+        except KeyError:
+            return None
+
+    def srandmember(self, name):
+        "Return a random member of set ``name``"
+        members = self._db.get(name, set())
+        if members:
+            index = random.randint(0, len(members) - 1)
+            return list(members)[index]
+
+    def srem(self, name, value):
+        "Remove ``value`` from set ``name``"
+        try:
+            self._db.get(name, set()).remove(value)
+            return True
+        except KeyError:
+            return False
+
+    def sunion(self, keys, *args):
+        "Return the union of sets specifiued by ``keys``"
+        all_keys = redis.client.list_or_args(keys, args)
+        union = self._db.get(all_keys[0], set()).copy()
+        for key in all_keys[1:]:
+            union.update(self._db.get(key, set()))
+        return union
+
+    def sunionstore(self, dest, keys, *args):
+        """
+        Store the union of sets specified by ``keys`` into a new
+        set named ``dest``.  Returns the number of keys in the new set.
+        """
+        union = self.sunion(keys, *args)
+        self._db[dest] = union
+        return len(union)
