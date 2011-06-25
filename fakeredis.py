@@ -9,7 +9,11 @@ class FakeRedis(object):
         self._db = {}
 
     def flushdb(self):
-        pass
+        self._db = {}
+        return True
+
+    def keys(self):
+        return self._db.keys()
 
     def get(self, name):
         return self._db.get(name)

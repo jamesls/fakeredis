@@ -15,6 +15,12 @@ class TestFakeRedis(unittest.TestCase):
     def create_redis(self):
         return fakeredis.FakeRedis()
 
+    def test_flushdb(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.keys(), ['foo'])
+        self.assertEqual(self.redis.flushdb(), True)
+        self.assertEqual(self.redis.keys(), [])
+
     def test_set_then_get(self):
         self.assertEqual(self.redis.set('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'), 'bar')
