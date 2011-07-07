@@ -8,9 +8,6 @@ setup(
     author='James Saryerwinnie',
     author_email='jlsnpi@gmail.com',
     modules=['fakeredis'],
-    entry_points={
-        'console_scripts': ['lmsh = labmanager.shell:main'],
-    },
     classifiers=[
         'Development Status :: 3 - Alpha'
         'License :: OSI Approved :: BSD License',
