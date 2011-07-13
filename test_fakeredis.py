@@ -414,6 +414,78 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.smembers('baz'),
                          set(['member1', 'member2', 'member3']))
 
+    def test_zadd(self):
+        self.redis.zadd('foo', three=3)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', one=1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+                         ['one', 'two', 'three'])
+
+    def test_zadd_deprecated(self):
+        self.redis.zadd('foo', 'one', 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+                         ['one'])
+
+    def test_zcard(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.assertEqual(self.redis.zcard('foo'), 2)
+
+    def test_zcard_non_existent_key(self):
+        self.assertEqual(self.redis.zcard('foo'), 0)
+
+    def test_zcount(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', three=2)
+        self.redis.zadd('foo', five=5)
+        self.assertEqual(self.redis.zcount('foo', 2, 4), 1)
+        self.assertEqual(self.redis.zcount('foo', 1, 4), 2)
+        self.assertEqual(self.redis.zcount('foo', 0, 5), 3)
+
+    def test_zincrby(self):
+        self.redis.zadd('foo', one=1)
+        self.assertEqual(self.redis.zincrby('foo', 'one', 10), 11)
+        self.assertEqual(self.redis.zrange('foo', 0, -1, withscores=True),
+                         [('one', 11)])
+
+    def test_zrange_descending(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrange('foo', 0, -1, desc=True),
+                         ['three', 'two', 'one'])
+
+    def test_zrange_descending_with_scores(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrange('foo', 0, -1, desc=True,
+                                           withscores=True),
+                         [('three', 3), ('two', 2), ('one', 1)])
+
+    def test_zrange_with_positive_indices(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrange('foo', 0, 1), ['one', 'two'])
+
+    def test_zrange(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrank('foo', 'one'), 0)
+        self.assertEqual(self.redis.zrank('foo', 'two'), 1)
+        self.assertEqual(self.redis.zrank('foo', 'three'), 2)
+
+    def test_zrank_non_existent_member(self):
+        self.assertEqual(self.redis.zrank('foo', 'one'), None)
+
+#    def test_zrem(self):
+#        self.redis.zadd('foo', one=1)
+#        self.redis.zrem('foo', 'one')
+#        # TODO: You are here.
+#        self.assertEqual(self.redis.zrange('foo', 0, -1), [])
+
 
 class TestRealRedis(TestFakeRedis):
     integration = True

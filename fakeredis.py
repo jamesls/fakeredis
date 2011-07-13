@@ -1,4 +1,6 @@
 import random
+import warnings
+import operator
 
 import redis
 import redis.client
@@ -315,3 +317,179 @@ class FakeRedis(object):
         union = self.sunion(keys, *args)
         self._db[dest] = union
         return len(union)
+
+    def zadd(self, name, value=None, score=None, **pairs):
+        """
+        For each kwarg in ``pairs``, add that item and it's score to the
+        sorted set ``name``.
+
+        The ``value`` and ``score`` arguments are deprecated.
+        """
+        if value is not None or score is not None:
+            if value is None or score is None:
+                raise RedisError("Both 'value' and 'score' must be specified " \
+                                 "to ZADD")
+            warnings.warn(DeprecationWarning(
+                "Passing 'value' and 'score' has been deprecated. " \
+                "Please pass via kwargs instead."))
+        else:
+            value = pairs.keys()[0]
+            score = pairs.values()[0]
+        self._db.setdefault(name, {})[value] = score
+
+    def zcard(self, name):
+        "Return the number of elements in the sorted set ``name``"
+        return len(self._db.get(name, {}))
+
+    def zcount(self, name, min, max):
+        found = 0
+        for score in self._db.get(name, {}).values():
+            if min <= score <= max:
+                found += 1
+        return found
+
+    def zincrby(self, name, value, amount=1):
+        "Increment the score of ``value`` in sorted set ``name`` by ``amount``"
+        d = self._db.setdefault(name, {})
+        score = d.get(value, 0) + amount
+        d[value] = score
+        return score
+
+    def zinterstore(self, dest, keys, aggregate=None):
+        """
+        Intersect multiple sorted sets specified by ``keys`` into
+        a new sorted set, ``dest``. Scores in the destination will be
+        aggregated based on the ``aggregate``, or SUM if none is provided.
+        """
+        pass
+
+    def zrange(self, name, start, end, desc=False, withscores=False):
+        """
+        Return a range of values from sorted set ``name`` between
+        ``start`` and ``end`` sorted in ascending order.
+
+        ``start`` and ``end`` can be negative, indicating the end of the range.
+
+        ``desc`` indicates to sort in descending order.
+
+        ``withscores`` indicates to return the scores along with the values.
+        The return type is a list of (value, score) pairs
+        """
+        if end == -1:
+            end = None
+        else:
+            end += 1
+        all_items = self._db.get(name, {})
+        if desc:
+            reverse = True
+        else:
+            reverse = False
+        in_order = sorted(all_items, key=lambda x: all_items[x],
+                          reverse=reverse)
+        items = in_order[start:end]
+        if not withscores:
+            return items
+        else:
+            return [(k, all_items[k]) for k in items]
+
+    def zrangebyscore(self, name, min, max,
+            start=None, num=None, withscores=False):
+        """
+        Return a range of values from the sorted set ``name`` with scores
+        between ``min`` and ``max``.
+
+        If ``start`` and ``num`` are specified, then return a slice
+        of the range.
+
+        ``withscores`` indicates to return the scores along with the values.
+        The return type is a list of (value, score) pairs
+        """
+        if (start is not None and num is None) or \
+                (num is not None and start is None):
+            raise RedisError("``start`` and ``num`` must both be specified")
+        pieces = ['ZRANGEBYSCORE', name, min, max]
+        if start is not None and num is not None:
+            pieces.extend(['LIMIT', start, num])
+        if withscores:
+            pieces.append('withscores')
+        return None
+
+    def zrank(self, name, value):
+        """
+        Returns a 0-based value indicating the rank of ``value`` in sorted set
+        ``name``
+        """
+        all_items = self._db.get(name, {})
+        in_order = sorted(all_items, key=lambda x: all_items[x])
+        try:
+            return in_order.index(value)
+        except ValueError:
+            return None
+
+    def zrem(self, name, value):
+        "Remove member ``value`` from sorted set ``name``"
+        return None
+
+    def zremrangebyrank(self, name, min, max):
+        """
+        Remove all elements in the sorted set ``name`` with ranks between
+        ``min`` and ``max``. Values are 0-based, ordered from smallest score
+        to largest. Values can be negative indicating the highest scores.
+        Returns the number of elements removed
+        """
+        return None
+
+    def zremrangebyscore(self, name, min, max):
+        """
+        Remove all elements in the sorted set ``name`` with scores
+        between ``min`` and ``max``. Returns the number of elements removed.
+        """
+        return None
+
+    def zrevrange(self, name, start, num, withscores=False):
+        """
+        Return a range of values from sorted set ``name`` between
+        ``start`` and ``num`` sorted in descending order.
+
+        ``start`` and ``num`` can be negative, indicating the end of the range.
+
+        ``withscores`` indicates to return the scores along with the values
+        The return type is a list of (value, score) pairs
+        """
+        return None
+
+    def zrevrangebyscore(self, name, max, min,
+            start=None, num=None, withscores=False):
+        """
+        Return a range of values from the sorted set ``name`` with scores
+        between ``min`` and ``max`` in descending order.
+
+        If ``start`` and ``num`` are specified, then return a slice
+        of the range.
+
+        ``withscores`` indicates to return the scores along with the values.
+        The return type is a list of (value, score) pairs
+        """
+        if (start is not None and num is None) or \
+                (num is not None and start is None):
+            raise RedisError("``start`` and ``num`` must both be specified")
+        return None
+
+    def zrevrank(self, name, value):
+        """
+        Returns a 0-based value indicating the descending rank of
+        ``value`` in sorted set ``name``
+        """
+        return None
+
+    def zscore(self, name, value):
+        "Return the score of element ``value`` in sorted set ``name``"
+        return None
+
+    def zunionstore(self, dest, keys, aggregate=None):
+        """
+        Union multiple sorted sets specified by ``keys`` into
+        a new sorted set, ``dest``. Scores in the destination will be
+        aggregated based on the ``aggregate``, or SUM if none is provided.
+        """
+        return None
