@@ -384,13 +384,17 @@ class FakeRedis(object):
             reverse = True
         else:
             reverse = False
-        in_order = sorted(all_items, key=lambda x: all_items[x],
-                          reverse=reverse)
+        in_order = self._get_zelements_in_order(all_items, reverse)
         items = in_order[start:end]
         if not withscores:
             return items
         else:
             return [(k, all_items[k]) for k in items]
+
+    def _get_zelements_in_order(self, all_items, reverse=False):
+        by_keyname = sorted(all_items.items(), key=lambda x: x[0])
+        in_order = sorted(by_keyname, key=lambda x: x[1], reverse=reverse)
+        return [el[0] for el in in_order]
 
     def zrangebyscore(self, name, min, max,
             start=None, num=None, withscores=False):
@@ -407,12 +411,17 @@ class FakeRedis(object):
         if (start is not None and num is None) or \
                 (num is not None and start is None):
             raise RedisError("``start`` and ``num`` must both be specified")
-        pieces = ['ZRANGEBYSCORE', name, min, max]
-        if start is not None and num is not None:
-            pieces.extend(['LIMIT', start, num])
+        all_items = self._db.get(name, {})
+        in_order = self._get_zelements_in_order(all_items)
+        matches = []
+        for item in in_order:
+            if min <= all_items[item] <= max:
+                matches.append(item)
+        if start is not None:
+            matches = matches[start:start+num]
         if withscores:
-            pieces.append('withscores')
-        return None
+            return [(k, all_items[k]) for k in matches]
+        return matches
 
     def zrank(self, name, value):
         """
@@ -428,7 +437,11 @@ class FakeRedis(object):
 
     def zrem(self, name, value):
         "Remove member ``value`` from sorted set ``name``"
-        return None
+        try:
+            del self._db[name][value]
+            return True
+        except KeyError:
+            return False
 
     def zremrangebyrank(self, name, min, max):
         """
@@ -456,7 +469,7 @@ class FakeRedis(object):
         ``withscores`` indicates to return the scores along with the values
         The return type is a list of (value, score) pairs
         """
-        return None
+        return self.zrange(name, start, num, True, withscores)
 
     def zrevrangebyscore(self, name, max, min,
             start=None, num=None, withscores=False):
@@ -480,11 +493,17 @@ class FakeRedis(object):
         Returns a 0-based value indicating the descending rank of
         ``value`` in sorted set ``name``
         """
-        return None
+        num_items = len(self._db.get(name, {}))
+        zrank = self.zrank(name, value)
+        if zrank is not None:
+            return num_items - self.zrank(name, value) - 1
 
     def zscore(self, name, value):
         "Return the score of element ``value`` in sorted set ``name``"
-        return None
+        try:
+            return self._db[name][value]
+        except KeyError:
+            return None
 
     def zunionstore(self, dest, keys, aggregate=None):
         """

@@ -426,6 +426,15 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrange('foo', 0, -1),
                          ['one'])
 
+    def test_zrange_same_score(self):
+        self.redis.zadd('foo', two_a=2)
+        self.redis.zadd('foo', two_b=2)
+        self.redis.zadd('foo', two_c=2)
+        self.redis.zadd('foo', two_d=2)
+        self.redis.zadd('foo', two_e=2)
+        self.assertEqual(self.redis.zrange('foo', 2, 3),
+                         ['two_c', 'two_d'])
+
     def test_zcard(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -469,7 +478,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.zadd('foo', three=3)
         self.assertEqual(self.redis.zrange('foo', 0, 1), ['one', 'two'])
 
-    def test_zrange(self):
+    def test_zrank(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
         self.redis.zadd('foo', three=3)
@@ -480,11 +489,69 @@ class TestFakeRedis(unittest.TestCase):
     def test_zrank_non_existent_member(self):
         self.assertEqual(self.redis.zrank('foo', 'one'), None)
 
-#    def test_zrem(self):
-#        self.redis.zadd('foo', one=1)
-#        self.redis.zrem('foo', 'one')
-#        # TODO: You are here.
-#        self.assertEqual(self.redis.zrange('foo', 0, -1), [])
+    def test_zrem(self):
+        self.redis.zadd('foo', one=1)
+        self.assertTrue(self.redis.zrem('foo', 'one'))
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [])
+
+    def test_zrem_non_existent_member(self):
+        self.assertFalse(self.redis.zrem('foo', 'one'))
+
+    def test_zscore(self):
+        self.redis.zadd('foo', one=54)
+        self.assertEqual(self.redis.zscore('foo', 'one'), 54)
+
+    def test_zscore_non_existent_member(self):
+        self.assertIsNone(self.redis.zscore('foo', 'one'))
+
+    def test_zrevrank(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrevrank('foo', 'one'), 2)
+        self.assertEqual(self.redis.zrevrank('foo', 'two'), 1)
+        self.assertEqual(self.redis.zrevrank('foo', 'three'), 0)
+
+    def test_zrevrank_non_existent_member(self):
+        self.assertEqual(self.redis.zrevrank('foo', 'one'), None)
+
+    def test_zrevrange(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrevrange('foo', 0, 1), ['three', 'two'])
+        self.assertEqual(self.redis.zrevrange('foo', 0, -1),
+                         ['three', 'two', 'one'])
+
+    def test_zrangebyscore(self):
+        self.redis.zadd('foo', zero=0)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', two_a_also=2)
+        self.redis.zadd('foo', two_b_also=2)
+        self.redis.zadd('foo', four=4)
+        self.assertEqual(self.redis.zrangebyscore('foo', 1, 3),
+                         ['two', 'two_a_also', 'two_b_also'])
+        self.assertEqual(self.redis.zrangebyscore('foo', 2, 3),
+                         ['two', 'two_a_also', 'two_b_also'])
+        self.assertEqual(self.redis.zrangebyscore('foo', 0, 4),
+                         ['zero', 'two', 'two_a_also', 'two_b_also', 'four'])
+
+    def test_zrangebyscore_slice(self):
+        self.redis.zadd('foo', two_a=2)
+        self.redis.zadd('foo', two_b=2)
+        self.redis.zadd('foo', two_c=2)
+        self.redis.zadd('foo', two_d=2)
+        self.assertEqual(self.redis.zrangebyscore('foo', 0, 4, 0, 2),
+                         ['two_a', 'two_b'])
+        self.assertEqual(self.redis.zrangebyscore('foo', 0, 4, 1, 3),
+                         ['two_b', 'two_c', 'two_d'])
+
+    def test_zrangebyscore_withscores(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrangebyscore('foo', 1, 3, 0, 2, True),
+                         [('one', 1), ('two', 2)])
 
 
 class TestRealRedis(TestFakeRedis):
