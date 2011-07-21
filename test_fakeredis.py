@@ -553,6 +553,19 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrangebyscore('foo', 1, 3, 0, 2, True),
                          [('one', 1), ('two', 2)])
 
+    def test_zrevrangebyscore(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrevrangebyscore('foo', 3, 1),
+                         ['three', 'two', 'one'])
+        self.assertEqual(self.redis.zrevrangebyscore('foo', 3, 2),
+                         ['three', 'two'])
+        self.assertEqual(self.redis.zrevrangebyscore('foo', 3, 1, 0, 1),
+                         ['three'])
+        self.assertEqual(self.redis.zrevrangebyscore('foo', 3, 1, 1, 2),
+                         ['two', 'one'])
+
 
 class TestRealRedis(TestFakeRedis):
     integration = True

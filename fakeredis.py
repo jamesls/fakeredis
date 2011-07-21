@@ -408,11 +408,15 @@ class FakeRedis(object):
         ``withscores`` indicates to return the scores along with the values.
         The return type is a list of (value, score) pairs
         """
+        return self._zrangebyscore(name, min, max, start, num, withscores,
+                                   reverse=False)
+
+    def _zrangebyscore(self, name, min, max, start, num, withscores, reverse):
         if (start is not None and num is None) or \
                 (num is not None and start is None):
             raise RedisError("``start`` and ``num`` must both be specified")
         all_items = self._db.get(name, {})
-        in_order = self._get_zelements_in_order(all_items)
+        in_order = self._get_zelements_in_order(all_items, reverse=reverse)
         matches = []
         for item in in_order:
             if min <= all_items[item] <= max:
@@ -483,10 +487,8 @@ class FakeRedis(object):
         ``withscores`` indicates to return the scores along with the values.
         The return type is a list of (value, score) pairs
         """
-        if (start is not None and num is None) or \
-                (num is not None and start is None):
-            raise RedisError("``start`` and ``num`` must both be specified")
-        return None
+        return self._zrangebyscore(name, min, max, start, num, withscores,
+                                   reverse=True)
 
     def zrevrank(self, name, value):
         """
