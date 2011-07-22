@@ -361,6 +361,9 @@ class FakeRedis(object):
         a new sorted set, ``dest``. Scores in the destination will be
         aggregated based on the ``aggregate``, or SUM if none is provided.
         """
+        if not keys:
+            raise redis.ResponseError("At least one key must be specified "
+                                      "for ZINTERSTORE/ZUNIONSTORE")
         # keys can be a list or a dict so it needs to be converted to
         # a list first.
         list_keys = list(keys)
@@ -537,6 +540,9 @@ class FakeRedis(object):
         a new sorted set, ``dest``. Scores in the destination will be
         aggregated based on the ``aggregate``, or SUM if none is provided.
         """
+        if not keys:
+            raise redis.ResponseError("At least one key must be specified "
+                                      "for ZINTERSTORE/ZUNIONSTORE")
         self._zaggregate(dest, keys, aggregate, lambda x: True)
 
     def _zaggregate(self, dest, keys, aggregate, should_include):

@@ -672,6 +672,20 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
                          [('one', 1), ('two', 2)])
 
+    def test_zinterstore_onekey(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zinterstore('baz', ['foo'], aggregate='MAX')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 1)])
+
+    def test_zinterstore_nokey(self):
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zinterstore('baz', [], aggregate='MAX')
+
+    def test_zunionstore_nokey(self):
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zunionstore('baz', [], aggregate='MAX')
+
 
 class TestRealRedis(TestFakeRedis):
     integration = True
