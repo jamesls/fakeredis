@@ -361,7 +361,15 @@ class FakeRedis(object):
         a new sorted set, ``dest``. Scores in the destination will be
         aggregated based on the ``aggregate``, or SUM if none is provided.
         """
-        pass
+        # keys can be a list or a dict so it needs to be converted to
+        # a list first.
+        list_keys = list(keys)
+        valid_keys = set(self._db.get(list_keys[0], {}))
+        for key in list_keys[1:]:
+            valid_keys.intersection_update(self._db.get(key, {}))
+        return self._zaggregate(dest, keys, aggregate,
+                                lambda x: x in
+                                valid_keys)
 
     def zrange(self, name, start, end, desc=False, withscores=False):
         """
@@ -529,4 +537,29 @@ class FakeRedis(object):
         a new sorted set, ``dest``. Scores in the destination will be
         aggregated based on the ``aggregate``, or SUM if none is provided.
         """
-        return None
+        self._zaggregate(dest, keys, aggregate, lambda x: True)
+
+    def _zaggregate(self, dest, keys, aggregate, should_include):
+        new_zset = {}
+        # This is what the actual redis client uses, so we'll use
+        # the same type check.
+        if isinstance(keys, dict):
+            keys_weights = [(k, keys[k]) for k in keys]
+        else:
+            keys_weights = [(k, 1) for k in keys]
+        for key, weight in keys_weights:
+            current_zset = self._db.get(key, {})
+            for el in current_zset:
+                if not should_include(el):
+                    continue
+                if el not in new_zset:
+                    new_zset[el] = current_zset[el] * weight
+                elif aggregate == 'SUM':
+                    new_zset[el] += current_zset[el] * weight
+                elif aggregate == 'MAX':
+                    new_zset[el] = max([new_zset[el],
+                                        current_zset[el] * weight])
+                elif aggregate == 'MIN':
+                    new_zset[el] = min([new_zset[el],
+                                        current_zset[el] * weight])
+        self._db[dest] = new_zset

@@ -602,6 +602,76 @@ class TestFakeRedis(unittest.TestCase):
     def test_zremrangebyscore_badkey(self):
         self.assertEqual(self.redis.zremrangebyscore('foo', 0, 2), 0)
 
+    def test_zunionstore_sum(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('bar', one=1)
+        self.redis.zadd('bar', two=2)
+        self.redis.zadd('bar', three=3)
+        self.redis.zunionstore('baz', ['foo', 'bar'], aggregate='SUM')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 2), ('three', 3), ('two', 4)])
+
+    def test_zunionstore_max(self):
+        self.redis.zadd('foo', one=0)
+        self.redis.zadd('foo', two=0)
+        self.redis.zadd('bar', one=1)
+        self.redis.zadd('bar', two=2)
+        self.redis.zadd('bar', three=3)
+        self.redis.zunionstore('baz', ['foo', 'bar'], aggregate='MAX')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 1), ('two', 2), ('three', 3)])
+
+    def test_zunionstore_min(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('bar', one=0)
+        self.redis.zadd('bar', two=0)
+        self.redis.zadd('bar', three=3)
+        self.redis.zunionstore('baz', ['foo', 'bar'], aggregate='MIN')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 0), ('two', 0), ('three', 3)])
+
+    def test_zunionstore_weights(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('bar', one=1)
+        self.redis.zadd('bar', two=2)
+        self.redis.zadd('bar', four=4)
+        self.redis.zunionstore('baz', {'foo': 1, 'bar': 2}, aggregate='SUM')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 3), ('two', 6), ('four', 8)])
+
+    def test_zunionstore_badkey(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zunionstore('baz', ['foo', 'bar'], aggregate='SUM')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 1), ('two', 2)])
+        self.redis.zunionstore('baz', {'foo': 1, 'bar': 2}, aggregate='SUM')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 1), ('two', 2)])
+
+    def test_zinterstore(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('bar', one=1)
+        self.redis.zadd('bar', two=2)
+        self.redis.zadd('bar', three=3)
+        self.redis.zinterstore('baz', ['foo', 'bar'], aggregate='SUM')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 2), ('two', 4)])
+
+    def test_zinterstore_max(self):
+        self.redis.zadd('foo', one=0)
+        self.redis.zadd('foo', two=0)
+        self.redis.zadd('bar', one=1)
+        self.redis.zadd('bar', two=2)
+        self.redis.zadd('bar', three=3)
+        self.redis.zinterstore('baz', ['foo', 'bar'], aggregate='MAX')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 1), ('two', 2)])
+
 
 class TestRealRedis(TestFakeRedis):
     integration = True
