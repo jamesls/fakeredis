@@ -566,6 +566,42 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrevrangebyscore('foo', 3, 1, 1, 2),
                          ['two', 'one'])
 
+    def test_zremrangebyrank(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zremrangebyrank('foo', 0, 1), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['three'])
+
+    def test_zremrangebyrank_negative_indices(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zremrangebyrank('foo', -2, -1), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['one'])
+
+    def test_zremrangebyrank_out_of_bounds(self):
+        self.redis.zadd('foo', one=1)
+        self.assertEqual(self.redis.zremrangebyrank('foo', 1, 3), 0)
+
+    def test_zremrangebyscore(self):
+        self.redis.zadd('foo', zero=0)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', four=4)
+        # Outside of range.
+        self.assertEqual(self.redis.zremrangebyscore('foo', 5, 10), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['zero', 'two', 'four'])
+        # Middle of range.
+        self.assertEqual(self.redis.zremrangebyscore('foo', 1, 3), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['zero', 'four'])
+        self.assertEqual(self.redis.zremrangebyscore('foo', 1, 3), 0)
+        # Entire range.
+        self.assertEqual(self.redis.zremrangebyscore('foo', 0, 4), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [])
+
+    def test_zremrangebyscore_badkey(self):
+        self.assertEqual(self.redis.zremrangebyscore('foo', 0, 2), 0)
+
 
 class TestRealRedis(TestFakeRedis):
     integration = True

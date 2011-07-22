@@ -454,14 +454,30 @@ class FakeRedis(object):
         to largest. Values can be negative indicating the highest scores.
         Returns the number of elements removed
         """
-        return None
+        all_items = self._db.get(name, {})
+        in_order = self._get_zelements_in_order(all_items)
+        num_deleted = 0
+        if max == -1:
+            max = None
+        else:
+            max += 1
+        for key in in_order[min:max]:
+            del all_items[key]
+            num_deleted += 1
+        return num_deleted
 
     def zremrangebyscore(self, name, min, max):
         """
         Remove all elements in the sorted set ``name`` with scores
         between ``min`` and ``max``. Returns the number of elements removed.
         """
-        return None
+        all_items = self._db.get(name, {})
+        removed = 0
+        for key in all_items.copy():
+            if min <= all_items[key] <= max:
+                del all_items[key]
+                removed += 1
+        return removed
 
     def zrevrange(self, name, start, num, withscores=False):
         """
