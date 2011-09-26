@@ -18,11 +18,28 @@ class FakeRedis(object):
         return self._db.keys()
 
     def get(self, name):
-        return self._db.get(name)
+        value = self._db.get(name)
+        if value is not None:
+            return str(value)
 
     def set(self, name, value):
         self._db[name] = value
         return True
+
+    def incr(self, name, amount=1):
+        """
+        Increments the value of ``key`` by ``amount``.  If no key exists,
+        the value will be initialized as ``amount``
+        """
+        if name not in self._db:
+            self._db[name] = amount
+        else:
+            try:
+                self._db[name] += amount
+            except TypeError:
+                raise redis.ResponseError("value is not an integer or out of "
+                                          "range.")
+        return self._db[name]
 
     def lpush(self, name, value):
         self._db.setdefault(name, []).insert(0, value)

@@ -28,6 +28,20 @@ class TestFakeRedis(unittest.TestCase):
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
+    def test_incr_with_no_preexisting_key(self):
+        self.assertEqual(self.redis.incr('foo'), 1)
+        self.assertEqual(self.redis.incr('bar', 2), 2)
+
+    def test_incr_preexisting_key(self):
+        self.redis.set('foo', 15)
+        self.assertEqual(self.redis.incr('foo', 5), 20)
+        self.assertEqual(self.redis.get('foo'), '20')
+
+    def test_incr_bad_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.incr('foo', 15)
+
     ## Tests for the list type.
 
     def test_lpush_then_lrange_all(self):
