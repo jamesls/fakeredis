@@ -41,6 +41,18 @@ class FakeRedis(object):
                                           "range.")
         return self._db[name]
 
+    def exists(self, name):
+        return name in self._db
+
+    def rename(self, src, dst):
+        try:
+            value = self._db[src]
+        except KeyError:
+            raise redis.ResponseError("No such key: %s" % src)
+        self._db[dst] = value
+        del self._db[src]
+        return True
+
     def lpush(self, name, value):
         self._db.setdefault(name, []).insert(0, value)
         return len(self._db[name])

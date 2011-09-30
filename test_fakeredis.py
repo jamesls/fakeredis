@@ -42,6 +42,21 @@ class TestFakeRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.incr('foo', 15)
 
+    def test_exists(self):
+        self.assertFalse(self.redis.exists('foo'))
+        self.redis.set('foo', 'bar')
+        self.assertTrue(self.redis.exists('foo'))
+
+    def test_rename(self):
+        self.redis.set('foo', 'unique value')
+        self.assertTrue(self.redis.rename('foo', 'bar'))
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.get('bar'), 'unique value')
+
+    def test_rename_nonexistent_key(self):
+        with self.assertRaises(redis.ResponseError):
+            self.redis.rename('foo', 'bar')
+
     ## Tests for the list type.
 
     def test_lpush_then_lrange_all(self):
