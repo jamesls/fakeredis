@@ -53,6 +53,12 @@ class FakeRedis(object):
         del self._db[src]
         return True
 
+    def renamenx(self, src, dst):
+        if dst in self._db:
+            return False
+        else:
+            return self.rename(src, dst)
+
     def lpush(self, name, value):
         self._db.setdefault(name, []).insert(0, value)
         return len(self._db[name])
