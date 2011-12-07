@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 import unittest2 as unittest
-import fakeredis
+
 import redis
+
+import fakeredis
 
 
 class TestFakeRedis(unittest.TestCase):
@@ -730,10 +732,10 @@ class TestFakeRedis(unittest.TestCase):
 
 
 class TestRealRedis(TestFakeRedis):
-    integration = True
-
     def create_redis(self):
         # Using db=10 in the hopes that it's not commonly used.
+        # Eventually I'd like something a bit more self controlled
+        # rather than assuming redis is just running.
         return redis.Redis('localhost', port=6379, db=10)
 
 
