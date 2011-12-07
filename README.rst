@@ -72,8 +72,8 @@ You can run these "integration" tests like this::
 
 In terms of implementation, ``TestRealRedis`` is a subclass of
 ``TestFakeRedis`` that overrides a factory method to create
-an instance of ``redis.Redis`` instead of ``fakeredis.FakeRedis``,
-which is an actual python client for redis.
+an instance of ``redis.Redis`` (an actual python client for redis)
+instead of ``fakeredis.FakeRedis``.
 
 To run both the unittests and the "integration" tests, run::
 
