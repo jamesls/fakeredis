@@ -14,6 +14,10 @@ class FakeRedis(object):
         self._db = {}
         return True
 
+    def append(self, key, value):
+        self._db[key] += value
+        return len(self._db[key])
+
     def keys(self):
         return self._db.keys()
 
@@ -31,14 +35,19 @@ class FakeRedis(object):
         Increments the value of ``key`` by ``amount``.  If no key exists,
         the value will be initialized as ``amount``
         """
-        if name not in self._db:
-            self._db[name] = amount
-        else:
-            try:
-                self._db[name] += amount
-            except TypeError:
-                raise redis.ResponseError("value is not an integer or out of "
-                                          "range.")
+        try:
+            self._db[name] = self._db.get(name, 0) + amount
+        except TypeError:
+            raise redis.ResponseError("value is not an integer or out of "
+                                      "range.")
+        return self._db[name]
+
+    def decr(self, name, amount=1):
+        try:
+            self._db[name] = self._db.get(name, 0) - amount
+        except TypeError:
+            raise redis.ResponseError("value is not an integer or out of "
+                                      "range.")
         return self._db[name]
 
     def exists(self, name):

@@ -30,6 +30,11 @@ class TestFakeRedis(unittest.TestCase):
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
+    def test_append(self):
+        self.assertTrue(self.redis.set('foo', 'bar'))
+        self.assertEqual(self.redis.append('foo', 'baz'), 6)
+        self.assertEqual(self.redis.get('foo'), 'barbaz')
+
     def test_incr_with_no_preexisting_key(self):
         self.assertEqual(self.redis.incr('foo'), 1)
         self.assertEqual(self.redis.incr('bar', 2), 2)
@@ -43,6 +48,20 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
             self.redis.incr('foo', 15)
+
+    def test_decr(self):
+        self.redis.set('foo', 10)
+        self.assertEqual(self.redis.decr('foo'), 9)
+        self.assertEqual(self.redis.get('foo'), '9')
+
+    def test_decr_newkey(self):
+        self.redis.decr('foo')
+        self.assertEqual(self.redis.get('foo'), '-1')
+
+    def test_decr_badtype(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.decr('foo', 15)
 
     def test_exists(self):
         self.assertFalse(self.redis.exists('foo'))
