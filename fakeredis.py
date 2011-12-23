@@ -14,21 +14,47 @@ class FakeRedis(object):
         self._db = {}
         return True
 
+    # Basic key commands
     def append(self, key, value):
         self._db[key] += value
         return len(self._db[key])
 
-    def keys(self):
-        return self._db.keys()
+    def decr(self, name, amount=1):
+        try:
+            self._db[name] = self._db.get(name, 0) - amount
+        except TypeError:
+            raise redis.ResponseError("value is not an integer or out of "
+                                      "range.")
+        return self._db[name]
+
+    def exists(self, name):
+        return name in self._db
+    __contains__ = exists
+
+    def expire(self, name, time):
+        pass
+
+    def expireat(self, name, when):
+        pass
 
     def get(self, name):
         value = self._db.get(name)
         if value is not None:
             return str(value)
 
-    def set(self, name, value):
-        self._db[name] = value
-        return True
+    def __getitem__(self, name):
+        return self._db[name]
+
+    def getbit(self, name, offset):
+        "Returns a boolean indicating the value of ``offset`` in ``name``"
+        pass
+
+    def getset(self, name, value):
+        """
+        Set the value at key ``name`` to ``value`` if key doesn't exist
+        Return the value at key ``name`` atomically
+        """
+        pass
 
     def incr(self, name, amount=1):
         """
@@ -42,16 +68,26 @@ class FakeRedis(object):
                                       "range.")
         return self._db[name]
 
-    def decr(self, name, amount=1):
-        try:
-            self._db[name] = self._db.get(name, 0) - amount
-        except TypeError:
-            raise redis.ResponseError("value is not an integer or out of "
-                                      "range.")
-        return self._db[name]
+    def keys(self):
+        return self._db.keys()
 
-    def exists(self, name):
-        return name in self._db
+    def mget(self, keys, *args):
+        pass
+
+    def mset(self, mapping):
+        pass
+
+    def msetnx(self, mapping):
+        pass
+
+    def move(self, name, db):
+        pass
+
+    def persist(self, name):
+        pass
+
+    def randomkey(self):
+        pass
 
     def rename(self, src, dst):
         try:
@@ -67,6 +103,41 @@ class FakeRedis(object):
             return False
         else:
             return self.rename(src, dst)
+
+    def set(self, name, value):
+        self._db[name] = value
+        return True
+    __setitem__ = set
+
+    def setbit(self, name, offset, value):
+        pass
+
+    def setex(self, name, time, value):
+        pass
+
+    def setnx(self, name, value):
+        pass
+
+    def setrange(self, name, offset, value):
+        pass
+
+    def strlen(self, name):
+        pass
+
+    def substr(self, name, start, end=-1):
+        pass
+
+    def ttl(self, name):
+        pass
+
+    def type(self, name):
+        pass
+
+    def watch(self, *names):
+        pass
+
+    def unwatch(self):
+        pass
 
     def lpush(self, name, value):
         self._db.setdefault(name, []).insert(0, value)

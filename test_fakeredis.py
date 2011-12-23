@@ -30,6 +30,11 @@ class TestFakeRedis(unittest.TestCase):
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
+    def test_setitem_getitem(self):
+        self.assertEqual(self.redis.keys(), [])
+        self.redis['foo'] = 'bar'
+        self.assertEqual(self.redis['foo'], 'bar')
+
     def test_append(self):
         self.assertTrue(self.redis.set('foo', 'bar'))
         self.assertEqual(self.redis.append('foo', 'baz'), 6)
@@ -64,6 +69,11 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.decr('foo', 15)
 
     def test_exists(self):
+        self.assertFalse('foo' in self.redis)
+        self.redis.set('foo', 'bar')
+        self.assertTrue('foo' in self.redis)
+
+    def test_contains(self):
         self.assertFalse(self.redis.exists('foo'))
         self.redis.set('foo', 'bar')
         self.assertTrue(self.redis.exists('foo'))
