@@ -47,7 +47,8 @@ class FakeRedis(object):
 
     def getbit(self, name, offset):
         "Returns a boolean indicating the value of ``offset`` in ``name``"
-        pass
+        val = self._db.get(name, 0)
+        return 1 if (1 << offset) & val else 0
 
     def getset(self, name, value):
         """
@@ -110,7 +111,12 @@ class FakeRedis(object):
     __setitem__ = set
 
     def setbit(self, name, offset, value):
-        pass
+        val = self._db.get(name, 0)
+        if value == 1:
+            val |= (1 << offset)
+        else:
+            val ^= (1 << offset)
+        self._db[name] = val
 
     def setex(self, name, time, value):
         pass

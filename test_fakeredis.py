@@ -30,6 +30,38 @@ class TestFakeRedis(unittest.TestCase):
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
+    def test_getbit(self):
+        self.redis.setbit('foo', 3, 1)
+        self.assertEqual(self.redis.getbit('foo', 0), 0)
+        self.assertEqual(self.redis.getbit('foo', 1), 0)
+        self.assertEqual(self.redis.getbit('foo', 2), 0)
+        self.assertEqual(self.redis.getbit('foo', 3), 1)
+        self.assertEqual(self.redis.getbit('foo', 4), 0)
+        self.assertEqual(self.redis.getbit('foo', 100), 0)
+
+    def test_multiple_bits_set(self):
+        self.redis.setbit('foo', 1, 1)
+        self.redis.setbit('foo', 3, 1)
+        self.redis.setbit('foo', 5, 1)
+
+        self.assertEqual(self.redis.getbit('foo', 0), 0)
+        self.assertEqual(self.redis.getbit('foo', 1), 1)
+        self.assertEqual(self.redis.getbit('foo', 2), 0)
+        self.assertEqual(self.redis.getbit('foo', 3), 1)
+        self.assertEqual(self.redis.getbit('foo', 4), 0)
+        self.assertEqual(self.redis.getbit('foo', 5), 1)
+        self.assertEqual(self.redis.getbit('foo', 6), 0)
+
+    def test_unset_bits(self):
+        self.redis.setbit('foo', 1, 1)
+        self.redis.setbit('foo', 2, 0)
+        self.redis.setbit('foo', 3, 1)
+        self.assertEqual(self.redis.getbit('foo', 1), 1)
+        self.redis.setbit('foo', 1, 0)
+        self.assertEqual(self.redis.getbit('foo', 1), 0)
+        self.redis.setbit('foo', 3, 0)
+        self.assertEqual(self.redis.getbit('foo', 3), 0)
+
     def test_setitem_getitem(self):
         self.assertEqual(self.redis.keys(), [])
         self.redis['foo'] = 'bar'
