@@ -47,8 +47,15 @@ class FakeRedis(object):
 
     def getbit(self, name, offset):
         "Returns a boolean indicating the value of ``offset`` in ``name``"
-        val = self._db.get(name, 0)
-        return 1 if (1 << offset) & val else 0
+        val = self._db.get(name, '\x00')
+        byte = offset / 8
+        remaining = offset % 8
+        actual_bitoffset = 7 - remaining
+        try:
+            actual_val = ord(val[byte])
+        except IndexError:
+            return 0
+        return 1 if (1 << actual_bitoffset) & actual_val else 0
 
     def getset(self, name, value):
         """
@@ -111,12 +118,22 @@ class FakeRedis(object):
     __setitem__ = set
 
     def setbit(self, name, offset, value):
-        val = self._db.get(name, 0)
+        val = self._db.get(name, '\x00')
+        byte = offset / 8
+        remaining = offset % 8
+        actual_bitoffset = 7 - remaining
+        if len(val) - 1 < byte:
+            # We need to expand val so that we can set the appropriate
+            # bit.
+            needed = byte - (len(val) - 1)
+            val += '\x00' * needed
         if value == 1:
-            val |= (1 << offset)
+            new_byte = chr(ord(val[byte]) | (1 << actual_bitoffset))
         else:
-            val ^= (1 << offset)
-        self._db[name] = val
+            new_byte = chr(ord(val[byte]) ^ (1 << actual_bitoffset))
+        reconstructed = list(val)
+        reconstructed[byte] = new_byte
+        self._db[name] = ''.join(reconstructed)
 
     def setex(self, name, time, value):
         pass

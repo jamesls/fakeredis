@@ -62,6 +62,20 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.setbit('foo', 3, 0)
         self.assertEqual(self.redis.getbit('foo', 3), 0)
 
+    def test_setbits_and_getkeys(self):
+        # The bit operations and the get commands
+        # should play nicely with each other.
+        self.redis.setbit('foo', 1, 1)
+        self.assertEqual(self.redis.get('foo'), '@')
+        self.redis.setbit('foo', 2, 1)
+        self.assertEqual(self.redis.get('foo'), '`')
+        self.redis.setbit('foo', 3, 1)
+        self.assertEqual(self.redis.get('foo'), 'p')
+        self.redis.setbit('foo', 9, 1)
+        self.assertEqual(self.redis.get('foo'), 'p@')
+        self.redis.setbit('foo', 54, 1)
+        self.assertEqual(self.redis.get('foo'), 'p@\x00\x00\x00\x00\x02')
+
     def test_setitem_getitem(self):
         self.assertEqual(self.redis.keys(), [])
         self.redis['foo'] = 'bar'
