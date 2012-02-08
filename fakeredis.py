@@ -62,7 +62,10 @@ class FakeRedis(object):
         Set the value at key ``name`` to ``value`` if key doesn't exist
         Return the value at key ``name`` atomically
         """
-        pass
+        val = self._db.get(name)
+        if val is None:
+            self._db[name] = value
+        return val
 
     def incr(self, name, amount=1):
         """

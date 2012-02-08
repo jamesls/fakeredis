@@ -76,6 +76,16 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.setbit('foo', 54, 1)
         self.assertEqual(self.redis.get('foo'), 'p@\x00\x00\x00\x00\x02')
 
+    def test_getset_not_exist(self):
+        val = self.redis.getset('foo', 'bar')
+        self.assertEqual(val, None)
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        
+    def test_getset_exists(self):
+        self.redis.set('foo', 'bar')
+        val = self.redis.getset('foo', 'baz')
+        self.assertEqual(val, 'bar')
+
     def test_setitem_getitem(self):
         self.assertEqual(self.redis.keys(), [])
         self.redis['foo'] = 'bar'
