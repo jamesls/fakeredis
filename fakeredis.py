@@ -83,7 +83,11 @@ class FakeRedis(object):
         return self._db.keys()
 
     def mget(self, keys, *args):
-        pass
+        all_keys = self._list_or_args(keys, args)
+        found = []
+        for key in all_keys:
+            found.append(self._db.get(key))
+        return found
 
     def mset(self, mapping):
         pass
@@ -710,3 +714,18 @@ class FakeRedis(object):
                     new_zset[el] = min([new_zset[el],
                                         current_zset[el] * weight])
         self._db[dest] = new_zset
+
+    def _list_or_args(self, keys, args):
+        # Taken directly from redis-py.
+        # Returns a single list combining keys and args.
+        try:
+            i = iter(keys)
+            # a string can be iterated, but indicates
+            # keys wasn't passed as a list
+            if isinstance(keys, basestring):
+                keys = [keys]
+        except TypeError:
+            keys = [keys]
+        if args:
+            keys.extend(args)
+        return keys

@@ -157,6 +157,16 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), 'unique value')
         self.assertEqual(self.redis.get('bar'), 'unique value2')
 
+    def test_mget_single_key(self):
+        self.redis.set('foo', 'one')
+        self.redis.set('bar', 'two')
+        self.assertEqual(self.redis.mget(['foo', 'bar']), ['one', 'two'])
+        self.assertEqual(self.redis.mget(['foo', 'bar', 'baz']),
+                         ['one', 'two', None])
+        self.assertEqual(self.redis.mget('foo', 'bar'), ['one', 'two'])
+        self.assertEqual(self.redis.mget('foo', 'bar', None),
+                         ['one', 'two', None])
+
     ## Tests for the list type.
 
     def test_lpush_then_lrange_all(self):
