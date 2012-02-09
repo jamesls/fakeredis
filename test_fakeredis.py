@@ -80,7 +80,7 @@ class TestFakeRedis(unittest.TestCase):
         val = self.redis.getset('foo', 'bar')
         self.assertEqual(val, None)
         self.assertEqual(self.redis.get('foo'), 'bar')
-        
+
     def test_getset_exists(self):
         self.redis.set('foo', 'bar')
         val = self.redis.getset('foo', 'baz')
@@ -157,7 +157,7 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), 'unique value')
         self.assertEqual(self.redis.get('bar'), 'unique value2')
 
-    def test_mget_single_key(self):
+    def test_mget(self):
         self.redis.set('foo', 'one')
         self.redis.set('bar', 'two')
         self.assertEqual(self.redis.mget(['foo', 'bar']), ['one', 'two'])
@@ -166,6 +166,11 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.mget('foo', 'bar'), ['one', 'two'])
         self.assertEqual(self.redis.mget('foo', 'bar', None),
                          ['one', 'two', None])
+
+    def test_mset(self):
+        self.assertEqual(self.redis.mset({'foo': 'one', 'bar': 'two'}), True)
+        self.assertEqual(self.redis.mset({'foo': 'one', 'bar': 'two'}), True)
+        self.assertEqual(self.redis.mget('foo', 'bar'), ['one', 'two'])
 
     ## Tests for the list type.
 

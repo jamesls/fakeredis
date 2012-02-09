@@ -90,7 +90,9 @@ class FakeRedis(object):
         return found
 
     def mset(self, mapping):
-        pass
+        for key, val in mapping.iteritems():
+            self.set(key, val)
+        return True
 
     def msetnx(self, mapping):
         pass
