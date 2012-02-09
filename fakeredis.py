@@ -95,7 +95,15 @@ class FakeRedis(object):
         return True
 
     def msetnx(self, mapping):
-        pass
+        """
+        Sets each key in the ``mapping`` dict to its corresponding value if
+        none of the keys are already set
+        """
+        if not any(k in self._db for k in mapping):
+            for key, val in mapping.iteritems():
+                self.set(key, val)
+            return True
+        return False
 
     def move(self, name, db):
         pass

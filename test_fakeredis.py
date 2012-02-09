@@ -172,6 +172,12 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.mset({'foo': 'one', 'bar': 'two'}), True)
         self.assertEqual(self.redis.mget('foo', 'bar'), ['one', 'two'])
 
+    def test_msetnx(self):
+        self.assertEqual(self.redis.msetnx({'foo': 'one', 'bar': 'two'}), True)
+        self.assertEqual(self.redis.msetnx({'bar': 'two', 'baz': 'three'}), False)
+        self.assertEqual(self.redis.mget('foo', 'bar', 'baz'),
+                         ['one', 'two', None])
+
     ## Tests for the list type.
 
     def test_lpush_then_lrange_all(self):
