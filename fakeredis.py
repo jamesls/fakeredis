@@ -156,7 +156,11 @@ class FakeRedis(object):
         pass
 
     def setnx(self, name, value):
-        pass
+        if name in self._db:
+            return False
+        else:
+            self._db[name] = value
+            return True
 
     def setrange(self, name, offset, value):
         pass
