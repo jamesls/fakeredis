@@ -7,7 +7,7 @@ setup(
     license='BSD',
     author='James Saryerwinnie',
     author_email='jlsnpi@gmail.com',
-    modules=['fakeredis'],
+    py_modules=['fakeredis'],
     classifiers=[
         'Development Status :: 3 - Alpha'
         'License :: OSI Approved :: BSD License',
