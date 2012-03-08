@@ -91,6 +91,12 @@ class TestFakeRedis(unittest.TestCase):
         self.redis['foo'] = 'bar'
         self.assertEqual(self.redis['foo'], 'bar')
 
+    def test_strlen(self):
+        self.redis['foo'] = 'bar'
+
+        self.assertEqual(self.redis.strlen('foo'), 3)
+        self.assertEqual(self.redis.strlen('noexists'), 0)
+
     def test_append(self):
         self.assertTrue(self.redis.set('foo', 'bar'))
         self.assertEqual(self.redis.append('foo', 'baz'), 6)

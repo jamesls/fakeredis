@@ -166,7 +166,10 @@ class FakeRedis(object):
         pass
 
     def strlen(self, name):
-        pass
+        try:
+            return len(self._db[name])
+        except KeyError:
+            return 0
 
     def substr(self, name, start, end=-1):
         pass
