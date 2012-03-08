@@ -172,7 +172,14 @@ class FakeRedis(object):
             return 0
 
     def substr(self, name, start, end=-1):
-        pass
+        if end == -1:
+            end = None
+        else:
+            end += 1
+        try:
+            return self._db[name][start:end]
+        except KeyError:
+            return ''
 
     def ttl(self, name):
         pass

@@ -97,6 +97,18 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.strlen('foo'), 3)
         self.assertEqual(self.redis.strlen('noexists'), 0)
 
+    def test_substr(self):
+        self.redis['foo'] = 'one_two_three'
+        self.assertEqual(self.redis.substr('foo', 0), 'one_two_three')
+        self.assertEqual(self.redis.substr('foo', 0, 2), 'one')
+        self.assertEqual(self.redis.substr('foo', 4, 6), 'two')
+        self.assertEqual(self.redis.substr('foo', -5), 'three')
+
+    def test_substr_noexist_key(self):
+        self.assertEqual(self.redis.substr('foo', 0), '')
+        self.assertEqual(self.redis.substr('foo', 10), '')
+        self.assertEqual(self.redis.substr('foo', -5, -1), '')
+
     def test_append(self):
         self.assertTrue(self.redis.set('foo', 'bar'))
         self.assertEqual(self.redis.append('foo', 'baz'), 6)
