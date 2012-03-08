@@ -202,6 +202,27 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.setnx('foo', 'baz'), False)
         self.assertEqual(self.redis.get('foo'),  'bar')
 
+    def test_delete(self):
+        self.redis['foo'] = 'bar'
+        self.assertEqual(self.redis.delete('foo'), True)
+        self.assertEqual(self.redis.get('foo'), None)
+
+    def test_delete_multiple(self):
+        self.redis['one'] = 'one'
+        self.redis['two'] = 'two'
+        self.redis['three'] = 'three'
+        self.assertEqual(self.redis.delete('one', 'two'), True)
+        self.assertEqual(self.redis.get('one'), None)
+        self.assertEqual(self.redis.get('two'), None)
+        self.assertEqual(self.redis.get('three'), 'three')
+        self.assertEqual(self.redis.delete('one', 'two'), False)
+        # If any keys are deleted, True is returned.
+        self.assertEqual(self.redis.delete('two', 'three'), True)
+        self.assertEqual(self.redis.get('three'), None)
+
+    def test_delete_nonexistent_key(self):
+        self.assertEqual(self.redis.delete('foo'), False)
+
     ## Tests for the list type.
 
     def test_lpush_then_lrange_all(self):

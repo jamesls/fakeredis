@@ -193,6 +193,16 @@ class FakeRedis(object):
     def unwatch(self):
         pass
 
+    def delete(self, *names):
+        any_deleted = False
+        for name in names:
+            try:
+                del self._db[name]
+                any_deleted = True
+            except KeyError:
+                continue
+        return any_deleted
+
     def lpush(self, name, value):
         self._db.setdefault(name, []).insert(0, value)
         return len(self._db[name])
