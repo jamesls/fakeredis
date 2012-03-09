@@ -1,10 +1,36 @@
 #!/usr/bin/env python
 
 import unittest2 as unittest
+import inspect
+from functools import wraps
 
+from nose.plugins.skip import SkipTest
 import redis
 
 import fakeredis
+
+
+def redis_must_be_running(cls):
+    # This can probably be improved.  This will determines
+    # at import time if the tests should be run, but we probably
+    # want it to be when the tests are actually run.
+    try:
+        r = redis.Redis('localhost', port=6379)
+        r.ping()
+    except redis.ConnectionError:
+        redis_running = False
+    else:
+        redis_running = True
+    for name, attr in inspect.getmembers(cls):
+        if name.startswith('test_'):
+            @wraps(attr)
+            def skip_test(*args, **kwargs):
+                raise SkipTest("Redis is not running.")
+            setattr(cls, name, skip_test)
+    if not redis_running:
+        cls.setUp = lambda x: None
+        cls.tearDown = lambda x: None
+    return cls
 
 
 class TestFakeRedis(unittest.TestCase):
@@ -882,12 +908,10 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.zunionstore('baz', [], aggregate='MAX')
 
 
+@redis_must_be_running
 class TestRealRedis(TestFakeRedis):
     def create_redis(self):
-        # Using db=10 in the hopes that it's not commonly used.
-        # Eventually I'd like something a bit more self controlled
-        # rather than assuming redis is just running.
-        return redis.Redis('localhost', port=6379, db=10)
+        return redis.Redis('localhost', port=6379)
 
 
 if __name__ == '__main__':
