@@ -6,13 +6,23 @@ import redis
 import redis.client
 
 
+DATABASES = {}
+
+
 class FakeRedis(object):
-    def __init__(self):
-        self._db = {}
+    def __init__(self, db=0):
+        if db not in DATABASES:
+            DATABASES[db] = {}
+        self._db = DATABASES[db]
+        self._db_num = db
 
     def flushdb(self):
-        self._db = {}
+        DATABASES[self._db_num].clear()
         return True
+
+    def flushall(self):
+        for db in DATABASES:
+            DATABASES[db].clear()
 
     # Basic key commands
     def append(self, key, value):

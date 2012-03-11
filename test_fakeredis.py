@@ -21,13 +21,13 @@ def redis_must_be_running(cls):
         redis_running = False
     else:
         redis_running = True
-    for name, attr in inspect.getmembers(cls):
-        if name.startswith('test_'):
-            @wraps(attr)
-            def skip_test(*args, **kwargs):
-                raise SkipTest("Redis is not running.")
-            setattr(cls, name, skip_test)
     if not redis_running:
+        for name, attr in inspect.getmembers(cls):
+            if name.startswith('test_'):
+                @wraps(attr)
+                def skip_test(*args, **kwargs):
+                    raise SkipTest("Redis is not running.")
+                setattr(cls, name, skip_test)
         cls.setUp = lambda x: None
         cls.tearDown = lambda x: None
     return cls
@@ -38,10 +38,10 @@ class TestFakeRedis(unittest.TestCase):
         self.redis = self.create_redis()
 
     def tearDown(self):
-        self.redis.flushdb()
+        self.redis.flushall()
 
-    def create_redis(self):
-        return fakeredis.FakeRedis()
+    def create_redis(self, db=0):
+        return fakeredis.FakeRedis(db=db)
 
     def test_flushdb(self):
         self.redis.set('foo', 'bar')
@@ -907,11 +907,29 @@ class TestFakeRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.zunionstore('baz', [], aggregate='MAX')
 
+    def test_multidb(self):
+        r1 = self.create_redis(db=0)
+        r2 = self.create_redis(db=1)
+
+        r1['r1'] = 'r1'
+        r2['r2'] = 'r2'
+
+        self.assertTrue('r2' not in r1)
+        self.assertTrue('r1' not in r2)
+
+        self.assertEqual(r1['r1'], 'r1')
+        self.assertEqual(r2['r2'], 'r2')
+
+        r1.flushall()
+
+        self.assertTrue('r1' not in r1)
+        self.assertTrue('r2' not in r2)
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
-    def create_redis(self):
-        return redis.Redis('localhost', port=6379)
+    def create_redis(self, db=0):
+        return redis.Redis('localhost', port=6379, db=db)
 
 
 if __name__ == '__main__':
