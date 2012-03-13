@@ -925,6 +925,82 @@ class TestFakeRedis(unittest.TestCase):
         self.assertTrue('r1' not in r1)
         self.assertTrue('r2' not in r2)
 
+    def test_basic_sort(self):
+        self.redis.rpush('foo', '2')
+        self.redis.rpush('foo', '1')
+        self.redis.rpush('foo', '3')
+
+        self.assertEqual(self.redis.sort('foo'), ['1', '2', '3'])
+
+    def test_empty_sort(self):
+        self.assertEqual(self.redis.sort('foo'), [])
+
+    def test_sort_range_offset_range(self):
+        self.redis.rpush('foo', '2')
+        self.redis.rpush('foo', '1')
+        self.redis.rpush('foo', '4')
+        self.redis.rpush('foo', '3')
+
+        self.assertEqual(self.redis.sort('foo', start=0, num=2), ['1', '2'])
+
+    def test_sort_range_offset_norange(self):
+        with self.assertRaises(redis.RedisError):
+            self.redis.sort('foo', start=1)
+
+    def test_sort_range_with_large_range(self):
+        self.redis.rpush('foo', '2')
+        self.redis.rpush('foo', '1')
+        self.redis.rpush('foo', '4')
+        self.redis.rpush('foo', '3')
+        # num=20 even though len(foo) is 4.
+        self.assertEqual(self.redis.sort('foo', start=1, num=20),
+                         ['2', '3', '4'])
+
+    def test_sort_descending(self):
+        self.redis.rpush('foo', '1')
+        self.redis.rpush('foo', '2')
+        self.redis.rpush('foo', '3')
+        self.assertEqual(self.redis.sort('foo', desc=True), ['3', '2', '1'])
+
+    def test_sort_alpha(self):
+        self.redis.rpush('foo', '2a')
+        self.redis.rpush('foo', '1b')
+        self.redis.rpush('foo', '2b')
+        self.redis.rpush('foo', '1a')
+
+        self.assertEqual(self.redis.sort('foo', alpha=True),
+                         ['1a', '1b', '2a', '2b'])
+        self.assertEqual(self.redis.sort('foo', alpha=False),
+                         ['1b', '1a', '2a', '2b'])
+
+    def test_sort_with_store_option(self):
+        self.redis.rpush('foo', '2')
+        self.redis.rpush('foo', '1')
+        self.redis.rpush('foo', '4')
+        self.redis.rpush('foo', '3')
+
+        self.assertEqual(self.redis.sort('foo', store='bar'), 4)
+        self.assertEqual(self.redis.lrange('bar', 0, -1), ['1', '2', '3', '4'])
+
+    def test_sort_with_by_option(self):
+        self.redis.rpush('foo', '2')
+        self.redis.rpush('foo', '1')
+        self.redis.rpush('foo', '4')
+        self.redis.rpush('foo', '3')
+
+        self.redis['weight_1'] = '4'
+        self.redis['weight_2'] = '3'
+        self.redis['weight_3'] = '2'
+        self.redis['weight_4'] = '1'
+
+        self.redis['data_1'] = 'one'
+        self.redis['data_2'] = 'two'
+        self.redis['data_3'] = 'three'
+        self.redis['data_4'] = 'four'
+
+        self.assertEqual(self.redis.sort('foo', by='weight_*', get='data_*'),
+                         ['four', 'three', 'two', 'one'])
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):

@@ -1,12 +1,18 @@
 import random
 import warnings
 import operator
+from ctypes import CDLL, c_double
+from ctypes.util import find_library
 
 import redis
 import redis.client
 
 
 DATABASES = {}
+
+_libc = CDLL(find_library('c'))
+_libc.strtod.restype = c_double
+_strtod = _libc.strtod
 
 
 class FakeRedis(object):
@@ -212,6 +218,66 @@ class FakeRedis(object):
             except KeyError:
                 continue
         return any_deleted
+
+    def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
+             alpha=False, store=None) :
+        """Sort and return the list, set or sorted set at ``name``.
+
+        ``start`` and ``num`` allow for paging through the sorted data
+
+        ``by`` allows using an external key to weight and sort the items.
+            Use an "*" to indicate where in the key the item value is located
+
+        ``get`` allows for returning items from external keys rather than the
+            sorted data itself.  Use an "*" to indicate where int he key
+            the item value is located
+
+        ``desc`` allows for reversing the sort
+
+        ``alpha`` allows for sorting lexicographically rather than numerically
+
+        ``store`` allows for storing the result of the sort into
+            the key ``store``
+
+        """
+        if (start is None and num is not None) or \
+                (start is not None and num is None):
+            raise redis.RedisError(
+                "RedisError: ``start`` and ``num`` must both be specified")
+        try:
+            data = self._db[name][:]
+            if by is not None:
+                # _sort_using_by_arg mutates data so we don't
+                # need need a return value.
+                self._sort_using_by_arg(data, by=by)
+            elif not alpha:
+                data.sort(key=self._strtod_key_func)
+            else:
+                data.sort()
+            if not (start is None and num is None):
+                data = data[start:start+num]
+            if desc:
+                data = list(reversed(data))
+            if store is not None:
+                self._db[store] = data
+                return len(data)
+            else:
+                if get is not None:
+                    data = [self._db.get(get.replace('*', k)) for k in data]
+                return data
+        except KeyError:
+            return []
+
+    def _strtod_key_func(self, arg):
+        # str()'ing the arg is important! Don't ever remove this.
+        arg = str(arg)
+        return _strtod(arg, None)
+
+    def _sort_using_by_arg(self, data, by):
+        def _by_key(arg):
+            key = by.replace('*', arg)
+            return self._db.get(key)
+        data.sort(key=_by_key)
 
     def lpush(self, name, value):
         self._db.setdefault(name, []).insert(0, value)
