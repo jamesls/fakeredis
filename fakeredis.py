@@ -195,6 +195,9 @@ class FakeRedis(object):
             return self._db[name][start:end]
         except KeyError:
             return ''
+    # Redis >= 2.0.0 this command is called getrange
+    # according to the docs.
+    getrange = substr
 
     def ttl(self, name):
         pass
