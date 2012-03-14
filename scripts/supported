@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+
+# Script will import fakeredis and list what
+# commands it does not have support for, based on the
+# command list from:
+# https://raw.github.com/antirez/redis-doc/master/commands.json
+# Because, who wants to do this by hand...
+
+
+import os
+import json
+import inspect
+from urllib2 import urlopen
+
+import fakeredis
+
+THIS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)))
+COMMANDS_FILE = os.path.join(THIS_DIR, '.commands.json')
+COMMANDS_URL = 'https://raw.github.com/antirez/redis-doc/master/commands.json'
+
+if not os.path.exists(COMMANDS_FILE):
+    contents = urlopen(COMMANDS_URL).read()
+    open(COMMANDS_FILE, 'w').write(contents)
+commands = json.load(open(COMMANDS_FILE))
+for k, v in commands.items():
+    commands[k.lower()] = v
+    del commands[k]
+
+
+implemented_commands = set()
+for name, method in inspect.getmembers(fakeredis.FakeRedis):
+    if hasattr(method, 'im_func'):
+        if name == 'delete':
+            # This is specific to the python bindings because
+            # 'del' is a keyword so delete is used instead.
+            name = 'del'
+        implemented_commands.add(name)
+
+unimplemented_commands = set()
+for command in commands:
+    if command not in implemented_commands:
+        unimplemented_commands.add(command)
+
+# Group by 'group' for easier to read output
+groups = {}
+for command in unimplemented_commands:
+    group = commands[command]['group']
+    groups.setdefault(group, []).append(command)
+
+print """
+
+Unimplemented Commands
+======================
+
+All of the redis commands are implemented in fakeredis with
+these exceptions:
+
+"""
+
+for group in groups:
+    print group
+    print "-" * len(str(group))
+    print
+    for command in groups[group]:
+        print " *", command
+    print "\n"
