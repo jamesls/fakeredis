@@ -34,6 +34,13 @@ for name, method in inspect.getmembers(fakeredis.FakeRedis):
             # This is specific to the python bindings because
             # 'del' is a keyword so delete is used instead.
             name = 'del'
+        if name == 'incr':
+            # redis-py supports incrby by the incr method
+            # so implementing incr means implementing incrby.
+            implemented_commands.add('incrby')
+        if name == 'decr':
+            # Same thing for decr vs. decrby
+            implemented_commands.add('decrby')
         implemented_commands.add(name)
 
 unimplemented_commands = set()
