@@ -1000,6 +1000,13 @@ class TestFakeRedis(unittest.TestCase):
 
         self.assertEqual(self.redis.sort('foo', by='weight_*', get='data_*'),
                          ['four', 'three', 'two', 'one'])
+        self.assertEqual(self.redis.sort('foo', by='weight_*', get='#'),
+                         ['4', '3', '2', '1'])
+        self.assertEqual(
+            self.redis.sort('foo', by='weight_*', get=('data_*', '#')),
+            ['four', '4', 'three', '3', 'two', '2', 'one', '1'])
+        self.assertEqual(self.redis.sort('foo', by='weight_*', get='data_1'),
+                         [None, None, None, None])
 
 
 @redis_must_be_running

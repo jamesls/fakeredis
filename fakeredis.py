@@ -1,6 +1,5 @@
 import random
 import warnings
-import operator
 from ctypes import CDLL, c_double
 from ctypes.util import find_library
 
@@ -240,6 +239,8 @@ class FakeRedis(object):
             the key ``store``
 
         """
+        # This does not support hashes in by/get using the '->' syntax.
+        # It should be pretty straightforward to add if needed.
         if (start is None and num is not None) or \
                 (start is not None and num is None):
             raise redis.RedisError(
@@ -263,7 +264,22 @@ class FakeRedis(object):
                 return len(data)
             else:
                 if get is not None:
-                    data = [self._db.get(get.replace('*', k)) for k in data]
+                    if isinstance(get, basestring):
+                        if '*' in get:
+                            data = [self._db.get(get.replace('*', k))
+                                    for k in data]
+                        elif '#' not in get:
+                            data = [None for k in data]
+                    else:
+                        new_data = []
+                        for k in data:
+                            for g in get:
+                                if '*' in g:
+                                    g = g.replace('*', k)
+                                    new_data.append(self._db.get(g))
+                                elif '#' in g:
+                                    new_data.append(k)
+                        data = new_data
                 return data
         except KeyError:
             return []
@@ -582,8 +598,8 @@ class FakeRedis(object):
         """
         if value is not None or score is not None:
             if value is None or score is None:
-                raise RedisError("Both 'value' and 'score' must be specified " \
-                                 "to ZADD")
+                raise redis.RedisError(
+                    "Both 'value' and 'score' must be specified to ZADD")
             warnings.warn(DeprecationWarning(
                 "Passing 'value' and 'score' has been deprecated. " \
                 "Please pass via kwargs instead."))
@@ -680,7 +696,8 @@ class FakeRedis(object):
     def _zrangebyscore(self, name, min, max, start, num, withscores, reverse):
         if (start is not None and num is None) or \
                 (num is not None and start is None):
-            raise RedisError("``start`` and ``num`` must both be specified")
+            raise redis.RedisError("``start`` and ``num`` must both "
+                                   "be specified")
         all_items = self._db.get(name, {})
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
         matches = []
@@ -829,7 +846,7 @@ class FakeRedis(object):
         # Taken directly from redis-py.
         # Returns a single list combining keys and args.
         try:
-            i = iter(keys)
+            iter(keys)
             # a string can be iterated, but indicates
             # keys wasn't passed as a list
             if isinstance(keys, basestring):
