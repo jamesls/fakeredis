@@ -30,11 +30,76 @@ For example::
   [2, 1]
 
 
-Supported Commands
-==================
+Unimplemented Commands
+======================
 
-All of the hashes, lists, sets, and sorted sets commands are implemented
-in fakeredis.  There's also support for the ``keys, set, get`` commands.
+All of the redis commands are implemented in fakeredis with
+these exceptions:
+
+
+string
+------
+
+ * getrange
+ * incrby
+ * decrby
+
+
+transactions
+------------
+
+ * exec
+ * multi
+ * discard
+
+
+generic
+-------
+
+ * object
+ * eval
+
+
+server
+------
+
+ * debug object
+ * slowlog
+ * sync
+ * shutdown
+ * lastsave
+ * debug segfault
+ * monitor
+ * config resetstat
+ * config get
+ * save
+ * bgsave
+ * bgrewriteaof
+ * slaveof
+ * info
+ * config set
+ * dbsize
+
+
+connection
+----------
+
+ * echo
+ * select
+ * quit
+ * ping
+ * auth
+
+
+pubsub
+------
+
+ * punsubscribe
+ * subscribe
+ * psubscribe
+ * publish
+ * unsubscribe
+
 
 Adding New Commands
 ===================
@@ -50,6 +115,7 @@ test is run against a real redis instance using a real redis-py client
 instance.  In order to run these tests you must have a redis server running
 on localhost, port 6379 (the default settings).  The integration tests use
 db=10 in order to minimize collisions with an existing redis instance.
+
 
 Running the Tests
 =================
@@ -78,3 +144,6 @@ instead of ``fakeredis.FakeRedis``.
 To run both the unittests and the "integration" tests, run::
 
     nosetests
+
+If redis is not running and you try to run tests against a real redis server,
+these tests will have a result of 'S' for skipped.
