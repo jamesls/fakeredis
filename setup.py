@@ -4,6 +4,8 @@ setup(
     name='fakeredis',
     version='0.1',
     description="Fake implementation of redis API for testing purposes.",
+    long_description=open(os.path.join(os.path.dirname(__file__),
+                                       'README.rst')).read(),
     license='BSD',
     url="https://github.com/jamesls/fakeredis",
     author='James Saryerwinnie',
