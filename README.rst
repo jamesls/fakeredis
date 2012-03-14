@@ -37,12 +37,31 @@ All of the redis commands are implemented in fakeredis with
 these exceptions:
 
 
-string
+generic
+-------
+
+ * object
+ * eval
+
+
+connection
+----------
+
+ * echo
+ * select
+ * quit
+ * ping
+ * auth
+
+
+pubsub
 ------
 
- * getrange
- * incrby
- * decrby
+ * punsubscribe
+ * subscribe
+ * psubscribe
+ * publish
+ * unsubscribe
 
 
 transactions
@@ -51,13 +70,6 @@ transactions
  * exec
  * multi
  * discard
-
-
-generic
--------
-
- * object
- * eval
 
 
 server
@@ -79,26 +91,6 @@ server
  * info
  * config set
  * dbsize
-
-
-connection
-----------
-
- * echo
- * select
- * quit
- * ping
- * auth
-
-
-pubsub
-------
-
- * punsubscribe
- * subscribe
- * psubscribe
- * publish
- * unsubscribe
 
 
 Adding New Commands
