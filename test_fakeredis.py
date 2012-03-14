@@ -217,8 +217,10 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.mget('foo', 'bar'), ['one', 'two'])
 
     def test_msetnx(self):
-        self.assertEqual(self.redis.msetnx({'foo': 'one', 'bar': 'two'}), True)
-        self.assertEqual(self.redis.msetnx({'bar': 'two', 'baz': 'three'}), False)
+        self.assertEqual(self.redis.msetnx({'foo': 'one', 'bar': 'two'}),
+                         True)
+        self.assertEqual(self.redis.msetnx({'bar': 'two', 'baz': 'three'}),
+                         False)
         self.assertEqual(self.redis.mget('foo', 'bar', 'baz'),
                          ['one', 'two', None])
 
@@ -409,7 +411,8 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
         self.redis.rpush('foo', 'three')
-        self.assertEqual(self.redis.blpop(['foo'], timeout=1), ('foo', 'one'))
+        self.assertEqual(self.redis.blpop(['foo'], timeout=1),
+                         ('foo', 'one'))
 
     def test_blpop_test_multiple_lists(self):
         self.redis.rpush('foo', 'one')
@@ -498,7 +501,8 @@ class TestFakeRedis(unittest.TestCase):
         # Key does not exist.
         self.assertEqual(self.redis.hmget('bar', ['k1', 'k3']), [None, None])
         # Some keys in the hash do not exist.
-        self.assertEqual(self.redis.hmget('foo', ['k1', 'k500']), ['v1', None])
+        self.assertEqual(self.redis.hmget('foo', ['k1', 'k500']),
+                         ['v1', None])
 
     def test_hdel(self):
         self.redis.hset('foo', 'k1', 'v1')
@@ -811,7 +815,8 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.zadd('foo', four=4)
         # Outside of range.
         self.assertEqual(self.redis.zremrangebyscore('foo', 5, 10), 0)
-        self.assertEqual(self.redis.zrange('foo', 0, -1), ['zero', 'two', 'four'])
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+                         ['zero', 'two', 'four'])
         # Middle of range.
         self.assertEqual(self.redis.zremrangebyscore('foo', 1, 3), 1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), ['zero', 'four'])
@@ -980,9 +985,10 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.rpush('foo', '3')
 
         self.assertEqual(self.redis.sort('foo', store='bar'), 4)
-        self.assertEqual(self.redis.lrange('bar', 0, -1), ['1', '2', '3', '4'])
+        self.assertEqual(self.redis.lrange('bar', 0, -1),
+                         ['1', '2', '3', '4'])
 
-    def test_sort_with_by_option(self):
+    def test_sort_with_by_and_get_option(self):
         self.redis.rpush('foo', '2')
         self.redis.rpush('foo', '1')
         self.redis.rpush('foo', '4')
@@ -1007,6 +1013,25 @@ class TestFakeRedis(unittest.TestCase):
             ['four', '4', 'three', '3', 'two', '2', 'one', '1'])
         self.assertEqual(self.redis.sort('foo', by='weight_*', get='data_1'),
                          [None, None, None, None])
+
+    def test_sort_with_hash(self):
+        self.redis.rpush('foo', 'middle')
+        self.redis.rpush('foo', 'eldest')
+        self.redis.rpush('foo', 'youngest')
+        self.redis.hset('record_youngest', 'age', 1)
+        self.redis.hset('record_youngest', 'name', 'baby')
+
+        self.redis.hset('record_middle', 'age', 10)
+        self.redis.hset('record_middle', 'name', 'teen')
+
+        self.redis.hset('record_eldest', 'age', 20)
+        self.redis.hset('record_eldest', 'name', 'adult')
+
+        self.assertEqual(self.redis.sort('foo', by='record_*->age'),
+                         ['youngest', 'middle', 'eldest'])
+        self.assertEqual(
+            self.redis.sort('foo', by='record_*->age', get='record_*->name'),
+            ['baby', 'teen', 'adult'])
 
 
 @redis_must_be_running

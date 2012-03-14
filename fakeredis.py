@@ -239,8 +239,6 @@ class FakeRedis(object):
             the key ``store``
 
         """
-        # This does not support hashes in by/get using the '->' syntax.
-        # It should be pretty straightforward to add if needed.
         if (start is None and num is not None) or \
                 (start is not None and num is None):
             raise redis.RedisError(
@@ -263,26 +261,35 @@ class FakeRedis(object):
                 self._db[store] = data
                 return len(data)
             else:
-                if get is not None:
-                    if isinstance(get, basestring):
-                        if '*' in get:
-                            data = [self._db.get(get.replace('*', k))
-                                    for k in data]
-                        elif '#' not in get:
-                            data = [None for k in data]
-                    else:
-                        new_data = []
-                        for k in data:
-                            for g in get:
-                                if '*' in g:
-                                    g = g.replace('*', k)
-                                    new_data.append(self._db.get(g))
-                                elif '#' in g:
-                                    new_data.append(k)
-                        data = new_data
-                return data
+                return self._retrive_data_from_sort(data, get)
         except KeyError:
             return []
+
+    def _retrive_data_from_sort(self, data, get):
+        if get is not None:
+            if isinstance(get, basestring):
+                get = [get]
+            new_data = []
+            for k in data:
+                for g in get:
+                    single_item = self._get_single_item(k, g)
+                    new_data.append(single_item)
+            data = new_data
+        return data
+
+    def _get_single_item(self, k, g):
+        if '*' in g:
+            g = g.replace('*', k)
+            if '->' in g:
+                key, hash_key = g.split('->')
+                single_item = self._db.get(key, {}).get(hash_key)
+            else:
+                single_item = self._db.get(g)
+        elif '#' in g:
+            single_item = k
+        else:
+            single_item = None
+        return single_item
 
     def _strtod_key_func(self, arg):
         # str()'ing the arg is important! Don't ever remove this.
@@ -292,7 +299,11 @@ class FakeRedis(object):
     def _sort_using_by_arg(self, data, by):
         def _by_key(arg):
             key = by.replace('*', arg)
-            return self._db.get(key)
+            if '->' in by:
+                key, hash_key = key.split('->')
+                return self._db.get(key, {}).get(hash_key)
+            else:
+                return self._db.get(key)
         data.sort(key=_by_key)
 
     def lpush(self, name, value):
