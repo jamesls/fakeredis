@@ -13,7 +13,7 @@ How to Use
 ==========
 
 The intent is for fakeredis to act as though you're talking to a real
-redis server.  It does this by storing state in the redis client itself.
+redis server.  It does this by storing state in the fakeredis module.
 For example::
 
   >>> import fakeredis
@@ -28,6 +28,23 @@ For example::
   2
   >>> r.lrange('bar', 0, -1)
   [2, 1]
+
+By storing state in the fakeredis module, instances can share
+data::
+
+  >>> import fakeredis
+  >>> r1 = fakeredis.FakeRedis()
+  >>> r1.set('foo', 'bar')
+  True
+  >>> r2 = fakeredis.FakeRedis()
+  >>> r2.get('foo')
+  'bar'
+  >>> r2.set('bar', 'baz')
+  True
+  >>> r1.get('bar')
+  'baz'
+  >>> r2.get('bar')
+  'baz'
 
 
 Unimplemented Commands
