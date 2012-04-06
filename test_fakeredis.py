@@ -1033,6 +1033,21 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.sort('foo', by='record_*->age', get='record_*->name'),
             ['baby', 'teen', 'adult'])
 
+    def test_pipeline(self):
+        # The pipeline method returns ann object for
+        # issuing multiple commands in a batch.
+        p = self.redis.pipeline()
+        p.set('foo', 'bar').get('foo')
+        p.lpush('baz', 'quux')
+        p.lpush('baz', 'quux2').lrange('baz', 0, -1)
+        res = p.execute()
+
+        # Check return values returned as list.
+        self.assertEqual([True, 'bar', 1, 2, ['quux2', 'quux']], res)
+
+        # Check side effects happened as expected.
+        self.assertEqual(['quux2', 'quux'], self.redis.lrange('baz', 0, -1))
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):

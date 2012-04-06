@@ -870,3 +870,49 @@ class FakeRedis(object):
         if args:
             keys.extend(args)
         return keys
+
+    def pipeline(self):
+        """Return an object that can be used to issue Redis commands in a batch."""
+        return FakePipeline(self)
+
+
+class FakePipeline(object):
+    """Helper class for FakeRedis to implement pipelines.
+
+    A pipeline is a collection of commands that
+    are buffered until you call ``execute``, at which
+    point they are called sequentially and a list
+    of their return values is returned.
+    """
+
+    def __init__(self, owner):
+        """Create a pipeline for the specified FakeRedis instance.
+
+        Arguments --
+            owner -- a FakeRedis instance.
+        """
+        self.owner = owner
+        self.commands = []
+
+    def __getattr__(self, name):
+        """Magic method to allow Fakeredis commands to be called.
+
+        Returns a method that records the command for later.
+        """
+        if not hasattr(self.owner, name):
+            raise AttributeError('%r: does not have attribute %r' % (self.owner, name))
+        def meth(*args, **kwargs):
+            self.commands.append((name, args, kwargs))
+            return self
+        setattr(self, name, meth)
+        return meth
+
+    def execute(self):
+        """Run all the commands in the pipeline and return the results."""
+        print self.commands
+        return [getattr(self.owner, name)(*args, **kwargs)
+                for name, args, kwargs in self.commands]
+
+
+
+
