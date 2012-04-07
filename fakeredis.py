@@ -881,6 +881,20 @@ class FakeRedis(object):
         """
         return FakePipeline(self, transaction)
 
+    def transaction(self, func, *keys):
+        # We use a for loop instead of while
+        # because if the test this is being used in
+        # goes wrong we don’t want an infinite loop!
+        with self.pipeline() as p:
+            for _ in range(5):
+                try:
+                    p.watch(*keys)
+                    func(p)
+                    return p.execute()
+                except redis.WatchError:
+                    continue
+        raise redis.WatchError('Could not run transaction after 5 tries')
+
 
 class FakePipeline(object):
     """Helper class for FakeRedis to implement pipelines.
@@ -890,6 +904,10 @@ class FakePipeline(object):
     point they are called sequentially and a list
     of their return values is returned.
     """
+
+    # Now wondering whether the real Pipeline class
+    # could be made to work with FakeRedis and
+    # save me some work.  Too late now!
 
     def __init__(self, owner, transaction=True):
         """Create a pipeline for the specified FakeRedis instance.
@@ -902,7 +920,7 @@ class FakePipeline(object):
         self.commands = []
         self.need_reset = False
         self.is_immediate = False
-        self.watching = []
+        self.watching = {}
 
     def __getattr__(self, name):
         """Magic method to allow FakeRedis commands to be called.
@@ -931,16 +949,17 @@ class FakePipeline(object):
         print self.watching
         if self.watching:
             mismatches = [(k, v, u)
-                for (k, v, u) in [(k, v, self.owner._db[k]) for (k, v) in self.watching]
+                for (k, v, u) in [(k, v, self.owner._db[k]) for (k, v) in self.watching.items()]
                 if v != u]
             if mismatches:
+                self.commands = []
                 raise redis.WatchError('Watched key%s %s changed'
                     % ('' if len(mismatches) == 1 else 's', ', '.join(k for (k, _, _) in mismatches)))
         return [getattr(self.owner, name)(*args, **kwargs)
                 for name, args, kwargs in self.commands]
 
     def watch(self, *keys):
-        self.watching.extend((key, copy.deepcopy(self.owner._db[key])) for key in keys)
+        self.watching.update((key, copy.deepcopy(self.owner._db[key])) for key in keys)
         print self.watching
         self.need_reset = True
         self.is_immediate = True

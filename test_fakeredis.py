@@ -1107,6 +1107,27 @@ class TestFakeRedis(unittest.TestCase):
         # it was reset properly:
         self.assertTrue(isinstance(p, redis.client.BasePipeline) or not p.need_reset)
 
+    def test_pipeline_transaction_shortcut(self):
+        # This example taken pretty much from the redis-py documetnation.
+        self.redis.set('OUR-SEQUENCE-KEY', 13)
+        calls = []
+        def client_side_incr(pipe):
+            calls.append((pipe,))
+            current_value = pipe.get('OUR-SEQUENCE-KEY')
+            next_value = int(current_value) + 1
+
+            if len(calls) < 3:
+                # Simulate a change from another thread.
+                self.redis.set('OUR-SEQUENCE-KEY', next_value)
+
+            pipe.multi()
+            pipe.set('OUR-SEQUENCE-KEY', next_value)
+        res = self.redis.transaction(client_side_incr, 'OUR-SEQUENCE-KEY')
+
+        self.assertEqual([True], res)
+        self.assertEqual(16, int(self.redis.get('OUR-SEQUENCE-KEY')))
+        self.assertEqual(3, len(calls))
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
