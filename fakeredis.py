@@ -903,17 +903,14 @@ class FakePipeline(object):
     are buffered until you call ``execute``, at which
     point they are called sequentially and a list
     of their return values is returned.
+
     """
-
-    # Now wondering whether the real Pipeline class
-    # could be made to work with FakeRedis and
-    # save me some work.  Too late now!
-
     def __init__(self, owner, transaction=True):
         """Create a pipeline for the specified FakeRedis instance.
 
         Arguments --
             owner -- a FakeRedis instance.
+
         """
         self.owner = owner
         self.transaction = transaction
@@ -926,9 +923,11 @@ class FakePipeline(object):
         """Magic method to allow FakeRedis commands to be called.
 
         Returns a method that records the command for later.
+
         """
         if not hasattr(self.owner, name):
-            raise AttributeError('%r: does not have attribute %r' % (self.owner, name))
+            raise AttributeError('%r: does not have attribute %r' % (self.owner,
+                                                                     name))
         def meth(*args, **kwargs):
             if self.is_immediate:
                 # Special mode during watch_multi sequence.
@@ -946,31 +945,27 @@ class FakePipeline(object):
 
     def execute(self):
         """Run all the commands in the pipeline and return the results."""
-        print self.watching
         if self.watching:
-            mismatches = [(k, v, u)
-                for (k, v, u) in [(k, v, self.owner._db[k]) for (k, v) in self.watching.items()]
+            mismatches = [
+                (k, v, u) for (k, v, u) in
+                [(k, v, self.owner._db[k]) for (k, v) in self.watching.items()]
                 if v != u]
             if mismatches:
                 self.commands = []
                 raise redis.WatchError('Watched key%s %s changed'
-                    % ('' if len(mismatches) == 1 else 's', ', '.join(k for (k, _, _) in mismatches)))
+                    % ('' if len(mismatches) == 1 else 's', ', '.join(
+                        k for (k, _, _) in mismatches)))
         return [getattr(self.owner, name)(*args, **kwargs)
                 for name, args, kwargs in self.commands]
 
     def watch(self, *keys):
-        self.watching.update((key, copy.deepcopy(self.owner._db[key])) for key in keys)
-        print self.watching
+        self.watching.update((key, copy.deepcopy(self.owner._db[key]))
+                             for key in keys)
         self.need_reset = True
         self.is_immediate = True
-        pass
 
     def multi(self):
         self.is_immediate = False
 
     def reset(self):
         self.need_reset = False
-
-
-
-

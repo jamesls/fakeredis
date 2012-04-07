@@ -1035,7 +1035,7 @@ class TestFakeRedis(unittest.TestCase):
             ['baby', 'teen', 'adult'])
 
     def test_pipeline(self):
-        # The pipeline method returns ann object for
+        # The pipeline method returns an object for
         # issuing multiple commands in a batch.
         p = self.redis.pipeline()
         p.set('foo', 'bar').get('foo')
@@ -1096,7 +1096,8 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         with self.redis.pipeline() as p:
             p.watch('foo')
-            self.assertTrue(isinstance(p, redis.client.BasePipeline) or p.need_reset)
+            self.assertTrue(isinstance(p, redis.client.BasePipeline)
+                            or p.need_reset)
             p.multi() # begin pipelining
             p.set('foo', 'baz')
             p.execute()
@@ -1105,10 +1106,11 @@ class TestFakeRedis(unittest.TestCase):
         # have been destroyed
         # after the with statement, but we need to check
         # it was reset properly:
-        self.assertTrue(isinstance(p, redis.client.BasePipeline) or not p.need_reset)
+        self.assertTrue(isinstance(p, redis.client.BasePipeline)
+                        or not p.need_reset)
 
     def test_pipeline_transaction_shortcut(self):
-        # This example taken pretty much from the redis-py documetnation.
+        # This example taken pretty much from the redis-py documentation.
         self.redis.set('OUR-SEQUENCE-KEY', 13)
         calls = []
         def client_side_incr(pipe):
