@@ -6,6 +6,7 @@ from functools import wraps
 
 from nose.plugins.skip import SkipTest
 import redis
+import redis.client
 
 import fakeredis
 
@@ -1090,6 +1091,22 @@ class TestFakeRedis(unittest.TestCase):
             self.assertEqual('barbaz', self.redis.get('foo'))
         finally:
             p.reset()
+
+    def test_pipeline_as_context_manager(self):
+        self.redis.set('foo', 'bar')
+        with self.redis.pipeline() as p:
+            p.watch('foo')
+            self.assertTrue(isinstance(p, redis.client.BasePipeline) or p.need_reset)
+            p.multi() # begin pipelining
+            p.set('foo', 'baz')
+            p.execute()
+
+        # Usually you would consider the pipeline to
+        # have been destroyed
+        # after the with statement, but we need to check
+        # it was reset properly:
+        self.assertTrue(isinstance(p, redis.client.BasePipeline) or not p.need_reset)
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):

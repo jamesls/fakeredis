@@ -920,6 +920,12 @@ class FakePipeline(object):
         setattr(self, name, meth)
         return meth
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.reset()
+
     def execute(self):
         """Run all the commands in the pipeline and return the results."""
         print self.watching
