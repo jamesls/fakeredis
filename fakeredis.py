@@ -884,7 +884,7 @@ class FakeRedis(object):
     def transaction(self, func, *keys):
         # We use a for loop instead of while
         # because if the test this is being used in
-        # goes wrong we don’t want an infinite loop!
+        # goes wrong we don't want an infinite loop!
         with self.pipeline() as p:
             for _ in range(5):
                 try:
@@ -931,7 +931,7 @@ class FakePipeline(object):
             raise AttributeError('%r: does not have attribute %r' % (self.owner, name))
         def meth(*args, **kwargs):
             if self.is_immediate:
-                # Special mode during watch…multi sequence.
+                # Special mode during watch_multi sequence.
                 return getattr(self.owner, name)(*args, **kwargs)
             self.commands.append((name, args, kwargs))
             return self
