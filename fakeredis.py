@@ -1,5 +1,6 @@
 import random
 import warnings
+import copy
 from ctypes import CDLL, c_double
 from ctypes.util import find_library
 
@@ -899,15 +900,21 @@ class FakePipeline(object):
         self.owner = owner
         self.transaction = transaction
         self.commands = []
+        self.need_reset = False
+        self.is_immediate = False
+        self.watching = []
 
     def __getattr__(self, name):
-        """Magic method to allow Fakeredis commands to be called.
+        """Magic method to allow FakeRedis commands to be called.
 
         Returns a method that records the command for later.
         """
         if not hasattr(self.owner, name):
             raise AttributeError('%r: does not have attribute %r' % (self.owner, name))
         def meth(*args, **kwargs):
+            if self.is_immediate:
+                # Special mode during watch…multi sequence.
+                return getattr(self.owner, name)(*args, **kwargs)
             self.commands.append((name, args, kwargs))
             return self
         setattr(self, name, meth)
@@ -915,9 +922,29 @@ class FakePipeline(object):
 
     def execute(self):
         """Run all the commands in the pipeline and return the results."""
-        print self.commands
+        print self.watching
+        if self.watching:
+            mismatches = [(k, v, u)
+                for (k, v, u) in [(k, v, self.owner._db[k]) for (k, v) in self.watching]
+                if v != u]
+            if mismatches:
+                raise redis.WatchError('Watched key%s %s changed'
+                    % ('' if len(mismatches) == 1 else 's', ', '.join(k for (k, _, _) in mismatches)))
         return [getattr(self.owner, name)(*args, **kwargs)
                 for name, args, kwargs in self.commands]
+
+    def watch(self, *keys):
+        self.watching.extend((key, copy.deepcopy(self.owner._db[key])) for key in keys)
+        print self.watching
+        self.need_reset = True
+        self.is_immediate = True
+        pass
+
+    def multi(self):
+        self.is_immediate = False
+
+    def reset(self):
+        self.need_reset = False
 
 
 

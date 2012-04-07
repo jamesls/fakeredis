@@ -1056,8 +1056,40 @@ class TestFakeRedis(unittest.TestCase):
 
         self.assertEqual([True, 'quux'], res)
 
+    def test_pipeline_raises_when_watched_key_changed(self):
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('greet', 'hello')
+        p = self.redis.pipeline()
+        try:
+            p.watch('greet', 'foo')
+            nextf = p.get('foo') + 'baz'
+            # simulate change happening on another thread:
+            self.redis.rpush('greet', 'world')
+            p.multi() # begin pipelining
+            p.set('foo', nextf)
 
+            self.assertRaises(redis.WatchError, p.execute)
+        finally:
+            p.reset()
 
+    def test_pipeline_succeeds_despite_unwatched_key_changed(self):
+        # Same setup as before except for the params to the WATCH command.
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('greet', 'hello')
+        p = self.redis.pipeline()
+        try:
+            p.watch('foo') # only watch one of the 2 keys
+            nextf = p.get('foo') + 'baz'
+            # simulate change happening on another thread:
+            self.redis.rpush('greet', 'world')
+            p.multi() # begin pipelining
+            p.set('foo', nextf)
+            p.execute()
+
+            # Check the commands were executed.
+            self.assertEqual('barbaz', self.redis.get('foo'))
+        finally:
+            p.reset()
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
