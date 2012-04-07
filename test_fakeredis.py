@@ -1048,6 +1048,16 @@ class TestFakeRedis(unittest.TestCase):
         # Check side effects happened as expected.
         self.assertEqual(['quux2', 'quux'], self.redis.lrange('baz', 0, -1))
 
+    def test_pipeline_non_transational(self):
+        # For our simple-minded model I don’t think
+        # there is any observable difference.
+        p = self.redis.pipeline(transaction=False)
+        res = p.set('baz', 'quux').get('baz').execute()
+
+        self.assertEqual([True, 'quux'], res)
+
+
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):

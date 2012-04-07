@@ -871,9 +871,14 @@ class FakeRedis(object):
             keys.extend(args)
         return keys
 
-    def pipeline(self):
-        """Return an object that can be used to issue Redis commands in a batch."""
-        return FakePipeline(self)
+    def pipeline(self, transaction=True):
+        """Return an object that can be used to issue Redis commands in a batch.
+
+        Arguments --
+            transaction (bool) -- whether the buffered commands
+                are issued atomically. True by default.
+        """
+        return FakePipeline(self, transaction)
 
 
 class FakePipeline(object):
@@ -885,13 +890,14 @@ class FakePipeline(object):
     of their return values is returned.
     """
 
-    def __init__(self, owner):
+    def __init__(self, owner, transaction=True):
         """Create a pipeline for the specified FakeRedis instance.
 
         Arguments --
             owner -- a FakeRedis instance.
         """
         self.owner = owner
+        self.transaction = transaction
         self.commands = []
 
     def __getattr__(self, name):
