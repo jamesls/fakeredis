@@ -1062,7 +1062,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.rpush('greet', 'hello')
         p = self.redis.pipeline()
         try:
-            p.watch('greet', 'foo')
+            p.watch('greet', 'foo', 'quux')
             nextf = p.get('foo') + 'baz'
             # simulate change happening on another thread:
             self.redis.rpush('greet', 'world')

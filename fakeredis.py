@@ -946,10 +946,9 @@ class FakePipeline(object):
 
     def execute(self):
         """Run all the commands in the pipeline and return the results."""
-        print self.watching
         if self.watching:
             mismatches = [(k, v, u)
-                for (k, v, u) in [(k, v, self.owner._db[k]) for (k, v) in self.watching.items()]
+                for (k, v, u) in [(k, v, self.owner._db.get(k)) for (k, v) in self.watching.items()]
                 if v != u]
             if mismatches:
                 self.commands = []
@@ -959,8 +958,7 @@ class FakePipeline(object):
                 for name, args, kwargs in self.commands]
 
     def watch(self, *keys):
-        self.watching.update((key, copy.deepcopy(self.owner._db[key])) for key in keys)
-        print self.watching
+        self.watching.update((key, copy.deepcopy(self.owner._db.get(key))) for key in keys)
         self.need_reset = True
         self.is_immediate = True
         pass
