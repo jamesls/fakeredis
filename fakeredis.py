@@ -1,5 +1,6 @@
 import random
 import warnings
+import copy
 from ctypes import CDLL, c_double
 from ctypes.util import find_library
 
@@ -870,3 +871,104 @@ class FakeRedis(object):
         if args:
             keys.extend(args)
         return keys
+
+    def pipeline(self, transaction=True):
+        """Return an object that can be used to issue Redis commands in a batch.
+
+        Arguments --
+            transaction (bool) -- whether the buffered commands
+                are issued atomically. True by default.
+        """
+        return FakePipeline(self, transaction)
+
+    def transaction(self, func, *keys):
+        # We use a for loop instead of while
+        # because if the test this is being used in
+        # goes wrong we don’t want an infinite loop!
+        with self.pipeline() as p:
+            for _ in range(5):
+                try:
+                    p.watch(*keys)
+                    func(p)
+                    return p.execute()
+                except redis.WatchError:
+                    continue
+        raise redis.WatchError('Could not run transaction after 5 tries')
+
+
+class FakePipeline(object):
+    """Helper class for FakeRedis to implement pipelines.
+
+    A pipeline is a collection of commands that
+    are buffered until you call ``execute``, at which
+    point they are called sequentially and a list
+    of their return values is returned.
+    """
+
+    # Now wondering whether the real Pipeline class
+    # could be made to work with FakeRedis and
+    # save me some work.  Too late now!
+
+    def __init__(self, owner, transaction=True):
+        """Create a pipeline for the specified FakeRedis instance.
+
+        Arguments --
+            owner -- a FakeRedis instance.
+        """
+        self.owner = owner
+        self.transaction = transaction
+        self.commands = []
+        self.need_reset = False
+        self.is_immediate = False
+        self.watching = {}
+
+    def __getattr__(self, name):
+        """Magic method to allow FakeRedis commands to be called.
+
+        Returns a method that records the command for later.
+        """
+        if not hasattr(self.owner, name):
+            raise AttributeError('%r: does not have attribute %r' % (self.owner, name))
+        def meth(*args, **kwargs):
+            if self.is_immediate:
+                # Special mode during watch…multi sequence.
+                return getattr(self.owner, name)(*args, **kwargs)
+            self.commands.append((name, args, kwargs))
+            return self
+        setattr(self, name, meth)
+        return meth
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.reset()
+
+    def execute(self):
+        """Run all the commands in the pipeline and return the results."""
+        if self.watching:
+            mismatches = [(k, v, u)
+                for (k, v, u) in [(k, v, self.owner._db.get(k)) for (k, v) in self.watching.items()]
+                if v != u]
+            if mismatches:
+                self.commands = []
+                raise redis.WatchError('Watched key%s %s changed'
+                    % ('' if len(mismatches) == 1 else 's', ', '.join(k for (k, _, _) in mismatches)))
+        return [getattr(self.owner, name)(*args, **kwargs)
+                for name, args, kwargs in self.commands]
+
+    def watch(self, *keys):
+        self.watching.update((key, copy.deepcopy(self.owner._db.get(key))) for key in keys)
+        self.need_reset = True
+        self.is_immediate = True
+        pass
+
+    def multi(self):
+        self.is_immediate = False
+
+    def reset(self):
+        self.need_reset = False
+
+
+
+

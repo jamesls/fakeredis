@@ -6,6 +6,7 @@ from functools import wraps
 
 from nose.plugins.skip import SkipTest
 import redis
+import redis.client
 
 import fakeredis
 
@@ -1032,6 +1033,100 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(
             self.redis.sort('foo', by='record_*->age', get='record_*->name'),
             ['baby', 'teen', 'adult'])
+
+    def test_pipeline(self):
+        # The pipeline method returns ann object for
+        # issuing multiple commands in a batch.
+        p = self.redis.pipeline()
+        p.set('foo', 'bar').get('foo')
+        p.lpush('baz', 'quux')
+        p.lpush('baz', 'quux2').lrange('baz', 0, -1)
+        res = p.execute()
+
+        # Check return values returned as list.
+        self.assertEqual([True, 'bar', 1, 2, ['quux2', 'quux']], res)
+
+        # Check side effects happened as expected.
+        self.assertEqual(['quux2', 'quux'], self.redis.lrange('baz', 0, -1))
+
+    def test_pipeline_non_transational(self):
+        # For our simple-minded model I don’t think
+        # there is any observable difference.
+        p = self.redis.pipeline(transaction=False)
+        res = p.set('baz', 'quux').get('baz').execute()
+
+        self.assertEqual([True, 'quux'], res)
+
+    def test_pipeline_raises_when_watched_key_changed(self):
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('greet', 'hello')
+        p = self.redis.pipeline()
+        try:
+            p.watch('greet', 'foo', 'quux')
+            nextf = p.get('foo') + 'baz'
+            # simulate change happening on another thread:
+            self.redis.rpush('greet', 'world')
+            p.multi() # begin pipelining
+            p.set('foo', nextf)
+
+            self.assertRaises(redis.WatchError, p.execute)
+        finally:
+            p.reset()
+
+    def test_pipeline_succeeds_despite_unwatched_key_changed(self):
+        # Same setup as before except for the params to the WATCH command.
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('greet', 'hello')
+        p = self.redis.pipeline()
+        try:
+            p.watch('foo') # only watch one of the 2 keys
+            nextf = p.get('foo') + 'baz'
+            # simulate change happening on another thread:
+            self.redis.rpush('greet', 'world')
+            p.multi() # begin pipelining
+            p.set('foo', nextf)
+            p.execute()
+
+            # Check the commands were executed.
+            self.assertEqual('barbaz', self.redis.get('foo'))
+        finally:
+            p.reset()
+
+    def test_pipeline_as_context_manager(self):
+        self.redis.set('foo', 'bar')
+        with self.redis.pipeline() as p:
+            p.watch('foo')
+            self.assertTrue(isinstance(p, redis.client.BasePipeline) or p.need_reset)
+            p.multi() # begin pipelining
+            p.set('foo', 'baz')
+            p.execute()
+
+        # Usually you would consider the pipeline to
+        # have been destroyed
+        # after the with statement, but we need to check
+        # it was reset properly:
+        self.assertTrue(isinstance(p, redis.client.BasePipeline) or not p.need_reset)
+
+    def test_pipeline_transaction_shortcut(self):
+        # This example taken pretty much from the redis-py documetnation.
+        self.redis.set('OUR-SEQUENCE-KEY', 13)
+        calls = []
+        def client_side_incr(pipe):
+            calls.append((pipe,))
+            current_value = pipe.get('OUR-SEQUENCE-KEY')
+            next_value = int(current_value) + 1
+
+            if len(calls) < 3:
+                # Simulate a change from another thread.
+                self.redis.set('OUR-SEQUENCE-KEY', next_value)
+
+            pipe.multi()
+            pipe.set('OUR-SEQUENCE-KEY', next_value)
+        res = self.redis.transaction(client_side_incr, 'OUR-SEQUENCE-KEY')
+
+        self.assertEqual([True], res)
+        self.assertEqual(16, int(self.redis.get('OUR-SEQUENCE-KEY')))
+        self.assertEqual(3, len(calls))
 
 
 @redis_must_be_running
