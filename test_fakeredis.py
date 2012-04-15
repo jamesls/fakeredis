@@ -371,6 +371,18 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrange('foo', 0, -1), ['one', 'two'])
         self.assertEqual(self.redis.lrange('bar', 0, -1), [])
 
+    def test_ltrim(self):
+        self.redis.rpush('foo', 'one')
+        self.redis.rpush('foo', 'two')
+        self.redis.rpush('foo', 'three')
+        self.redis.rpush('foo', 'four')
+
+        self.redis.ltrim('foo', 1, 3)
+        self.assertEqual(self.redis.lrange('foo', 0, -1), ['two', 'three',
+                                                           'four'])
+        self.redis.ltrim('foo', 1, -1)
+        self.assertEqual(self.redis.lrange('foo', 0, -1), ['three', 'four'])
+
     def test_lindex(self):
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')

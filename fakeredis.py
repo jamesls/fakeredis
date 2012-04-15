@@ -365,7 +365,15 @@ class FakeRedis(object):
             return
 
     def ltrim(self, name, start, end):
-        raise NotImplementedError()
+        try:
+            val = self._db[name]
+        except KeyError:
+            return
+        if end == -1:
+            end = None
+        else:
+            end += 1
+        self._db[name] = val[start:end]
 
     def lindex(self, name, index):
         try:
