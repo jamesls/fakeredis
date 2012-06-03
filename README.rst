@@ -20,7 +20,7 @@ redis server.  It does this by storing state in the fakeredis module.
 For example::
 
   >>> import fakeredis
-  >>> r = fakeredis.FakeRedis()
+  >>> r = fakeredis.StrictFakeRedis()
   >>> r.set('foo', 'bar')
   True
   >>> r.get('foo')
@@ -36,10 +36,10 @@ By storing state in the fakeredis module, instances can share
 data::
 
   >>> import fakeredis
-  >>> r1 = fakeredis.FakeRedis()
+  >>> r1 = fakeredis.StrictFakeRedis()
   >>> r1.set('foo', 'bar')
   True
-  >>> r2 = fakeredis.FakeRedis()
+  >>> r2 = fakeredis.StrictFakeRedis()
   >>> r2.get('foo')
   'bar'
   >>> r2.set('bar', 'baz')
@@ -151,7 +151,7 @@ You can run these "integration" tests like this::
 In terms of implementation, ``TestRealRedis`` is a subclass of
 ``TestFakeRedis`` that overrides a factory method to create
 an instance of ``redis.Redis`` (an actual python client for redis)
-instead of ``fakeredis.FakeRedis``.
+instead of ``fakeredis.StrictFakeRedis``.
 
 To run both the unittests and the "integration" tests, run::
 

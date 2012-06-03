@@ -15,7 +15,7 @@ _libc.strtod.restype = c_double
 _strtod = _libc.strtod
 
 
-class FakeRedis(object):
+class StrictFakeRedis(object):
     def __init__(self, db=0):
         if db not in DATABASES:
             DATABASES[db] = {}
@@ -169,7 +169,7 @@ class FakeRedis(object):
         self._db[name] = ''.join(reconstructed)
 
     def setex(self, name, time, value):
-        pass
+        return self.set(name, value)
 
     def setnx(self, name, value):
         if name in self._db:
@@ -324,7 +324,7 @@ class FakeRedis(object):
     def llen(self, name):
         return len(self._db.get(name, []))
 
-    def lrem(self, name, value, count=0):
+    def lrem(self, name, count, value):
         a_list = self._db.get(name, [])
         found = []
         for i, el in enumerate(a_list):
@@ -612,24 +612,24 @@ class FakeRedis(object):
         self._db[dest] = union
         return len(union)
 
-    def zadd(self, name, value=None, score=None, **pairs):
+    def zadd(self, name, *args, **kwargs):
         """
-        For each kwarg in ``pairs``, add that item and it's score to the
-        sorted set ``name``.
+        Set any number of score, element-name pairs to the key ``name``. Pairs
+        can be specified in two ways:
 
-        The ``value`` and ``score`` arguments are deprecated.
+        As *args, in the form of: score1, name1, score2, name2, ...
+        or as **kwargs, in the form of: name1=score1, name2=score2, ...
+
+        The following example would add four values to the 'my-key' key:
+        redis.zadd('my-key', 1.1, 'name1', 2.2, 'name2', name3=3.3, name4=4.4)
         """
-        if value is not None or score is not None:
-            if value is None or score is None:
-                raise redis.RedisError(
-                    "Both 'value' and 'score' must be specified to ZADD")
-            warnings.warn(DeprecationWarning(
-                "Passing 'value' and 'score' has been deprecated. " \
-                "Please pass via kwargs instead."))
-        else:
-            value = pairs.keys()[0]
-            score = pairs.values()[0]
-        self._db.setdefault(name, {})[value] = score
+        if len(args) % 2 != 0:
+            raise redis.RedisError("ZADD requires an equal number of "
+                             "values and scores")
+        for value, score in zip(*[args[i::2] for i in range(2)]):
+            self._db.setdefault(name, {})[value] = score
+        for value, score in kwargs.items():
+            self._db.setdefault(name, {})[value] = score
 
     def zcard(self, name):
         "Return the number of elements in the sorted set ``name``"
@@ -904,8 +904,37 @@ class FakeRedis(object):
         raise redis.WatchError('Could not run transaction after 5 tries')
 
 
+class FakeRedis(StrictFakeRedis):
+    def setex(self, name, value, time):
+        super(FakeRedis, self).setex(name, time, value)
+
+    def lrem(self, name, value, num=0):
+        super(FakeRedis, self).lrem(name, num, value)
+
+    def zadd(self, name, value=None, score=None, **pairs):
+        """
+        For each kwarg in ``pairs``, add that item and it's score to the
+        sorted set ``name``.
+
+        The ``value`` and ``score`` arguments are deprecated.
+        """
+        if value is not None or score is not None:
+            if value is None or score is None:
+                raise redis.RedisError(
+                    "Both 'value' and 'score' must be specified to ZADD")
+            warnings.warn(DeprecationWarning(
+                "Passing 'value' and 'score' has been deprecated. "\
+                "Please pass via kwargs instead."))
+        else:
+            value = pairs.keys()[0]
+            score = pairs.values()[0]
+        self._db.setdefault(name, {})[value] = score
+
+
+
+
 class FakePipeline(object):
-    """Helper class for FakeRedis to implement pipelines.
+    """Helper class for StrictFakeRedis to implement pipelines.
 
     A pipeline is a collection of commands that
     are buffered until you call ``execute``, at which
@@ -914,10 +943,10 @@ class FakePipeline(object):
 
     """
     def __init__(self, owner, transaction=True):
-        """Create a pipeline for the specified FakeRedis instance.
+        """Create a pipeline for the specified StrictFakeRedis instance.
 
         Arguments --
-            owner -- a FakeRedis instance.
+            owner -- a StrictFakeRedis instance.
 
         """
         self.owner = owner
@@ -928,7 +957,7 @@ class FakePipeline(object):
         self.watching = {}
 
     def __getattr__(self, name):
-        """Magic method to allow FakeRedis commands to be called.
+        """Magic method to allow StrictFakeRedis commands to be called.
 
         Returns a method that records the command for later.
 
