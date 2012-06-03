@@ -626,7 +626,7 @@ class FakeStrictRedis(object):
         if len(args) % 2 != 0:
             raise redis.RedisError("ZADD requires an equal number of "
                              "values and scores")
-        for value, score in zip(*[args[i::2] for i in range(2)]):
+        for score, value in zip(*[args[i::2] for i in range(2)]):
             self._db.setdefault(name, {})[value] = score
         for value, score in kwargs.items():
             self._db.setdefault(name, {})[value] = score

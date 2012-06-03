@@ -663,10 +663,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrange('foo', 0, -1),
                          ['one', 'two', 'three'])
 
-#    def test_zadd_deprecated(self):
-#        self.redis.zadd('foo', 'one', 1)
-#        self.assertEqual(self.redis.zrange('foo', 0, -1),
-#                         ['one'])
+    def test_zadd_multiple(self):
+        self.redis.zadd('foo', 1, 'one', 2, 'two')
+        self.assertEqual(self.redis.zrange('foo', 0, 0),
+            ['one'])
+        self.assertEqual(self.redis.zrange('foo', 1, 1),
+            ['two'])
 
     def test_zrange_same_score(self):
         self.redis.zadd('foo', two_a=2)
@@ -1200,6 +1202,14 @@ class TestFakeRedis(TestFakeStrictRedis):
         count = self.redis.lrem('foo', 'one', 0)
         self.assertEqual(count, 1)
         self.assertEqual(self.redis.lrem('foo', 'one'), 0)
+
+    def test_zadd_deprecated(self):
+        self.redis.zadd('foo', 'one', 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+            ['one'])
+
+    def test_zadd_multiple(self):
+        pass # Does not work in non-Strict Redis
 
 
 
