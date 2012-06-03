@@ -15,7 +15,7 @@ _libc.strtod.restype = c_double
 _strtod = _libc.strtod
 
 
-class StrictFakeRedis(object):
+class FakeStrictRedis(object):
     def __init__(self, db=0):
         if db not in DATABASES:
             DATABASES[db] = {}
@@ -904,12 +904,12 @@ class StrictFakeRedis(object):
         raise redis.WatchError('Could not run transaction after 5 tries')
 
 
-class FakeRedis(StrictFakeRedis):
+class FakeRedis(FakeStrictRedis):
     def setex(self, name, value, time):
-        super(FakeRedis, self).setex(name, time, value)
+        return super(FakeRedis, self).setex(name, time, value)
 
     def lrem(self, name, value, num=0):
-        super(FakeRedis, self).lrem(name, num, value)
+        return super(FakeRedis, self).lrem(name, num, value)
 
     def zadd(self, name, value=None, score=None, **pairs):
         """
@@ -934,7 +934,7 @@ class FakeRedis(StrictFakeRedis):
 
 
 class FakePipeline(object):
-    """Helper class for StrictFakeRedis to implement pipelines.
+    """Helper class for FakeStrictRedis to implement pipelines.
 
     A pipeline is a collection of commands that
     are buffered until you call ``execute``, at which
@@ -943,10 +943,10 @@ class FakePipeline(object):
 
     """
     def __init__(self, owner, transaction=True):
-        """Create a pipeline for the specified StrictFakeRedis instance.
+        """Create a pipeline for the specified FakeStrictRedis instance.
 
         Arguments --
-            owner -- a StrictFakeRedis instance.
+            owner -- a FakeStrictRedis instance.
 
         """
         self.owner = owner
@@ -957,7 +957,7 @@ class FakePipeline(object):
         self.watching = {}
 
     def __getattr__(self, name):
-        """Magic method to allow StrictFakeRedis commands to be called.
+        """Magic method to allow FakeStrictRedis commands to be called.
 
         Returns a method that records the command for later.
 
