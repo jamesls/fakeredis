@@ -16,7 +16,7 @@ def redis_must_be_running(cls):
     # at import time if the tests should be run, but we probably
     # want it to be when the tests are actually run.
     try:
-        r = redis.Redis('localhost', port=6379)
+        r = redis.StrictRedis('localhost', port=6379)
         r.ping()
     except redis.ConnectionError:
         redis_running = False
@@ -34,7 +34,7 @@ def redis_must_be_running(cls):
     return cls
 
 
-class TestFakeRedis(unittest.TestCase):
+class TestFakeStrictRedis(unittest.TestCase):
     def setUp(self):
         self.redis = self.create_redis()
 
@@ -42,7 +42,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.flushall()
 
     def create_redis(self, db=0):
-        return fakeredis.FakeRedis(db=db)
+        return fakeredis.FakeStrictRedis(db=db)
 
     def test_flushdb(self):
         self.redis.set('foo', 'bar')
@@ -225,6 +225,10 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.mget('foo', 'bar', 'baz'),
                          ['one', 'two', None])
 
+    def test_setex(self):
+        self.assertEqual(self.redis.setex('foo', 100, 'bar'), True)
+        self.assertEqual(self.redis.get('foo'), 'bar')
+
     def test_setnx(self):
         self.assertEqual(self.redis.setnx('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'),  'bar')
@@ -285,7 +289,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.lpush('foo', 'same')
         self.redis.lpush('foo', 'same')
         self.redis.lpush('foo', 'different')
-        self.redis.lrem('foo', 'same', 2)
+        self.redis.lrem('foo', 2, 'same')
         self.assertEqual(self.redis.lrange('foo', 0, -1), ['different'])
 
     def test_lrem_negative_count(self):
@@ -294,7 +298,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.lpush('foo', 'two')
         self.redis.lpush('foo', 'one')
         self.redis.lpush('foo', 'removeme')
-        self.redis.lrem('foo', 'removeme', -1)
+        self.redis.lrem('foo', -1, 'removeme')
         # Should remove it from the end of the list,
         # leaving the 'removeme' from the front of the list alone.
         self.assertEqual(self.redis.lrange('foo', 0, -1),
@@ -304,28 +308,28 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.lpush('foo', 'one')
         self.redis.lpush('foo', 'one')
         self.redis.lpush('foo', 'one')
-        self.redis.lrem('foo', 'one', 0)
+        self.redis.lrem('foo', 0, 'one')
         self.assertEqual(self.redis.lrange('foo', 0, -1), [])
 
     def test_lrem_default_value(self):
         self.redis.lpush('foo', 'one')
         self.redis.lpush('foo', 'one')
         self.redis.lpush('foo', 'one')
-        self.redis.lrem('foo', 'one')
+        self.redis.lrem('foo', 0, 'one')
         self.assertEqual(self.redis.lrange('foo', 0, -1), [])
 
     def test_lrem_does_not_exist(self):
         self.redis.lpush('foo', 'one')
-        self.redis.lrem('foo', 'one')
+        self.redis.lrem('foo', 0, 'one')
         # These should be noops.
-        self.redis.lrem('foo', 'one', -2)
-        self.redis.lrem('foo', 'one', 2)
+        self.redis.lrem('foo', -2, 'one')
+        self.redis.lrem('foo', 2, 'one')
 
     def test_lrem_return_value(self):
         self.redis.lpush('foo', 'one')
-        count = self.redis.lrem('foo', 'one')
+        count = self.redis.lrem('foo', 0, 'one')
         self.assertEqual(count, 1)
-        self.assertEqual(self.redis.lrem('foo', 'one'), 0)
+        self.assertEqual(self.redis.lrem('foo', 0, 'one'), 0)
 
     def test_rpush(self):
         self.redis.rpush('foo', 'one')
@@ -659,10 +663,12 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrange('foo', 0, -1),
                          ['one', 'two', 'three'])
 
-    def test_zadd_deprecated(self):
-        self.redis.zadd('foo', 'one', 1)
-        self.assertEqual(self.redis.zrange('foo', 0, -1),
-                         ['one'])
+    def test_zadd_multiple(self):
+        self.redis.zadd('foo', 1, 'one', 2, 'two')
+        self.assertEqual(self.redis.zrange('foo', 0, 0),
+            ['one'])
+        self.assertEqual(self.redis.zrange('foo', 1, 1),
+            ['two'])
 
     def test_zrange_same_score(self):
         self.redis.zadd('foo', two_a=2)
@@ -1143,10 +1149,81 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(3, len(calls))
 
 
+class TestFakeRedis(TestFakeStrictRedis):
+    def create_redis(self, db=0):
+        return fakeredis.FakeRedis(db=db)
+
+    def test_setex(self):
+        self.assertEqual(self.redis.setex('foo', 'bar', 100), True)
+        self.assertEqual(self.redis.get('foo'), 'bar')
+
+    def test_lrem_postitive_count(self):
+        self.redis.lpush('foo', 'same')
+        self.redis.lpush('foo', 'same')
+        self.redis.lpush('foo', 'different')
+        self.redis.lrem('foo', 'same', 2)
+        self.assertEqual(self.redis.lrange('foo', 0, -1), ['different'])
+
+    def test_lrem_negative_count(self):
+        self.redis.lpush('foo', 'removeme')
+        self.redis.lpush('foo', 'three')
+        self.redis.lpush('foo', 'two')
+        self.redis.lpush('foo', 'one')
+        self.redis.lpush('foo', 'removeme')
+        self.redis.lrem('foo', 'removeme', -1)
+        # Should remove it from the end of the list,
+        # leaving the 'removeme' from the front of the list alone.
+        self.assertEqual(self.redis.lrange('foo', 0, -1),
+            ['removeme', 'one', 'two', 'three'])
+
+    def test_lrem_zero_count(self):
+        self.redis.lpush('foo', 'one')
+        self.redis.lpush('foo', 'one')
+        self.redis.lpush('foo', 'one')
+        self.redis.lrem('foo', 'one')
+        self.assertEqual(self.redis.lrange('foo', 0, -1), [])
+
+    def test_lrem_default_value(self):
+        self.redis.lpush('foo', 'one')
+        self.redis.lpush('foo', 'one')
+        self.redis.lpush('foo', 'one')
+        self.redis.lrem('foo', 'one')
+        self.assertEqual(self.redis.lrange('foo', 0, -1), [])
+
+    def test_lrem_does_not_exist(self):
+        self.redis.lpush('foo', 'one')
+        self.redis.lrem('foo', 'one')
+        # These should be noops.
+        self.redis.lrem('foo', 'one', -2)
+        self.redis.lrem('foo', 'one', 2)
+
+    def test_lrem_return_value(self):
+        self.redis.lpush('foo', 'one')
+        count = self.redis.lrem('foo', 'one', 0)
+        self.assertEqual(count, 1)
+        self.assertEqual(self.redis.lrem('foo', 'one'), 0)
+
+    def test_zadd_deprecated(self):
+        self.redis.zadd('foo', 'one', 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+            ['one'])
+
+    def test_zadd_multiple(self):
+        pass # Does not work in non-Strict Redis
+
+
+
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
     def create_redis(self, db=0):
         return redis.Redis('localhost', port=6379, db=db)
+
+@redis_must_be_running
+class TestRealStrictRedis(TestFakeStrictRedis):
+    def create_redis(self, db=0):
+        return redis.StrictRedis('localhost', port=6379, db=db)
+
+
 
 
 if __name__ == '__main__':
