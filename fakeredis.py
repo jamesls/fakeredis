@@ -169,7 +169,7 @@ class FakeRedis(object):
         self._db[name] = ''.join(reconstructed)
 
     def setex(self, name, time, value):
-        pass
+        return self.set(name, value)
 
     def setnx(self, name, value):
         if name in self._db:
