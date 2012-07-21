@@ -612,6 +612,13 @@ class FakeRedis(object):
         self._db[dest] = union
         return len(union)
 
+    def publish(self, channel, message):
+        """
+        Publish the message to the channel, report back how many clients
+        received the message.
+        """
+        return 0
+
     def zadd(self, name, value=None, score=None, **pairs):
         """
         For each kwarg in ``pairs``, add that item and it's score to the
