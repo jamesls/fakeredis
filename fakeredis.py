@@ -168,7 +168,7 @@ class FakeRedis(object):
         reconstructed[byte] = new_byte
         self._db[name] = ''.join(reconstructed)
 
-    def setex(self, name, time, value):
+    def setex(self, name, value, time):
         return self.set(name, value)
 
     def setnx(self, name, value):
@@ -223,7 +223,7 @@ class FakeRedis(object):
         return any_deleted
 
     def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
-             alpha=False, store=None) :
+             alpha=False, store=None):
         """Sort and return the list, set or sorted set at ``name``.
 
         ``start`` and ``num`` allow for paging through the sorted data
@@ -258,7 +258,7 @@ class FakeRedis(object):
             else:
                 data.sort()
             if not (start is None and num is None):
-                data = data[start:start+num]
+                data = data[start:start + num]
             if desc:
                 data = list(reversed(data))
             if store is not None:
@@ -631,7 +631,7 @@ class FakeRedis(object):
                 raise redis.RedisError(
                     "Both 'value' and 'score' must be specified to ZADD")
             warnings.warn(DeprecationWarning(
-                "Passing 'value' and 'score' has been deprecated. " \
+                "Passing 'value' and 'score' has been deprecated. "
                 "Please pass via kwargs instead."))
         else:
             value = pairs.keys()[0]
@@ -735,7 +735,7 @@ class FakeRedis(object):
             if min <= all_items[item] <= max:
                 matches.append(item)
         if start is not None:
-            matches = matches[start:start+num]
+            matches = matches[start:start + num]
         if withscores:
             return [(k, all_items[k]) for k in matches]
         return matches
@@ -943,6 +943,7 @@ class FakePipeline(object):
         if not hasattr(self.owner, name):
             raise AttributeError('%r: does not have attribute %r' % (self.owner,
                                                                      name))
+
         def meth(*args, **kwargs):
             if self.is_immediate:
                 # Special mode during watch_multi sequence.
