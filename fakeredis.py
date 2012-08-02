@@ -207,11 +207,11 @@ class FakeRedis(object):
     def type(self, name):
         value = self._db.get(name)
         if value:
-            if isinstance(dict, value):
+            if isinstance(value, dict):
                 return 'hash'
-            if isinstance(set, value):
+            if isinstance(value, set):
                 return 'set'
-            if isinstance(list, value):
+            if isinstance(value, list):
                 return 'list'
             return 'string'
 
