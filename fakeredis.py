@@ -1,3 +1,4 @@
+import fnmatch
 import random
 import warnings
 import copy
@@ -95,8 +96,8 @@ class FakeRedis(object):
                                       "range.")
         return self._db[name]
 
-    def keys(self):
-        return self._db.keys()
+    def keys(self, pattern='*'):
+        return filter(lambda k: fnmatch.fnmatch(k, pattern), self._db.keys())
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
