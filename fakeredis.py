@@ -205,7 +205,15 @@ class FakeRedis(object):
         pass
 
     def type(self, name):
-        pass
+        value = self._db.get(name)
+        if value:
+            if isinstance(dict, value):
+                return 'hash'
+            if isinstance(set, value):
+                return 'set'
+            if isinstance(list, value):
+                return 'list'
+            return 'string'
 
     def watch(self, *names):
         pass
