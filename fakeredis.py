@@ -1,5 +1,6 @@
 import fnmatch
 import random
+import re
 import warnings
 import copy
 from ctypes import CDLL, c_double
@@ -97,7 +98,8 @@ class FakeRedis(object):
         return self._db[name]
 
     def keys(self, pattern='*'):
-        return filter(lambda k: fnmatch.fnmatch(k, pattern), self._db.keys())
+        regex = re.compile(fnmatch.translate(pattern))
+        return filter(lambda k: regex.match(k), self._db.keys())
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
