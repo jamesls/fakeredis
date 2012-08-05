@@ -1,6 +1,7 @@
 import random
 import warnings
 import copy
+import re
 from ctypes import CDLL, c_double
 from ctypes.util import find_library
 
@@ -95,8 +96,23 @@ class FakeRedis(object):
                                       "range.")
         return self._db[name]
 
-    def keys(self):
-        return self._db.keys()
+    def keys(self, pattern=None):
+        if pattern is None:
+            pattern = "*"
+        regex_str = ""
+        prev = None
+        i = 0
+        while i < len(pattern):
+            if pattern[i] == "*" and prev != "\\":
+                regex_str += ".*"
+            elif pattern[i] == "?" and prev != "\\":
+                regex_str += ".{1}"
+            else:
+                regex_str += pattern[i]
+            prev = pattern[i]
+            i += 1
+        regex = re.compile(regex_str)
+        return filter(lambda k: regex.match(k), self._db.keys())
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
