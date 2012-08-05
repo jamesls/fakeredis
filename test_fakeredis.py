@@ -1161,6 +1161,24 @@ class TestFakeRedis(unittest.TestCase):
         finally:
             p.reset()
 
+    def test_pipeline_succeeds_when_watching_nonexistent_key(self):
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('greet', 'hello')
+        p = self.redis.pipeline()
+        try:
+            p.watch('foo', 'bam') # also watch a nonexistent key
+            nextf = p.get('foo') + 'baz'
+            # simulate change happening on another thread:
+            self.redis.rpush('greet', 'world')
+            p.multi() # begin pipelining
+            p.set('foo', nextf)
+            p.execute()
+
+            # Check the commands were executed.
+            self.assertEqual('barbaz', self.redis.get('foo'))
+        finally:
+            p.reset()
+
     def test_pipeline_as_context_manager(self):
         self.redis.set('foo', 'bar')
         with self.redis.pipeline() as p:

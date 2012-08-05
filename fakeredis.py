@@ -981,7 +981,8 @@ class FakePipeline(object):
         if self.watching:
             mismatches = [
                 (k, v, u) for (k, v, u) in
-                [(k, v, self.owner._db[k]) for (k, v) in self.watching.items()]
+                [(k, v, self.owner._db.get(k))
+                    for (k, v) in self.watching.items()]
                 if v != u]
             if mismatches:
                 self.commands = []
@@ -992,7 +993,7 @@ class FakePipeline(object):
                 for name, args, kwargs in self.commands]
 
     def watch(self, *keys):
-        self.watching.update((key, copy.deepcopy(self.owner._db[key]))
+        self.watching.update((key, copy.deepcopy(self.owner._db.get(key)))
                              for key in keys)
         self.need_reset = True
         self.is_immediate = True
