@@ -310,8 +310,8 @@ class FakeRedis(object):
                 return self._db.get(key)
         data.sort(key=_by_key)
 
-    def lpush(self, name, value):
-        self._db.setdefault(name, []).insert(0, value)
+    def lpush(self, name, *values):
+        self._db.setdefault(name, [])[0:0] = list(reversed((values)))
         return len(self._db[name])
 
     def lrange(self, name, start, end):
@@ -342,8 +342,8 @@ class FakeRedis(object):
             del a_list[index]
         return len(indices_to_remove)
 
-    def rpush(self, name, value):
-        self._db.setdefault(name, []).append(value)
+    def rpush(self, name, *values):
+        self._db.setdefault(name, []).extend(list(values))
         return len(self._db[name])
 
     def lpop(self, name):
@@ -437,12 +437,14 @@ class FakeRedis(object):
             self._db[dst] = [el]
         return el
 
-    def hdel(self, name, key):
-        try:
-            del self._db.get(name, {})[key]
-            return True
-        except KeyError:
-            return False
+    def hdel(self, name, *keys):
+        h = self._db.get(name, {})
+        rem = 0
+        for k in keys:
+            if k in h:
+                del h[k]
+                rem += 1
+        return rem > 0
 
     def hexists(self, name, key):
         "Returns a boolean indicating if ``key`` exists within hash ``name``"
@@ -510,14 +512,12 @@ class FakeRedis(object):
         "Return the list of values within hash ``name``"
         return self._db.get(name, {}).values()
 
-    def sadd(self, name, value):
+    def sadd(self, name, *values):
         "Add ``value`` to set ``name``"
         a_set = self._db.setdefault(name, set())
-        if value in a_set:
-            return False
-        else:
-            a_set.add(value)
-            return True
+        card = len(a_set)
+        a_set |= set(values)
+        return len(a_set) - card
 
     def scard(self, name):
         "Return the number of elements in set ``name``"
@@ -587,13 +587,12 @@ class FakeRedis(object):
             index = random.randint(0, len(members) - 1)
             return list(members)[index]
 
-    def srem(self, name, value):
+    def srem(self, name, *values):
         "Remove ``value`` from set ``name``"
-        try:
-            self._db.get(name, set()).remove(value)
-            return True
-        except KeyError:
-            return False
+        a_set = self._db.setdefault(name, set())
+        card = len(a_set)
+        a_set -= set(values)
+        return (card - len(a_set)) > 0
 
     def sunion(self, keys, *args):
         "Return the union of sets specifiued by ``keys``"
@@ -612,24 +611,32 @@ class FakeRedis(object):
         self._db[dest] = union
         return len(union)
 
-    def zadd(self, name, value=None, score=None, **pairs):
+    def zadd(self, name, value=None, score=None, *args, **pairs):
         """
         For each kwarg in ``pairs``, add that item and it's score to the
         sorted set ``name``.
 
         The ``value`` and ``score`` arguments are deprecated.
         """
+        if len(args) % 2 != 0:
+            raise RedisError("ZADD requires an equal number of "
+                             "values and scores")
         if value is not None or score is not None:
             if value is None or score is None:
                 raise redis.RedisError(
                     "Both 'value' and 'score' must be specified to ZADD")
             warnings.warn(DeprecationWarning(
                 "Passing 'value' and 'score' has been deprecated. " \
-                "Please pass via kwargs instead."))
-        else:
-            value = pairs.keys()[0]
-            score = pairs.values()[0]
-        self._db.setdefault(name, {})[value] = score
+                "Please pass via regular args or kwargs instead."))
+            pairs[value] = score
+        z = self._db.setdefault(name, {})
+        added = 0
+        for value, score in (pairs.items() +
+            [(args[i], args[i+1]) for i in range(0, len(args), 2)]):
+            if value not in z:
+                added +=1
+            z[value] = score
+        return added
 
     def zcard(self, name):
         "Return the number of elements in the sorted set ``name``"
@@ -745,13 +752,15 @@ class FakeRedis(object):
         except ValueError:
             return None
 
-    def zrem(self, name, value):
+    def zrem(self, name, *values):
         "Remove member ``value`` from sorted set ``name``"
-        try:
-            del self._db[name][value]
-            return True
-        except KeyError:
-            return False
+        z = self._db.get(name, {})
+        rem = 0
+        for v in values:
+            if v in z:
+                del z[v]
+                rem += 1
+        return rem > 0
 
     def zremrangebyrank(self, name, min, max):
         """
