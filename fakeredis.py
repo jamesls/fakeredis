@@ -1015,8 +1015,11 @@ class FakePipeline(object):
                     'Watched key%s %s changed' % (
                         '' if len(mismatches) == 1 else
                         's', ', '.join(k for (k, _, _) in mismatches)))
-        return [getattr(self.owner, name)(*args, **kwargs)
-                for name, args, kwargs in self.commands]
+        ret = [getattr(self.owner, name)(*args, **kwargs)
+               for name, args, kwargs in self.commands]
+        self.commands = []
+        self.watching = {}
+        return ret
 
     def watch(self, *keys):
         self.watching.update((key, copy.deepcopy(self.owner._db.get(key)))

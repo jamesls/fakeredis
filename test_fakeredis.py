@@ -1116,6 +1116,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         # The pipeline method returns an object for
         # issuing multiple commands in a batch.
         p = self.redis.pipeline()
+        p.watch('bam')
+        p.multi()
         p.set('foo', 'bar').get('foo')
         p.lpush('baz', 'quux')
         p.lpush('baz', 'quux2').lrange('baz', 0, -1)
@@ -1126,6 +1128,16 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         # Check side effects happened as expected.
         self.assertEqual(['quux2', 'quux'], self.redis.lrange('baz', 0, -1))
+
+        # Check that the command buffer has been emptied
+        self.assertEqual([], p.execute())
+
+        # Check that the watched keys buffer has been emptied
+        p.watch('foo')
+        self.redis.set('bam', 'boo')
+        p.multi()
+        p.set('foo', 'bats')
+        p.execute()
 
     def test_pipeline_non_transactional(self):
         # For our simple-minded model I don't think
