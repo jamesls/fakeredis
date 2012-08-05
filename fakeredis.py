@@ -97,8 +97,10 @@ class FakeRedis(object):
 
     def get(self, name):
         value = self._db.get(name)
-        if value is not None:
-            return str(value)
+        if value is not None and not isinstance(value, str):
+            raise redis.ResponseError("Operation against a key holding the "
+                "wrong kind of value")
+        return value
 
     def __getitem__(self, name):
         return self._db[name]

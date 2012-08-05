@@ -58,6 +58,11 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.set('foo', None), True)
         self.assertEqual(self.redis.get('foo'), 'None')
 
+    def test_get_non_string(self):
+        self.assertEqual(self.redis.lpush('foo', 'bar'), 1)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.get('foo')
+
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
