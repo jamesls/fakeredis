@@ -54,6 +54,10 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.set('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'), 'bar')
 
+    def test_set_then_get_non_string(self):
+        self.assertEqual(self.redis.set('foo', None), True)
+        self.assertEqual(self.redis.get('foo'), 'None')
+
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
@@ -180,10 +184,10 @@ class TestFakeRedis(unittest.TestCase):
         self.assertTrue(self.redis.exists('foo'))
 
     def test_rename(self):
-        self.redis.set('foo', 'unique value')
+        self.redis.lpush('foo', 'unique value')
         self.assertTrue(self.redis.rename('foo', 'bar'))
         self.assertEqual(self.redis.get('foo'), None)
-        self.assertEqual(self.redis.get('bar'), 'unique value')
+        self.assertEqual(self.redis.lrange('bar', 0, -1), ['unique value'])
 
     def test_rename_nonexistent_key(self):
         with self.assertRaises(redis.ResponseError):
@@ -491,8 +495,8 @@ class TestFakeRedis(unittest.TestCase):
     ## Tests for the hash type.
 
     def test_hset_then_hget(self):
-        self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
-        self.assertEqual(self.redis.hget('foo', 'key'), 'value')
+        self.assertEqual(self.redis.hset('foo', None, None), 1)
+        self.assertEqual(self.redis.hget('foo', 'None'), 'None')
 
     def test_hgetall(self):
         self.assertEqual(self.redis.hset('foo', 'k1', 'v1'), 1)
@@ -623,6 +627,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sdiffstore('baz', 'foo', 'bar'), 1)
+        self.assertEqual(self.redis.smembers('baz'), set(['member1']))
 
     def test_sinter(self):
         self.redis.sadd('foo', 'member1')
@@ -638,6 +643,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sinterstore('baz', 'foo', 'bar'), 1)
+        self.assertEqual(self.redis.smembers('baz'), set(['member2']))
 
     def test_sismember(self):
         self.assertEqual(self.redis.sismember('foo', 'member1'), False)
