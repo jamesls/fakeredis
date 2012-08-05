@@ -563,6 +563,9 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.hmset('foo', {'k2': 'v2', 'k3': 'v3'}),
                          True)
 
+    def test_smembers_nonexistent_key(self):
+        self.assertEqual(self.redis.smembers('foo'), set())
+
     def test_sadd(self):
         self.assertEqual(self.redis.sadd('foo', 'member1'), 1)
         self.assertEqual(self.redis.sadd('foo', 'member1'), 0)
