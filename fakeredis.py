@@ -1,6 +1,7 @@
 import random
 import warnings
 import copy
+import re
 from ctypes import CDLL, c_double
 from ctypes.util import find_library
 
@@ -14,11 +15,52 @@ _libc = CDLL(find_library('c'))
 _libc.strtod.restype = c_double
 _strtod = _libc.strtod
 
+class StringDict(dict):
+    """ A dictionary subclass that casts the key(s) and value(s)
+    in each operation to a strings before performing the operation.
+
+    e.g.
+
+    sd = StringOnlyDict()
+    sd[None] = None
+    sd[None] # raises KeyError
+    sd['None'] # ==> 'None'
+
+    The setitemnonstring() and setdefaultnonstring() methods provide
+    a back door to the regular dictionary functionality.
+    """
+    def __init__(self, *args, **kwargs):
+        self.update(*args, **kwargs)
+
+    def __setitem__(self, key, value):
+        super(StringDict, self).__setitem__(str(key), str(value))
+
+    def update(self, *args, **kwargs):
+        other = {}
+        if args:
+            if len(args) > 1:
+                raise TypeError("update expected at most 1 arguments, "
+                    "got %d" % len(args))
+            other = dict(args[0])
+        for k,v in (kwargs.items() + other.items()):
+            self[k] = v
+
+    def setdefault(self, key, value=None):
+        if key not in self:
+            self[key] = value
+        return self[key]
+
+    def setitemnonstring(self, key, value):
+        super(StringDict, self).__setitem__(key, value)
+
+    def setdefaultnonstring(self, key, value=None):
+        return super(StringDict, self).setdefault(key, value)
+
 
 class FakeRedis(object):
     def __init__(self, db=0):
         if db not in DATABASES:
-            DATABASES[db] = {}
+            DATABASES[db] = StringDict()
         self._db = DATABASES[db]
         self._db_num = db
 
@@ -37,11 +79,11 @@ class FakeRedis(object):
 
     def decr(self, name, amount=1):
         try:
-            self._db[name] = self._db.get(name, 0) - amount
-        except TypeError:
+            self._db[name] = int(self._db.get(name, 0)) - amount
+        except ValueError:
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
-        return self._db[name]
+        return int(self._db[name])
 
     def exists(self, name):
         return name in self._db
@@ -55,8 +97,10 @@ class FakeRedis(object):
 
     def get(self, name):
         value = self._db.get(name)
-        if value is not None:
-            return str(value)
+        if value is not None and not isinstance(value, str):
+            raise redis.ResponseError("Operation against a key holding the "
+                "wrong kind of value")
+        return value
 
     def __getitem__(self, name):
         return self._db[name]
@@ -89,14 +133,29 @@ class FakeRedis(object):
         the value will be initialized as ``amount``
         """
         try:
-            self._db[name] = self._db.get(name, 0) + amount
-        except TypeError:
+            self._db[name] = int(self._db.get(name, 0)) + amount
+        except ValueError:
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
-        return self._db[name]
+        return int(self._db[name])
 
-    def keys(self):
-        return self._db.keys()
+    def keys(self, pattern=None):
+        if pattern is None:
+            pattern = "*"
+        regex_str = ""
+        prev = None
+        i = 0
+        while i < len(pattern):
+            if pattern[i] == "*" and prev != "\\":
+                regex_str += ".*"
+            elif pattern[i] == "?" and prev != "\\":
+                regex_str += ".{1}"
+            else:
+                regex_str += pattern[i]
+            prev = pattern[i]
+            i += 1
+        regex = re.compile(regex_str)
+        return filter(lambda k: regex.match(k), self._db.keys())
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
@@ -135,7 +194,7 @@ class FakeRedis(object):
             value = self._db[src]
         except KeyError:
             raise redis.ResponseError("No such key: %s" % src)
-        self._db[dst] = value
+        self._db.setitemnonstring(dst, value)
         del self._db[src]
         return True
 
@@ -166,7 +225,7 @@ class FakeRedis(object):
             new_byte = chr(ord(val[byte]) ^ (1 << actual_bitoffset))
         reconstructed = list(val)
         reconstructed[byte] = new_byte
-        self._db[name] = ''.join(reconstructed)
+        self._db.setitemnonstring(name, ''.join(reconstructed))
 
     def setex(self, name, time, value):
         pass
@@ -262,7 +321,7 @@ class FakeRedis(object):
             if desc:
                 data = list(reversed(data))
             if store is not None:
-                self._db[store] = data
+                self._db.setitemnonstring(store, data)
                 return len(data)
             else:
                 return self._retrive_data_from_sort(data, get)
@@ -310,8 +369,9 @@ class FakeRedis(object):
                 return self._db.get(key)
         data.sort(key=_by_key)
 
-    def lpush(self, name, value):
-        self._db.setdefault(name, []).insert(0, value)
+    def lpush(self, name, *values):
+        self._db.setdefaultnonstring(name, [])[0:0] = list(
+            reversed([str(v) for v in values]))
         return len(self._db[name])
 
     def lrange(self, name, start, end):
@@ -342,8 +402,9 @@ class FakeRedis(object):
             del a_list[index]
         return len(indices_to_remove)
 
-    def rpush(self, name, value):
-        self._db.setdefault(name, []).append(value)
+    def rpush(self, name, *values):
+        self._db.setdefaultnonstring(name, []).extend(
+            list(str(v) for v in values))
         return len(self._db[name])
 
     def lpop(self, name):
@@ -373,7 +434,7 @@ class FakeRedis(object):
             end = None
         else:
             end += 1
-        self._db[name] = val[start:end]
+        self._db.setitemnonstring(name, val[start:end])
 
     def lindex(self, name, index):
         try:
@@ -399,10 +460,7 @@ class FakeRedis(object):
 
     def rpoplpush(self, src, dst):
         el = self._db.get(src).pop()
-        try:
-            self._db[dst].insert(0, el)
-        except KeyError:
-            self._db[dst] = [el]
+        self._db.setdefaultnonstring(dst, []).insert(0, el)
         return el
 
     def blpop(self, keys, timeout=0):
@@ -431,18 +489,17 @@ class FakeRedis(object):
 
     def brpoplpush(self, src, dst, timeout=0):
         el = self._db.get(src).pop()
-        try:
-            self._db[dst].insert(0, el)
-        except KeyError:
-            self._db[dst] = [el]
+        self._db.setdefaultnonstring(dst, []).insert(0, el)
         return el
 
-    def hdel(self, name, key):
-        try:
-            del self._db.get(name, {})[key]
-            return True
-        except KeyError:
-            return False
+    def hdel(self, name, *keys):
+        h = self._db.get(name, {})
+        rem = 0
+        for k in keys:
+            if k in h:
+                del h[k]
+                rem += 1
+        return rem > 0
 
     def hexists(self, name, key):
         "Returns a boolean indicating if ``key`` exists within hash ``name``"
@@ -461,7 +518,7 @@ class FakeRedis(object):
 
     def hincrby(self, name, key, amount=1):
         "Increment the value of ``key`` in hash ``name`` by ``amount``"
-        new = self._db.setdefault(name, {}).get(key, 0) + amount
+        new = int(self._db.setdefaultnonstring(name, {}).get(key, 0)) + amount
         self._db[name][key] = new
         return new
 
@@ -478,7 +535,7 @@ class FakeRedis(object):
         Set ``key`` to ``value`` within hash ``name``
         Returns 1 if HSET created a new field, otherwise 0
         """
-        self._db.setdefault(name, {})[key] = value
+        x = self._db.setdefaultnonstring(name, {})[str(key)] = str(value)
         return 1
 
     def hsetnx(self, name, key, value):
@@ -488,7 +545,7 @@ class FakeRedis(object):
         """
         if key in self._db.get(name, {}):
             return False
-        self._db.setdefault(name, {})[key] = value
+        self._db.setdefaultnonstring(name, {})[str(key)] = str(value)
         return True
 
     def hmset(self, name, mapping):
@@ -498,7 +555,8 @@ class FakeRedis(object):
         """
         if not mapping:
             raise redis.DataError("'hmset' with 'mapping' of length 0")
-        self._db.setdefault(name, {}).update(mapping)
+        strings = dict((str(k), str(v)) for k,v in mapping.items())
+        self._db.setdefaultnonstring(name, {}).update(strings)
         return True
 
     def hmget(self, name, keys):
@@ -510,14 +568,12 @@ class FakeRedis(object):
         "Return the list of values within hash ``name``"
         return self._db.get(name, {}).values()
 
-    def sadd(self, name, value):
+    def sadd(self, name, *values):
         "Add ``value`` to set ``name``"
-        a_set = self._db.setdefault(name, set())
-        if value in a_set:
-            return False
-        else:
-            a_set.add(value)
-            return True
+        a_set = self._db.setdefaultnonstring(name, set())
+        card = len(a_set)
+        a_set |= set(str(v) for v in values)
+        return len(a_set) - card
 
     def scard(self, name):
         "Return the number of elements in set ``name``"
@@ -537,7 +593,7 @@ class FakeRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         diff = self.sdiff(keys, *args)
-        self._db[dest] = diff
+        self._db.setitemnonstring(dest, diff)
         return len(diff)
 
     def sinter(self, keys, *args):
@@ -554,7 +610,7 @@ class FakeRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         intersect = self.sinter(keys, *args)
-        self._db[dest] = intersect
+        self._db.setitemnonstring(dest, intersect)
         return len(intersect)
 
     def sismember(self, name, value):
@@ -563,12 +619,12 @@ class FakeRedis(object):
 
     def smembers(self, name):
         "Return all members of the set ``name``"
-        return self._db.get(name)
+        return self._db.get(name, set())
 
     def smove(self, src, dst, value):
         try:
             self._db.get(src, set()).remove(value)
-            self._db.setdefault(dst, set()).add(value)
+            self._db.setdefaultnonstring(dst, set()).add(value)
             return True
         except KeyError:
             return False
@@ -587,13 +643,12 @@ class FakeRedis(object):
             index = random.randint(0, len(members) - 1)
             return list(members)[index]
 
-    def srem(self, name, value):
+    def srem(self, name, *values):
         "Remove ``value`` from set ``name``"
-        try:
-            self._db.get(name, set()).remove(value)
-            return True
-        except KeyError:
-            return False
+        a_set = self._db.setdefaultnonstring(name, set())
+        card = len(a_set)
+        a_set -= set(str(v) for v in values)
+        return (card - len(a_set)) > 0
 
     def sunion(self, keys, *args):
         "Return the union of sets specifiued by ``keys``"
@@ -609,27 +664,35 @@ class FakeRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         union = self.sunion(keys, *args)
-        self._db[dest] = union
+        self._db.setitemnonstring(dest, union)
         return len(union)
 
-    def zadd(self, name, value=None, score=None, **pairs):
+    def zadd(self, name, value=None, score=None, *args, **pairs):
         """
         For each kwarg in ``pairs``, add that item and it's score to the
         sorted set ``name``.
 
         The ``value`` and ``score`` arguments are deprecated.
         """
+        if len(args) % 2 != 0:
+            raise RedisError("ZADD requires an equal number of "
+                             "values and scores")
         if value is not None or score is not None:
             if value is None or score is None:
                 raise redis.RedisError(
                     "Both 'value' and 'score' must be specified to ZADD")
             warnings.warn(DeprecationWarning(
                 "Passing 'value' and 'score' has been deprecated. " \
-                "Please pass via kwargs instead."))
-        else:
-            value = pairs.keys()[0]
-            score = pairs.values()[0]
-        self._db.setdefault(name, {})[value] = score
+                "Please pass via regular args or kwargs instead."))
+            pairs[value] = score
+        z = self._db.setdefaultnonstring(name, {})
+        added = 0
+        for value, score in (pairs.items() +
+            [(args[i], args[i+1]) for i in range(0, len(args), 2)]):
+            if value not in z:
+                added +=1
+            z[str(value)] = score
+        return added
 
     def zcard(self, name):
         "Return the number of elements in the sorted set ``name``"
@@ -644,7 +707,7 @@ class FakeRedis(object):
 
     def zincrby(self, name, value, amount=1):
         "Increment the score of ``value`` in sorted set ``name`` by ``amount``"
-        d = self._db.setdefault(name, {})
+        d = self._db.setdefaultnonstring(name, {})
         score = d.get(value, 0) + amount
         d[value] = score
         return score
@@ -745,13 +808,15 @@ class FakeRedis(object):
         except ValueError:
             return None
 
-    def zrem(self, name, value):
+    def zrem(self, name, *values):
         "Remove member ``value`` from sorted set ``name``"
-        try:
-            del self._db[name][value]
-            return True
-        except KeyError:
-            return False
+        z = self._db.get(name, {})
+        rem = 0
+        for v in values:
+            if v in z:
+                del z[v]
+                rem += 1
+        return rem > 0
 
     def zremrangebyrank(self, name, min, max):
         """
@@ -863,7 +928,7 @@ class FakeRedis(object):
                 elif aggregate == 'MIN':
                     new_zset[el] = min([new_zset[el],
                                         current_zset[el] * weight])
-        self._db[dest] = new_zset
+        self._db.setitemnonstring(dest, new_zset)
 
     def _list_or_args(self, keys, args):
         # Taken directly from redis-py.
@@ -956,18 +1021,22 @@ class FakePipeline(object):
         if self.watching:
             mismatches = [
                 (k, v, u) for (k, v, u) in
-                [(k, v, self.owner._db[k]) for (k, v) in self.watching.items()]
+                [(k, v, self.owner._db.get(k))
+                    for (k, v) in self.watching.items()]
                 if v != u]
             if mismatches:
                 self.commands = []
                 raise redis.WatchError('Watched key%s %s changed'
                     % ('' if len(mismatches) == 1 else 's', ', '.join(
                         k for (k, _, _) in mismatches)))
-        return [getattr(self.owner, name)(*args, **kwargs)
-                for name, args, kwargs in self.commands]
+        ret = [getattr(self.owner, name)(*args, **kwargs)
+                  for name, args, kwargs in self.commands]
+        self.commands = []
+        self.watching = {}
+        return ret
 
     def watch(self, *keys):
-        self.watching.update((key, copy.deepcopy(self.owner._db[key]))
+        self.watching.update((key, copy.deepcopy(self.owner._db.get(key)))
                              for key in keys)
         self.need_reset = True
         self.is_immediate = True

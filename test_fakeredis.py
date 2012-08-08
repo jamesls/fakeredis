@@ -54,6 +54,15 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.set('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'), 'bar')
 
+    def test_set_then_get_non_string(self):
+        self.assertEqual(self.redis.set('foo', None), True)
+        self.assertEqual(self.redis.get('foo'), 'None')
+
+    def test_get_non_string(self):
+        self.assertEqual(self.redis.lpush('foo', 'bar'), 1)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.get('foo')
+
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
@@ -180,10 +189,10 @@ class TestFakeRedis(unittest.TestCase):
         self.assertTrue(self.redis.exists('foo'))
 
     def test_rename(self):
-        self.redis.set('foo', 'unique value')
+        self.redis.lpush('foo', 'unique value')
         self.assertTrue(self.redis.rename('foo', 'bar'))
         self.assertEqual(self.redis.get('foo'), None)
-        self.assertEqual(self.redis.get('bar'), 'unique value')
+        self.assertEqual(self.redis.lrange('bar', 0, -1), ['unique value'])
 
     def test_rename_nonexistent_key(self):
         with self.assertRaises(redis.ResponseError):
@@ -252,12 +261,33 @@ class TestFakeRedis(unittest.TestCase):
     def test_delete_nonexistent_key(self):
         self.assertEqual(self.redis.delete('foo'), False)
 
+    def test_keys(self):
+        self.redis.set('hello', 'foo')
+        self.redis.set('heello', 'bar')
+        self.redis.set('hllo', 'baz')
+        self.redis.set('hallo', 'foo')
+        self.redis.set('h?llo', 'bar')
+
+        self.assertEqual(sorted(self.redis.keys()),
+                         sorted(['hello', 'heello', 'hllo', 'hallo', 'h?llo']))
+        self.assertEqual(sorted(self.redis.keys("h?llo")),
+                         sorted(['hello', 'hallo', 'h?llo']))
+        self.assertEqual(self.redis.keys("h\?llo"), ['h?llo'])
+        self.assertEqual(sorted(self.redis.keys("h*llo")),
+                         sorted(['hello', 'heello', 'hllo', 'hallo', 'h?llo']))
+        self.assertEqual(self.redis.keys("h\*llo"), [])
+        self.assertEqual(sorted(self.redis.keys("h[ea]llo")),
+                         sorted(['hello', 'hallo']))
+        self.assertEqual(self.redis.keys("h\[ea]llo"), [])
+
     ## Tests for the list type.
 
     def test_lpush_then_lrange_all(self):
         self.assertEqual(self.redis.lpush('foo', 'bar'), 1)
         self.assertEqual(self.redis.lpush('foo', 'baz'), 2)
-        self.assertEqual(self.redis.lrange('foo', 0, -1), ['baz', 'bar'])
+        self.assertEqual(self.redis.lpush('foo', 'bam', 'buzz'), 4)
+        self.assertEqual(self.redis.lrange('foo', 0, -1),
+                         ['buzz', 'bam', 'baz', 'bar'])
 
     def test_lpush_then_lrange_portion(self):
         self.redis.lpush('foo', 'one')
@@ -331,8 +361,9 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
         self.redis.rpush('foo', 'three')
+        self.redis.rpush('foo', 'four', 'five')
         self.assertEqual(self.redis.lrange('foo', 0, -1),
-                         ['one', 'two', 'three'])
+                         ['one', 'two', 'three', 'four', 'five'])
 
     def test_lpop(self):
         self.assertEqual(self.redis.rpush('foo', 'one'), 1)
@@ -469,8 +500,8 @@ class TestFakeRedis(unittest.TestCase):
     ## Tests for the hash type.
 
     def test_hset_then_hget(self):
-        self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
-        self.assertEqual(self.redis.hget('foo', 'key'), 'value')
+        self.assertEqual(self.redis.hset('foo', None, None), 1)
+        self.assertEqual(self.redis.hget('foo', 'None'), 'None')
 
     def test_hgetall(self):
         self.assertEqual(self.redis.hset('foo', 'k1', 'v1'), 1)
@@ -519,10 +550,16 @@ class TestFakeRedis(unittest.TestCase):
 
     def test_hdel(self):
         self.redis.hset('foo', 'k1', 'v1')
+        self.redis.hset('foo', 'k2', 'v2')
+        self.redis.hset('foo', 'k3', 'v3')
         self.assertEqual(self.redis.hget('foo', 'k1'), 'v1')
         self.assertEqual(self.redis.hdel('foo', 'k1'), True)
         self.assertEqual(self.redis.hget('foo', 'k1'), None)
         self.assertEqual(self.redis.hdel('foo', 'k1'), False)
+        self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), True)
+        self.assertEqual(self.redis.hget('foo', 'k2'), None)
+        self.assertEqual(self.redis.hget('foo', 'k3'), None)
+        self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), False)
 
     def test_hincrby(self):
         self.redis.hset('foo', 'counter', 0)
@@ -554,10 +591,19 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.hmset('foo', {'k2': 'v2', 'k3': 'v3'}),
                          True)
 
+    def test_smembers_nonexistent_key(self):
+        self.assertEqual(self.redis.smembers('foo'), set())
+
     def test_sadd(self):
-        self.assertEqual(self.redis.sadd('foo', 'member1'), True)
-        self.assertEqual(self.redis.sadd('foo', 'member1'), False)
+        self.assertEqual(self.redis.sadd('foo', 'member1'), 1)
+        self.assertEqual(self.redis.sadd('foo', 'member1'), 0)
         self.assertEqual(self.redis.smembers('foo'), set(['member1']))
+        self.assertEqual(self.redis.sadd('foo', 'member2', 'member3'), 2)
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member1', 'member2', 'member3']))
+        self.assertEqual(self.redis.sadd('foo', 'member3', 'member4'), 1)
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member1', 'member2', 'member3', 'member4']))
 
     def test_scard(self):
         self.redis.sadd('foo', 'member1')
@@ -586,6 +632,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sdiffstore('baz', 'foo', 'bar'), 1)
+        self.assertEqual(self.redis.smembers('baz'), set(['member1']))
 
     def test_sinter(self):
         self.redis.sadd('foo', 'member1')
@@ -601,6 +648,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sinterstore('baz', 'foo', 'bar'), 1)
+        self.assertEqual(self.redis.smembers('baz'), set(['member2']))
 
     def test_sismember(self):
         self.assertEqual(self.redis.sismember('foo', 'member1'), False)
@@ -629,11 +677,18 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.srandmember('foo'), 'member1')
 
     def test_srem(self):
-        self.redis.sadd('foo', 'member1')
-        self.assertEqual(self.redis.smembers('foo'), set(['member1']))
+        self.redis.sadd('foo', 'member1', 'member2', 'member3', 'member4')
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member1', 'member2', 'member3', 'member4']))
         self.assertEqual(self.redis.srem('foo', 'member1'), True)
-        self.assertEqual(self.redis.smembers('foo'), set([]))
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member2', 'member3', 'member4']))
         self.assertEqual(self.redis.srem('foo', 'member1'), False)
+        self.assertEqual(self.redis.srem('foo', 'member2', 'member3'), True)
+        self.assertEqual(self.redis.smembers('foo'), set(['member4']))
+        self.assertEqual(self.redis.srem('foo', 'member3', 'member4'), True)
+        self.assertEqual(self.redis.smembers('foo'), set([]))
+        self.assertEqual(self.redis.srem('foo', 'member3', 'member4'), False)
 
     def test_sunion(self):
         self.redis.sadd('foo', 'member1')
@@ -653,11 +708,14 @@ class TestFakeRedis(unittest.TestCase):
                          set(['member1', 'member2', 'member3']))
 
     def test_zadd(self):
+        self.redis.zadd('foo', four=4)
         self.redis.zadd('foo', three=3)
-        self.redis.zadd('foo', two=2)
-        self.redis.zadd('foo', one=1)
+        self.assertEqual(self.redis.zadd('foo', 'two', 2, 'one', 1, zero=0), 3)
         self.assertEqual(self.redis.zrange('foo', 0, -1),
-                         ['one', 'two', 'three'])
+                         ['zero', 'one', 'two', 'three', 'four'])
+        self.assertEqual(self.redis.zadd('foo', 'zero', 7, one=1, five=5), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+                         ['one', 'two', 'three', 'four', 'five', 'zero'])
 
     def test_zadd_deprecated(self):
         self.redis.zadd('foo', 'one', 1)
@@ -729,8 +787,18 @@ class TestFakeRedis(unittest.TestCase):
 
     def test_zrem(self):
         self.redis.zadd('foo', one=1)
-        self.assertTrue(self.redis.zrem('foo', 'one'))
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.redis.zadd('foo', four=4)
+        self.assertEqual(self.redis.zrem('foo', 'one'), True)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+                         ['two', 'three', 'four'])
+        self.assertEqual(self.redis.zrem('foo', 'two', 'three'), True)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['four'])
+        self.assertEqual(self.redis.zrem('foo', 'three', 'four'), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [])
+        self.assertEqual(self.redis.zrem('foo', 'three', 'four'), False)
+
 
     def test_zrem_non_existent_member(self):
         self.assertFalse(self.redis.zrem('foo', 'one'))
@@ -1050,6 +1118,8 @@ class TestFakeRedis(unittest.TestCase):
         # The pipeline method returns an object for
         # issuing multiple commands in a batch.
         p = self.redis.pipeline()
+        p.watch('bam')
+        p.multi()
         p.set('foo', 'bar').get('foo')
         p.lpush('baz', 'quux')
         p.lpush('baz', 'quux2').lrange('baz', 0, -1)
@@ -1060,6 +1130,16 @@ class TestFakeRedis(unittest.TestCase):
 
         # Check side effects happened as expected.
         self.assertEqual(['quux2', 'quux'], self.redis.lrange('baz', 0, -1))
+
+        # Check that the command buffer has been emptied
+        self.assertEqual([], p.execute())
+
+        # Check that the watched keys buffer has been emptied
+        p.watch('foo')
+        self.redis.set('bam', 'boo')
+        p.multi()
+        p.set('foo', 'bats')
+        p.execute()
 
     def test_pipeline_non_transational(self):
         # For our simple-minded model I don't think
@@ -1092,6 +1172,24 @@ class TestFakeRedis(unittest.TestCase):
         p = self.redis.pipeline()
         try:
             p.watch('foo') # only watch one of the 2 keys
+            nextf = p.get('foo') + 'baz'
+            # simulate change happening on another thread:
+            self.redis.rpush('greet', 'world')
+            p.multi() # begin pipelining
+            p.set('foo', nextf)
+            p.execute()
+
+            # Check the commands were executed.
+            self.assertEqual('barbaz', self.redis.get('foo'))
+        finally:
+            p.reset()
+
+    def test_pipeline_succeeds_when_watching_nonexistent_key(self):
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('greet', 'hello')
+        p = self.redis.pipeline()
+        try:
+            p.watch('foo', 'bam') # also watch a nonexistent key
             nextf = p.get('foo') + 'baz'
             # simulate change happening on another thread:
             self.redis.rpush('greet', 'world')
