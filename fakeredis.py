@@ -98,7 +98,7 @@ class FakeRedis(object):
 
     def keys(self, pattern=None):
         return [key for key in self._db.keys()
-                if not pattern or fnmatch.fnmatch(key, pattern)]
+                if not key or not pattern or fnmatch.fnmatch(key, pattern)]
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
