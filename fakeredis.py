@@ -1,6 +1,7 @@
 import fnmatch
 import random
 import re
+import sys
 import warnings
 import copy
 from ctypes import CDLL, c_double
@@ -734,6 +735,13 @@ class FakeRedis(object):
         return self._zrangebyscore(name, min, max, start, num, withscores,
                                    reverse=False)
 
+    def _normalize_inf(self, value):
+        if value == '-inf':
+            return sys.float_info.min
+        if value == '+inf':
+            return sys.float_info.max
+        return value
+
     def _zrangebyscore(self, name, min, max, start, num, withscores, reverse):
         if (start is not None and num is None) or \
                 (num is not None and start is None):
@@ -742,6 +750,8 @@ class FakeRedis(object):
         all_items = self._db.get(name, {})
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
         matches = []
+        min = self._normalize_inf(min)
+        max = self._normalize_inf(max)
         for item in in_order:
             if min <= all_items[item] <= max:
                 matches.append(item)
@@ -797,6 +807,8 @@ class FakeRedis(object):
         """
         all_items = self._db.get(name, {})
         removed = 0
+        min = self._normalize_inf(min)
+        max = self._normalize_inf(max)
         for key in all_items.copy():
             if min <= all_items[key] <= max:
                 del all_items[key]
