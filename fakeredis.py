@@ -655,6 +655,8 @@ class FakeRedis(object):
         return len(self._db.get(name, {}))
 
     def zcount(self, name, min, max):
+        min = self._normalize_inf(min)
+        max = self._normalize_inf(max)
         found = 0
         for score in self._db.get(name, {}).values():
             if min <= score <= max:
