@@ -1,4 +1,7 @@
+import fnmatch
 import random
+import re
+import sys
 import warnings
 import copy
 from ctypes import CDLL, c_double
@@ -16,7 +19,7 @@ _strtod = _libc.strtod
 
 
 class FakeRedis(object):
-    def __init__(self, db=0):
+    def __init__(self, db=0, **kwargs):
         if db not in DATABASES:
             DATABASES[db] = {}
         self._db = DATABASES[db]
@@ -95,8 +98,9 @@ class FakeRedis(object):
                                       "range.")
         return self._db[name]
 
-    def keys(self):
-        return self._db.keys()
+    def keys(self, pattern='*'):
+        regex = re.compile(fnmatch.translate(pattern))
+        return filter(lambda k: regex.match(k), self._db.keys())
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
@@ -168,8 +172,8 @@ class FakeRedis(object):
         reconstructed[byte] = new_byte
         self._db[name] = ''.join(reconstructed)
 
-    def setex(self, name, time, value):
-        pass
+    def setex(self, name, value, time):
+        return self.set(name, value)
 
     def setnx(self, name, value):
         if name in self._db:
@@ -204,7 +208,15 @@ class FakeRedis(object):
         pass
 
     def type(self, name):
-        pass
+        value = self._db.get(name)
+        if value:
+            if isinstance(value, dict):
+                return 'hash'
+            if isinstance(value, set):
+                return 'set'
+            if isinstance(value, list):
+                return 'list'
+            return 'string'
 
     def watch(self, *names):
         pass
@@ -223,7 +235,7 @@ class FakeRedis(object):
         return any_deleted
 
     def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
-             alpha=False, store=None) :
+             alpha=False, store=None):
         """Sort and return the list, set or sorted set at ``name``.
 
         ``start`` and ``num`` allow for paging through the sorted data
@@ -258,7 +270,7 @@ class FakeRedis(object):
             else:
                 data.sort()
             if not (start is None and num is None):
-                data = data[start:start+num]
+                data = data[start:start + num]
             if desc:
                 data = list(reversed(data))
             if store is not None:
@@ -563,7 +575,7 @@ class FakeRedis(object):
 
     def smembers(self, name):
         "Return all members of the set ``name``"
-        return self._db.get(name)
+        return self._db.get(name, set())
 
     def smove(self, src, dst, value):
         try:
@@ -612,6 +624,13 @@ class FakeRedis(object):
         self._db[dest] = union
         return len(union)
 
+    def publish(self, channel, message):
+        """
+        Publish the message to the channel, report back how many clients
+        received the message.
+        """
+        return 0
+
     def zadd(self, name, value=None, score=None, **pairs):
         """
         For each kwarg in ``pairs``, add that item and it's score to the
@@ -624,7 +643,7 @@ class FakeRedis(object):
                 raise redis.RedisError(
                     "Both 'value' and 'score' must be specified to ZADD")
             warnings.warn(DeprecationWarning(
-                "Passing 'value' and 'score' has been deprecated. " \
+                "Passing 'value' and 'score' has been deprecated. "
                 "Please pass via kwargs instead."))
         else:
             value = pairs.keys()[0]
@@ -636,6 +655,8 @@ class FakeRedis(object):
         return len(self._db.get(name, {}))
 
     def zcount(self, name, min, max):
+        min = self._normalize_inf(min)
+        max = self._normalize_inf(max)
         found = 0
         for score in self._db.get(name, {}).values():
             if min <= score <= max:
@@ -716,6 +737,13 @@ class FakeRedis(object):
         return self._zrangebyscore(name, min, max, start, num, withscores,
                                    reverse=False)
 
+    def _normalize_inf(self, value):
+        if value == '-inf':
+            return sys.float_info.min
+        if value == '+inf':
+            return sys.float_info.max
+        return value
+
     def _zrangebyscore(self, name, min, max, start, num, withscores, reverse):
         if (start is not None and num is None) or \
                 (num is not None and start is None):
@@ -724,11 +752,13 @@ class FakeRedis(object):
         all_items = self._db.get(name, {})
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
         matches = []
+        min = self._normalize_inf(min)
+        max = self._normalize_inf(max)
         for item in in_order:
             if min <= all_items[item] <= max:
                 matches.append(item)
         if start is not None:
-            matches = matches[start:start+num]
+            matches = matches[start:start + num]
         if withscores:
             return [(k, all_items[k]) for k in matches]
         return matches
@@ -779,6 +809,8 @@ class FakeRedis(object):
         """
         all_items = self._db.get(name, {})
         removed = 0
+        min = self._normalize_inf(min)
+        max = self._normalize_inf(max)
         for key in all_items.copy():
             if min <= all_items[key] <= max:
                 del all_items[key]
@@ -936,6 +968,7 @@ class FakePipeline(object):
         if not hasattr(self.owner, name):
             raise AttributeError('%r: does not have attribute %r' % (self.owner,
                                                                      name))
+
         def meth(*args, **kwargs):
             if self.is_immediate:
                 # Special mode during watch_multi sequence.
