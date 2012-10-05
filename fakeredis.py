@@ -3,6 +3,7 @@ import warnings
 import copy
 from ctypes import CDLL, c_double
 from ctypes.util import find_library
+import fnmatch
 
 import redis
 import redis.client
@@ -95,8 +96,9 @@ class FakeStrictRedis(object):
                                       "range.")
         return self._db[name]
 
-    def keys(self):
-        return self._db.keys()
+    def keys(self, pattern=None):
+        return [key for key in self._db.keys()
+                if not key or not pattern or fnmatch.fnmatch(key, pattern)]
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
