@@ -1148,6 +1148,15 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(16, int(self.redis.get('OUR-SEQUENCE-KEY')))
         self.assertEqual(3, len(calls))
 
+    def test_key_patterns(self):
+        self.redis.mset({'one': 1, 'two': 2, 'three': 3, 'four': 4})
+        self.assertItemsEqual(self.redis.keys('*o*'), ['four', 'one', 'two'])
+        self.assertItemsEqual(self.redis.keys('t??'), ['two'])
+        self.assertItemsEqual(self.redis.keys('*'),
+            ['four', 'one', 'two', 'three'])
+        self.assertItemsEqual(self.redis.keys(),
+            ['four', 'one', 'two', 'three'])
+
 
 class TestFakeRedis(TestFakeStrictRedis):
     def create_redis(self, db=0):
