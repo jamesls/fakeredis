@@ -223,7 +223,7 @@ class FakeStrictRedis(object):
         return any_deleted
 
     def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
-             alpha=False, store=None) :
+             alpha=False, store=None):
         """Sort and return the list, set or sorted set at ``name``.
 
         ``start`` and ``num`` allow for paging through the sorted data
@@ -625,7 +625,7 @@ class FakeStrictRedis(object):
         """
         if len(args) % 2 != 0:
             raise redis.RedisError("ZADD requires an equal number of "
-                             "values and scores")
+                                   "values and scores")
         for score, value in zip(*[args[i::2] for i in range(2)]):
             self._db.setdefault(name, {})[value] = score
         for value, score in kwargs.items():
@@ -702,7 +702,7 @@ class FakeStrictRedis(object):
         return [el[0] for el in in_order]
 
     def zrangebyscore(self, name, min, max,
-            start=None, num=None, withscores=False):
+                      start=None, num=None, withscores=False):
         """
         Return a range of values from the sorted set ``name`` with scores
         between ``min`` and ``max``.
@@ -798,7 +798,7 @@ class FakeStrictRedis(object):
         return self.zrange(name, start, num, True, withscores)
 
     def zrevrangebyscore(self, name, max, min,
-            start=None, num=None, withscores=False):
+                         start=None, num=None, withscores=False):
         """
         Return a range of values from the sorted set ``name`` with scores
         between ``min`` and ``max`` in descending order.
@@ -923,14 +923,12 @@ class FakeRedis(FakeStrictRedis):
                 raise redis.RedisError(
                     "Both 'value' and 'score' must be specified to ZADD")
             warnings.warn(DeprecationWarning(
-                "Passing 'value' and 'score' has been deprecated. "\
+                "Passing 'value' and 'score' has been deprecated. "
                 "Please pass via kwargs instead."))
         else:
             value = pairs.keys()[0]
             score = pairs.values()[0]
         self._db.setdefault(name, {})[value] = score
-
-
 
 
 class FakePipeline(object):
@@ -963,8 +961,8 @@ class FakePipeline(object):
 
         """
         if not hasattr(self.owner, name):
-            raise AttributeError('%r: does not have attribute %r' % (self.owner,
-                                                                     name))
+            raise AttributeError('%r: does not have attribute %r' %
+                                 (self.owner, name))
         def meth(*args, **kwargs):
             if self.is_immediate:
                 # Special mode during watch_multi sequence.
@@ -989,9 +987,10 @@ class FakePipeline(object):
                 if v != u]
             if mismatches:
                 self.commands = []
-                raise redis.WatchError('Watched key%s %s changed'
-                    % ('' if len(mismatches) == 1 else 's', ', '.join(
-                        k for (k, _, _) in mismatches)))
+                raise redis.WatchError(
+                    'Watched key%s %s changed' % (
+                        '' if len(mismatches) == 1 else
+                        's', ', '.join(k for (k, _, _) in mismatches)))
         return [getattr(self.owner, name)(*args, **kwargs)
                 for name, args, kwargs in self.commands]
 
