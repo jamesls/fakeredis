@@ -1212,7 +1212,6 @@ class TestFakeRedis(TestFakeStrictRedis):
         pass # Does not work in non-Strict Redis
 
 
-
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
     def create_redis(self, db=0):
@@ -1224,6 +1223,10 @@ class TestRealStrictRedis(TestFakeStrictRedis):
         return redis.StrictRedis('localhost', port=6379, db=db)
 
 
+class TestInitArgs(unittest.TestCase):
+    def test_can_accept_any_kwargs(self):
+        fakeredis.FakeRedis(foo='bar', bar='baz')
+        fakeredis.FakeStrictRedis(foo='bar', bar='baz')
 
 
 if __name__ == '__main__':

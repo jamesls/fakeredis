@@ -16,7 +16,7 @@ _strtod = _libc.strtod
 
 
 class FakeStrictRedis(object):
-    def __init__(self, db=0):
+    def __init__(self, db=0, **kwargs):
         if db not in DATABASES:
             DATABASES[db] = {}
         self._db = DATABASES[db]
