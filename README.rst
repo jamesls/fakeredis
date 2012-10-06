@@ -50,6 +50,10 @@ data::
   'baz'
 
 
+Fakeredis implements the same interface as `redis-py`_, the
+popular redis client for python.
+
+
 Unimplemented Commands
 ======================
 
@@ -140,11 +144,11 @@ If you just want to run the unittests::
 
     nosetests test_fakeredis.py:TestFakeRedis
 
-Because this module is attempting to provide the same interface as the python
-bindings to redis, a reasonable way to test this to to take each unittest and
-run it against a real redis server.  fakeredis and the real redis server should
-give the same result.  This ensures parity between the two.
-You can run these "integration" tests like this::
+Because this module is attempting to provide the same interface as `redis-py`_,
+the python bindings to redis, a reasonable way to test this to to take each
+unittest and run it against a real redis server.  fakeredis and the real redis
+server should give the same result.  This ensures parity between the two.  You
+can run these "integration" tests like this::
 
     nosetests test_fakeredis.py:TestRealRedis
 
@@ -159,3 +163,6 @@ To run both the unittests and the "integration" tests, run::
 
 If redis is not running and you try to run tests against a real redis server,
 these tests will have a result of 'S' for skipped.
+
+
+.. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
