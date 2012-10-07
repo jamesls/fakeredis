@@ -40,6 +40,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def tearDown(self):
         self.redis.flushall()
+        del self.redis
 
     def create_redis(self, db=0):
         return fakeredis.FakeStrictRedis(db=db)
