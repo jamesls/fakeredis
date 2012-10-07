@@ -1,0 +1,4 @@
+.commands.json
+fakeredis.egg-info
+dump.rdb
+extras/*
