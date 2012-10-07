@@ -1,3 +1,3 @@
 nose==1.0.0
-redis==2.4.11
+redis==2.6.2
 unittest2==0.5.1
