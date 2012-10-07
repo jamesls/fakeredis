@@ -1159,7 +1159,14 @@ class TestFakeStrictRedis(unittest.TestCase):
             ['four', 'one', 'two', 'three'])
 
 
-class TestFakeRedis(TestFakeStrictRedis):
+class TestFakeRedis(unittest.TestCase):
+    def setUp(self):
+        self.redis = self.create_redis()
+
+    def tearDown(self):
+        self.redis.flushall()
+        del self.redis
+
     def create_redis(self, db=0):
         return fakeredis.FakeRedis(db=db)
 
@@ -1218,14 +1225,12 @@ class TestFakeRedis(TestFakeStrictRedis):
         self.assertEqual(self.redis.zrange('foo', 0, -1),
             ['one'])
 
-    def test_zadd_multiple(self):
-        pass # Does not work in non-Strict Redis
-
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
     def create_redis(self, db=0):
         return redis.Redis('localhost', port=6379, db=db)
+
 
 @redis_must_be_running
 class TestRealStrictRedis(TestFakeStrictRedis):
