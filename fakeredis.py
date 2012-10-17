@@ -565,7 +565,7 @@ class FakeStrictRedis(object):
 
     def smembers(self, name):
         "Return all members of the set ``name``"
-        return self._db.get(name)
+        return self._db.get(name, set())
 
     def smove(self, src, dst, value):
         try:

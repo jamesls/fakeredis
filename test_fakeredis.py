@@ -612,6 +612,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('foo', 'member1')
         self.assertEqual(self.redis.sismember('foo', 'member1'), True)
 
+    def test_smembers(self):
+        self.assertEqual(self.redis.smembers('foo'), set())
+
     def test_smove(self):
         self.redis.sadd('foo', 'member1')
         self.redis.sadd('foo', 'member2')
