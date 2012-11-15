@@ -477,6 +477,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
         self.assertEqual(self.redis.hget('foo', 'key'), 'value')
 
+    def test_hset_update(self):
+        self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
+        self.assertEqual(self.redis.hset('foo', 'key', 'value'), 0)
+
     def test_hgetall(self):
         self.assertEqual(self.redis.hset('foo', 'k1', 'v1'), 1)
         self.assertEqual(self.redis.hset('foo', 'k2', 'v2'), 1)
