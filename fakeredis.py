@@ -1,7 +1,7 @@
 import random
 import warnings
 import copy
-from ctypes import CDLL, c_double
+from ctypes import CDLL, POINTER, c_double, c_int, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
 
@@ -13,6 +13,7 @@ DATABASES = {}
 
 _libc = CDLL(find_library('c'))
 _libc.strtod.restype = c_double
+_libc.strtod.argtypes = [c_char_p, POINTER(c_char_p)]
 _strtod = _libc.strtod
 
 
@@ -300,7 +301,15 @@ class FakeStrictRedis(object):
     def _strtod_key_func(self, arg):
         # str()'ing the arg is important! Don't ever remove this.
         arg = str(arg)
-        return _strtod(arg, None)
+        end = c_char_p()
+        val = _strtod(arg, pointer(end))
+        # real Redis also does an isnan check, not sure if
+        # that's needed here or not.
+        if end.value:
+            raise redis.ResponseError(
+                "One or more scores can't be converted into double")
+        else:
+            return val
 
     def _sort_using_by_arg(self, data, by):
         def _by_key(arg):

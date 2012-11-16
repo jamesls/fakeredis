@@ -998,8 +998,14 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         self.assertEqual(self.redis.sort('foo', alpha=True),
                          ['1a', '1b', '2a', '2b'])
-        self.assertEqual(self.redis.sort('foo', alpha=False),
-                         ['1b', '1a', '2a', '2b'])
+
+    def test_foo(self):
+        self.redis.rpush('foo', '2a')
+        self.redis.rpush('foo', '1b')
+        self.redis.rpush('foo', '2b')
+        self.redis.rpush('foo', '1a')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.sort('foo', alpha=False)
 
     def test_sort_with_store_option(self):
         self.redis.rpush('foo', '2')
