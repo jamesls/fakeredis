@@ -51,7 +51,8 @@ data::
 
 
 Fakeredis implements the same interface as `redis-py`_, the
-popular redis client for python.
+popular redis client for python, and models the responses
+of redis 2.6.
 
 
 Unimplemented Commands
