@@ -262,7 +262,9 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_lpush_then_lrange_all(self):
         self.assertEqual(self.redis.lpush('foo', 'bar'), 1)
         self.assertEqual(self.redis.lpush('foo', 'baz'), 2)
-        self.assertEqual(self.redis.lrange('foo', 0, -1), ['baz', 'bar'])
+        self.assertEqual(self.redis.lpush('foo', 'bam', 'buzz'), 4)
+        self.assertEqual(self.redis.lrange('foo', 0, -1),
+                         ['buzz', 'bam', 'baz', 'bar'])
 
     def test_lpush_then_lrange_portion(self):
         self.redis.lpush('foo', 'one')
@@ -336,8 +338,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
         self.redis.rpush('foo', 'three')
+        self.redis.rpush('foo', 'four', 'five')
         self.assertEqual(self.redis.lrange('foo', 0, -1),
-                         ['one', 'two', 'three'])
+                         ['one', 'two', 'three', 'four', 'five'])
 
     def test_lpop(self):
         self.assertEqual(self.redis.rpush('foo', 'one'), 1)
@@ -528,10 +531,16 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_hdel(self):
         self.redis.hset('foo', 'k1', 'v1')
+        self.redis.hset('foo', 'k2', 'v2')
+        self.redis.hset('foo', 'k3', 'v3')
         self.assertEqual(self.redis.hget('foo', 'k1'), 'v1')
         self.assertEqual(self.redis.hdel('foo', 'k1'), True)
         self.assertEqual(self.redis.hget('foo', 'k1'), None)
         self.assertEqual(self.redis.hdel('foo', 'k1'), False)
+        self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), True)
+        self.assertEqual(self.redis.hget('foo', 'k2'), None)
+        self.assertEqual(self.redis.hget('foo', 'k3'), None)
+        self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), False)
 
     def test_hincrby(self):
         self.redis.hset('foo', 'counter', 0)
@@ -564,9 +573,15 @@ class TestFakeStrictRedis(unittest.TestCase):
                          True)
 
     def test_sadd(self):
-        self.assertEqual(self.redis.sadd('foo', 'member1'), True)
-        self.assertEqual(self.redis.sadd('foo', 'member1'), False)
+        self.assertEqual(self.redis.sadd('foo', 'member1'), 1)
+        self.assertEqual(self.redis.sadd('foo', 'member1'), 0)
         self.assertEqual(self.redis.smembers('foo'), set(['member1']))
+        self.assertEqual(self.redis.sadd('foo', 'member2', 'member3'), 2)
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member1', 'member2', 'member3']))
+        self.assertEqual(self.redis.sadd('foo', 'member3', 'member4'), 1)
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member1', 'member2', 'member3', 'member4']))
 
     def test_scard(self):
         self.redis.sadd('foo', 'member1')
@@ -641,11 +656,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.srandmember('foo'), 'member1')
 
     def test_srem(self):
-        self.redis.sadd('foo', 'member1')
-        self.assertEqual(self.redis.smembers('foo'), set(['member1']))
+        self.redis.sadd('foo', 'member1', 'member2', 'member3', 'member4')
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member1', 'member2', 'member3', 'member4']))
         self.assertEqual(self.redis.srem('foo', 'member1'), True)
-        self.assertEqual(self.redis.smembers('foo'), set([]))
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member2', 'member3', 'member4']))
         self.assertEqual(self.redis.srem('foo', 'member1'), False)
+        self.assertEqual(self.redis.srem('foo', 'member2', 'member3'), True)
+        self.assertEqual(self.redis.smembers('foo'), set(['member4']))
+        self.assertEqual(self.redis.srem('foo', 'member3', 'member4'), True)
+        self.assertEqual(self.redis.smembers('foo'), set([]))
+        self.assertEqual(self.redis.srem('foo', 'member3', 'member4'), False)
 
     def test_sunion(self):
         self.redis.sadd('foo', 'member1')
@@ -665,11 +687,22 @@ class TestFakeStrictRedis(unittest.TestCase):
                          set(['member1', 'member2', 'member3']))
 
     def test_zadd(self):
+        self.redis.zadd('foo', four=4)
         self.redis.zadd('foo', three=3)
-        self.redis.zadd('foo', two=2)
-        self.redis.zadd('foo', one=1)
+        self.assertEqual(self.redis.zadd('foo', 2, 'two', 1, 'one', zero=0), 3)
         self.assertEqual(self.redis.zrange('foo', 0, -1),
-                         ['one', 'two', 'three'])
+                         ['zero', 'one', 'two', 'three', 'four'])
+        self.assertEqual(self.redis.zadd('foo', 7, 'zero', one=1, five=5), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+                         ['one', 'two', 'three', 'four', 'five', 'zero'])
+
+    def test_zadd_errors(self):
+        # The args are backwards, it should be 2, "two", so we
+        # expect an exception to be raised.
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zadd('foo', 'two', 2)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zadd('foo', two='two')
 
     def test_zadd_multiple(self):
         self.redis.zadd('foo', 1, 'one', 2, 'two')
@@ -743,8 +776,18 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_zrem(self):
         self.redis.zadd('foo', one=1)
-        self.assertTrue(self.redis.zrem('foo', 'one'))
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.redis.zadd('foo', four=4)
+        self.assertEqual(self.redis.zrem('foo', 'one'), True)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+                         ['two', 'three', 'four'])
+        self.assertEqual(self.redis.zrem('foo', 'two', 'three'), True)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['four'])
+        self.assertEqual(self.redis.zrem('foo', 'three', 'four'), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [])
+        self.assertEqual(self.redis.zrem('foo', 'three', 'four'), False)
+
 
     def test_zrem_non_existent_member(self):
         self.assertFalse(self.redis.zrem('foo', 'one'))
