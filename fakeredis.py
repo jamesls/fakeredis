@@ -489,8 +489,9 @@ class FakeStrictRedis(object):
         Set ``key`` to ``value`` within hash ``name``
         Returns 1 if HSET created a new field, otherwise 0
         """
+        key_is_new = key not in self._db.get(name, {})
         self._db.setdefault(name, {})[key] = value
-        return 1
+        return 1 if key_is_new else 0
 
     def hsetnx(self, name, key, value):
         """
