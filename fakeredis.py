@@ -1,7 +1,7 @@
 import random
 import warnings
 import copy
-from ctypes import CDLL, POINTER, c_double, c_int, c_char_p, pointer
+from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
 
