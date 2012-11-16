@@ -142,7 +142,7 @@ To run all the tests, install the requirements file::
 
 If you just want to run the unittests::
 
-    nosetests test_fakeredis.py:TestFakeRedis
+    nosetests test_fakeredis.py:TestFakeStrictRedis test_fakeredis.py:TestFakeRedis
 
 Because this module is attempting to provide the same interface as `redis-py`_,
 the python bindings to redis, a reasonable way to test this to to take each
@@ -150,7 +150,7 @@ unittest and run it against a real redis server.  fakeredis and the real redis
 server should give the same result.  This ensures parity between the two.  You
 can run these "integration" tests like this::
 
-    nosetests test_fakeredis.py:TestRealRedis
+    nosetests test_fakeredis.py:TestRealStrictRedis test_fakeredis.py:TestRealRedis
 
 In terms of implementation, ``TestRealRedis`` is a subclass of
 ``TestFakeRedis`` that overrides a factory method to create
