@@ -642,11 +642,17 @@ class FakeStrictRedis(object):
         for score, value in zip(*[args[i::2] for i in range(2)]):
             if value not in zset:
                 added += 1
-            zset[value] = score
+            try:
+                zset[value] = float(score)
+            except ValueError:
+                raise redis.ResponseError("value is not a valid float")
         for value, score in kwargs.items():
             if value not in zset:
                 added += 1
-            zset[value] = score
+            try:
+                zset[value] = float(score)
+            except ValueError:
+                raise redis.ResponseError("value is not a valid float")
         return added
 
     def zcard(self, name):

@@ -696,6 +696,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrange('foo', 0, -1),
                          ['one', 'two', 'three', 'four', 'five', 'zero'])
 
+    def test_zadd_errors(self):
+        # The args are backwards, it should be 2, "two", so we
+        # expect an exception to be raised.
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zadd('foo', 'two', 2)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zadd('foo', two='two')
+
     def test_zadd_multiple(self):
         self.redis.zadd('foo', 1, 'one', 2, 'two')
         self.assertEqual(self.redis.zrange('foo', 0, 0),
