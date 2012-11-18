@@ -379,12 +379,13 @@ class FakeStrictRedis(object):
         try:
             val = self._db[name]
         except KeyError:
-            return
+            return True
         if end == -1:
             end = None
         else:
             end += 1
         self._db[name] = val[start:end]
+        return True
 
     def lindex(self, name, index):
         try:

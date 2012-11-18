@@ -385,11 +385,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'three')
         self.redis.rpush('foo', 'four')
 
-        self.redis.ltrim('foo', 1, 3)
+        self.assertTrue(self.redis.ltrim('foo', 1, 3))
         self.assertEqual(self.redis.lrange('foo', 0, -1), ['two', 'three',
                                                            'four'])
-        self.redis.ltrim('foo', 1, -1)
+        self.assertTrue(self.redis.ltrim('foo', 1, -1))
         self.assertEqual(self.redis.lrange('foo', 0, -1), ['three', 'four'])
+
+    def test_ltrim_with_non_existent_key(self):
+        self.assertTrue(self.redis.ltrim('foo', 0, -1))
 
     def test_lindex(self):
         self.redis.rpush('foo', 'one')
