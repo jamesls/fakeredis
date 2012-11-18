@@ -893,15 +893,11 @@ class FakeStrictRedis(object):
         self._db[dest] = new_zset
 
     def _list_or_args(self, keys, args):
-        # Taken directly from redis-py.
+        # Based off of list_or_args from redis-py.
         # Returns a single list combining keys and args.
-        try:
-            iter(keys)
-            # a string can be iterated, but indicates
-            # keys wasn't passed as a list
-            if isinstance(keys, basestring):
-                keys = [keys]
-        except TypeError:
+        # A string can be iterated, but indicates
+        # keys wasn't passed as a list.
+        if isinstance(keys, basestring):
             keys = [keys]
         if args:
             keys.extend(args)
