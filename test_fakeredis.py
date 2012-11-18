@@ -1129,15 +1129,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         # Check side effects happened as expected.
         self.assertEqual(['quux2', 'quux'], self.redis.lrange('baz', 0, -1))
 
-        # Check that the command buffer has been emptied
+        # Check that the command buffer has been emptied.
         self.assertEqual([], p.execute())
 
-        # Check that the watched keys buffer has been emptied
+    def test_multiple_successful_watch_calls(self):
+        p = self.redis.pipeline()
+        p.watch('bam')
+        p.multi()
+        p.set('foo', 'bar')
+        # Check that the watched keys buffer has been emptied.
+        p.execute()
+
+        # bam is no longer being watched, so it's ok to modify
+        # it now.
         p.watch('foo')
         self.redis.set('bam', 'boo')
         p.multi()
         p.set('foo', 'bats')
-        p.execute()
+        self.assertEqual(p.execute(), [True])
 
     def test_pipeline_non_transactional(self):
         # For our simple-minded model I don't think
