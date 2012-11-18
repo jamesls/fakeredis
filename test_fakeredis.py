@@ -1116,6 +1116,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         # The pipeline method returns an object for
         # issuing multiple commands in a batch.
         p = self.redis.pipeline()
+        p.watch('bam')
+        p.multi()
         p.set('foo', 'bar').get('foo')
         p.lpush('baz', 'quux')
         p.lpush('baz', 'quux2').lrange('baz', 0, -1)
@@ -1126,6 +1128,25 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         # Check side effects happened as expected.
         self.assertEqual(['quux2', 'quux'], self.redis.lrange('baz', 0, -1))
+
+        # Check that the command buffer has been emptied.
+        self.assertEqual([], p.execute())
+
+    def test_multiple_successful_watch_calls(self):
+        p = self.redis.pipeline()
+        p.watch('bam')
+        p.multi()
+        p.set('foo', 'bar')
+        # Check that the watched keys buffer has been emptied.
+        p.execute()
+
+        # bam is no longer being watched, so it's ok to modify
+        # it now.
+        p.watch('foo')
+        self.redis.set('bam', 'boo')
+        p.multi()
+        p.set('foo', 'bats')
+        self.assertEqual(p.execute(), [True])
 
     def test_pipeline_non_transactional(self):
         # For our simple-minded model I don't think
@@ -1139,17 +1160,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         self.redis.rpush('greet', 'hello')
         p = self.redis.pipeline()
-        try:
-            p.watch('greet', 'foo')
-            nextf = p.get('foo') + 'baz'
-            # simulate change happening on another thread:
-            self.redis.rpush('greet', 'world')
-            p.multi() # begin pipelining
-            p.set('foo', nextf)
+        self.addCleanup(p.reset)
 
-            self.assertRaises(redis.WatchError, p.execute)
-        finally:
-            p.reset()
+        p.watch('greet', 'foo')
+        nextf = p.get('foo') + 'baz'
+        # simulate change happening on another thread:
+        self.redis.rpush('greet', 'world')
+        p.multi() # begin pipelining
+        p.set('foo', nextf)
+
+        self.assertRaises(redis.WatchError, p.execute)
 
     def test_pipeline_succeeds_despite_unwatched_key_changed(self):
         # Same setup as before except for the params to the WATCH command.
@@ -1169,6 +1189,46 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.assertEqual('barbaz', self.redis.get('foo'))
         finally:
             p.reset()
+
+    def test_pipeline_succeeds_when_watching_nonexistent_key(self):
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('greet', 'hello')
+        p = self.redis.pipeline()
+        try:
+            p.watch('foo', 'bam') # also watch a nonexistent key
+            nextf = p.get('foo') + 'baz'
+            # simulate change happening on another thread:
+            self.redis.rpush('greet', 'world')
+            p.multi() # begin pipelining
+            p.set('foo', nextf)
+            p.execute()
+
+            # Check the commands were executed.
+            self.assertEqual('barbaz', self.redis.get('foo'))
+        finally:
+            p.reset()
+
+    def test_watch_state_is_cleared_across_multiple_watches(self):
+        self.redis.set('foo', 'one')
+        self.redis.set('bar', 'baz')
+        p = self.redis.pipeline()
+        self.addCleanup(p.reset)
+
+        p.watch('foo')
+        # Simulate change happening on another thread.
+        self.redis.set('foo', 'three')
+        p.multi() # begin pipelining
+        p.set('foo', 'three')
+        with self.assertRaises(redis.WatchError):
+            p.execute()
+
+        # Now watch another key.  It should be ok to change
+        # foo as we're no longer watching it.
+        p.watch('bar')
+        self.redis.set('foo', 'four')
+        p.multi()
+        p.set('bar', 'five')
+        self.assertEqual(p.execute(), [True])
 
     def test_pipeline_as_context_manager(self):
         self.redis.set('foo', 'bar')
