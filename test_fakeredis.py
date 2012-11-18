@@ -1200,6 +1200,28 @@ class TestFakeStrictRedis(unittest.TestCase):
         finally:
             p.reset()
 
+    def test_watch_state_is_cleared_across_multiple_watches(self):
+        self.redis.set('foo', 'one')
+        self.redis.set('bar', 'baz')
+        p = self.redis.pipeline()
+        self.addCleanup(p.reset)
+
+        p.watch('foo')
+        # Simulate change happening on another thread.
+        self.redis.set('foo', 'three')
+        p.multi() # begin pipelining
+        p.set('foo', 'three')
+        with self.assertRaises(redis.WatchError):
+            p.execute()
+
+        # Now watch another key.  It should be ok to change
+        # foo as we're no longer watching it.
+        p.watch('bar')
+        self.redis.set('foo', 'four')
+        p.multi()
+        p.set('bar', 'five')
+        self.assertEqual(p.execute(), [True])
+
     def test_pipeline_as_context_manager(self):
         self.redis.set('foo', 'bar')
         with self.redis.pipeline() as p:

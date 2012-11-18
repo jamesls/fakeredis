@@ -1011,6 +1011,7 @@ class FakePipeline(object):
                 if v != u]
             if mismatches:
                 self.commands = []
+                self.watching = {}
                 raise redis.WatchError(
                     'Watched key%s %s changed' % (
                         '' if len(mismatches) == 1 else
