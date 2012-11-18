@@ -261,7 +261,7 @@ class FakeStrictRedis(object):
             else:
                 data.sort()
             if not (start is None and num is None):
-                data = data[start:start+num]
+                data = data[start:start + num]
             if desc:
                 data = list(reversed(data))
             if store is not None:
@@ -753,7 +753,7 @@ class FakeStrictRedis(object):
             if min <= all_items[item] <= max:
                 matches.append(item)
         if start is not None:
-            matches = matches[start:start+num]
+            matches = matches[start:start + num]
         if withscores:
             return [(k, all_items[k]) for k in matches]
         return matches
@@ -986,12 +986,14 @@ class FakePipeline(object):
         if not hasattr(self.owner, name):
             raise AttributeError('%r: does not have attribute %r' %
                                  (self.owner, name))
+
         def meth(*args, **kwargs):
             if self.is_immediate:
                 # Special mode during watch_multi sequence.
                 return getattr(self.owner, name)(*args, **kwargs)
             self.commands.append((name, args, kwargs))
             return self
+
         setattr(self, name, meth)
         return meth
 

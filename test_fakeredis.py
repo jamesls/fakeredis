@@ -710,9 +710,9 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zadd_multiple(self):
         self.redis.zadd('foo', 1, 'one', 2, 'two')
         self.assertEqual(self.redis.zrange('foo', 0, 0),
-            ['one'])
+                         ['one'])
         self.assertEqual(self.redis.zrange('foo', 1, 1),
-            ['two'])
+                         ['two'])
 
     def test_zrange_same_score(self):
         self.redis.zadd('foo', two_a=2)
@@ -790,7 +790,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrem('foo', 'three', 'four'), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [])
         self.assertEqual(self.redis.zrem('foo', 'three', 'four'), False)
-
 
     def test_zrem_non_existent_member(self):
         self.assertFalse(self.redis.zrem('foo', 'one'))
@@ -1164,9 +1163,10 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         p.watch('greet', 'foo')
         nextf = p.get('foo') + 'baz'
-        # simulate change happening on another thread:
+        # Simulate change happening on another thread.
         self.redis.rpush('greet', 'world')
-        p.multi() # begin pipelining
+        # Begin pipelining.
+        p.multi()
         p.set('foo', nextf)
 
         self.assertRaises(redis.WatchError, p.execute)
@@ -1177,11 +1177,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('greet', 'hello')
         p = self.redis.pipeline()
         try:
-            p.watch('foo') # only watch one of the 2 keys
+            # Only watch one of the 2 keys.
+            p.watch('foo')
             nextf = p.get('foo') + 'baz'
-            # simulate change happening on another thread:
+            # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
-            p.multi() # begin pipelining
+            p.multi()
             p.set('foo', nextf)
             p.execute()
 
@@ -1195,11 +1196,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('greet', 'hello')
         p = self.redis.pipeline()
         try:
-            p.watch('foo', 'bam') # also watch a nonexistent key
+            # Also watch a nonexistent key.
+            p.watch('foo', 'bam')
             nextf = p.get('foo') + 'baz'
-            # simulate change happening on another thread:
+            # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
-            p.multi() # begin pipelining
+            p.multi()
             p.set('foo', nextf)
             p.execute()
 
@@ -1217,7 +1219,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         p.watch('foo')
         # Simulate change happening on another thread.
         self.redis.set('foo', 'three')
-        p.multi() # begin pipelining
+        p.multi()
         p.set('foo', 'three')
         with self.assertRaises(redis.WatchError):
             p.execute()
@@ -1236,7 +1238,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             p.watch('foo')
             self.assertTrue(isinstance(p, redis.client.BasePipeline)
                             or p.need_reset)
-            p.multi() # begin pipelining
+            p.multi()
             p.set('foo', 'baz')
             p.execute()
 
@@ -1251,6 +1253,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         # This example taken pretty much from the redis-py documentation.
         self.redis.set('OUR-SEQUENCE-KEY', 13)
         calls = []
+
         def client_side_incr(pipe):
             calls.append((pipe,))
             current_value = pipe.get('OUR-SEQUENCE-KEY')
@@ -1262,6 +1265,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
             pipe.multi()
             pipe.set('OUR-SEQUENCE-KEY', next_value)
+
         res = self.redis.transaction(client_side_incr, 'OUR-SEQUENCE-KEY')
 
         self.assertEqual([True], res)
@@ -1273,9 +1277,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertItemsEqual(self.redis.keys('*o*'), ['four', 'one', 'two'])
         self.assertItemsEqual(self.redis.keys('t??'), ['two'])
         self.assertItemsEqual(self.redis.keys('*'),
-            ['four', 'one', 'two', 'three'])
+                              ['four', 'one', 'two', 'three'])
         self.assertItemsEqual(self.redis.keys(),
-            ['four', 'one', 'two', 'three'])
+                              ['four', 'one', 'two', 'three'])
 
 
 class TestFakeRedis(unittest.TestCase):
@@ -1310,7 +1314,7 @@ class TestFakeRedis(unittest.TestCase):
         # Should remove it from the end of the list,
         # leaving the 'removeme' from the front of the list alone.
         self.assertEqual(self.redis.lrange('foo', 0, -1),
-            ['removeme', 'one', 'two', 'three'])
+                         ['removeme', 'one', 'two', 'three'])
 
     def test_lrem_zero_count(self):
         self.redis.lpush('foo', 'one')
@@ -1341,8 +1345,7 @@ class TestFakeRedis(unittest.TestCase):
 
     def test_zadd_deprecated(self):
         self.redis.zadd('foo', 'one', 1)
-        self.assertEqual(self.redis.zrange('foo', 0, -1),
-            ['one'])
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['one'])
 
 
 @redis_must_be_running
