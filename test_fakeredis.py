@@ -1151,17 +1151,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         self.redis.rpush('greet', 'hello')
         p = self.redis.pipeline()
-        try:
-            p.watch('greet', 'foo')
-            nextf = p.get('foo') + 'baz'
-            # simulate change happening on another thread:
-            self.redis.rpush('greet', 'world')
-            p.multi() # begin pipelining
-            p.set('foo', nextf)
+        self.addCleanup(p.reset)
 
-            self.assertRaises(redis.WatchError, p.execute)
-        finally:
-            p.reset()
+        p.watch('greet', 'foo')
+        nextf = p.get('foo') + 'baz'
+        # simulate change happening on another thread:
+        self.redis.rpush('greet', 'world')
+        p.multi() # begin pipelining
+        p.set('foo', nextf)
+
+        self.assertRaises(redis.WatchError, p.execute)
 
     def test_pipeline_succeeds_despite_unwatched_key_changed(self):
         # Same setup as before except for the params to the WATCH command.
