@@ -92,8 +92,6 @@ pubsub
 transactions
 ------------
 
- * exec
- * multi
  * discard
 
 
