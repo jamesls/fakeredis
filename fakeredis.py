@@ -410,7 +410,7 @@ class FakeStrictRedis(object):
         self._db.get(name, []).insert(index, value)
 
     def rpoplpush(self, src, dst):
-        el = self._db.get(src).pop()
+        el = self._db.get(src, []).pop()
         try:
             self._db[dst].insert(0, el)
         except KeyError:
@@ -442,7 +442,7 @@ class FakeStrictRedis(object):
                 return (key, self._db[key].pop())
 
     def brpoplpush(self, src, dst, timeout=0):
-        el = self._db.get(src).pop()
+        el = self._db.get(src, []).pop()
         try:
             self._db[dst].insert(0, el)
         except KeyError:
