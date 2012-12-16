@@ -5,6 +5,7 @@ import inspect
 from functools import wraps
 
 from nose.plugins.skip import SkipTest
+from nose.plugins.attrib import attr
 import redis
 import redis.client
 
@@ -434,9 +435,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrange('foo', 0, -1), ['one'])
         self.assertEqual(self.redis.lrange('bar', 0, -1), ['two', 'one'])
 
+    def test_rpoplpush_to_nonexistent_destination(self):
+        self.redis.rpush('foo', 'one')
+        self.assertEqual(self.redis.rpoplpush('foo', 'bar'), 'one')
+        self.assertEqual(self.redis.rpop('bar'), 'one')
+
     def test_blpop_single_list(self):
-        self.assertEqual(self.redis.blpop(['foo'], timeout=1),
-                         None)
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
         self.redis.rpush('foo', 'three')
@@ -444,8 +448,6 @@ class TestFakeStrictRedis(unittest.TestCase):
                          ('foo', 'one'))
 
     def test_blpop_test_multiple_lists(self):
-        self.assertEqual(self.redis.blpop(['bar','foo'], timeout=1),
-                         None)
         self.redis.rpush('baz', 'zero')
         self.assertEqual(self.redis.blpop(['foo','baz'], timeout=1),
                          ('baz', 'zero'))
@@ -466,14 +468,10 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_blpop_allow_single_key(self):
         # blpop converts single key arguments to a one element list.
-        self.assertEqual(self.redis.blpop('foo', timeout=1),
-                         None)
         self.redis.rpush('foo', 'one')
         self.assertEqual(self.redis.blpop('foo', timeout=1), ('foo', 'one'))
 
     def test_brpop_test_multiple_lists(self):
-        self.assertEqual(self.redis.brpop(['bar','foo'], timeout=1),
-                         None)
         self.redis.rpush('baz', 'zero')
         self.assertEqual(self.redis.brpop(['foo','baz'], timeout=1),
                          ('baz', 'zero'))
@@ -484,22 +482,29 @@ class TestFakeStrictRedis(unittest.TestCase):
                          ('foo', 'two'))
 
     def test_brpop_single_key(self):
-        self.assertEqual(self.redis.brpop('foo', timeout=1),
-                         None)
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
         self.assertEqual(self.redis.brpop('foo', timeout=1),
                          ('foo', 'two'))
 
     def test_brpoplpush_multi_keys(self):
-        self.assertEqual(self.redis.brpoplpush('foo', 'bar', timeout=1),
-                         None)
         self.assertEqual(self.redis.lpop('bar'), None)
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
         self.assertEqual(self.redis.brpoplpush('foo', 'bar', timeout=1),
                          'two')
         self.assertEqual(self.redis.lrange('bar', 0, -1), ['two'])
+
+    @attr('slow')
+    def test_blocking_operations_when_empty(self):
+        self.assertEqual(self.redis.blpop(['foo'], timeout=1),
+                         None)
+        self.assertEqual(self.redis.blpop(['bar','foo'], timeout=1),
+                         None)
+        self.assertEqual(self.redis.brpop('foo', timeout=1),
+                         None)
+        self.assertEqual(self.redis.brpoplpush('foo', 'bar', timeout=1),
+                         None)
 
     ## Tests for the hash type.
 
