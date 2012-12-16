@@ -1376,6 +1376,18 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.zadd('foo', 'one', 1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), ['one'])
 
+    def test_zadd_missing_required_params(self):
+        with self.assertRaises(redis.RedisError):
+            # Missing the 'score' param.
+            self.redis.zadd('foo', 'one')
+        with self.assertRaises(redis.RedisError):
+            # Missing the 'value' param.
+            self.redis.zadd('foo', None, score=1)
+
+    def test_zadd_with_single_keypair(self):
+        self.redis.zadd('foo', bar=1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['bar'])
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
