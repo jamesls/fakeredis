@@ -1261,6 +1261,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         p.set('bar', 'five')
         self.assertEqual(p.execute(), [True])
 
+    def test_pipeline_proxies_to_redis_object(self):
+        p = self.redis.pipeline()
+        self.assertTrue(hasattr(p, 'zadd'))
+        with self.assertRaises(AttributeError):
+            p.non_existent_attribute
+
     def test_pipeline_as_context_manager(self):
         self.redis.set('foo', 'bar')
         with self.redis.pipeline() as p:
