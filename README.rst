@@ -116,10 +116,11 @@ server
  * dbsize
 
 
-Adding New Commands
-===================
+Contributing
+============
 
-Adding support for more redis commands is easy:
+Contributions are welcome.  Adding support for more
+redis commands or fixing bugs is easy:
 
 * Add unittests for the new command.
 * Implement new command.
@@ -130,6 +131,11 @@ test is run against a real redis instance using a real redis-py client
 instance.  In order to run these tests you must have a redis server running
 on localhost, port 6379 (the default settings).  The integration tests use
 db=10 in order to minimize collisions with an existing redis instance.
+
+In general, new features or bug fixes *will not be merged unless they
+have tests.*  This is not only to ensure the correctness of
+the code, but to also encourage others to expirement without wondering
+whether or not they are breaking things.
 
 
 Running the Tests
@@ -162,6 +168,12 @@ To run both the unittests and the "integration" tests, run::
 
 If redis is not running and you try to run tests against a real redis server,
 these tests will have a result of 'S' for skipped.
+
+There are some tests that test redis blocking operations that are somewhat
+slow.  If you want to skip these tests during day to day development,
+they have all been tagged as 'slow' so you can skip them by running::
+
+    nosetests -a '!slow'
 
 
 .. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
