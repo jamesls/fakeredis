@@ -62,11 +62,55 @@ All of the redis commands are implemented in fakeredis with
 these exceptions:
 
 
+hash
+----
+
+ * hincrbyfloat
+
+
+string
+------
+
+ * incrbyfloat
+ * bitop
+ * psetex
+ * bitcount
+
+
 generic
 -------
 
+ * restore
+ * dump
+ * pexpireat
+ * pttl
+ * pexpire
+ * migrate
  * object
- * eval
+
+
+server
+------
+
+ * debug object
+ * client list
+ * lastsave
+ * slowlog
+ * sync
+ * shutdown
+ * monitor
+ * client kill
+ * config resetstat
+ * time
+ * config get
+ * save
+ * debug segfault
+ * bgsave
+ * bgrewriteaof
+ * slaveof
+ * info
+ * config set
+ * dbsize
 
 
 connection
@@ -79,41 +123,25 @@ connection
  * auth
 
 
+scripting
+---------
+
+ * script flush
+ * script kill
+ * script load
+ * evalsha
+ * eval
+ * script exists
+
+
 pubsub
 ------
 
  * punsubscribe
  * subscribe
- * psubscribe
  * publish
+ * psubscribe
  * unsubscribe
-
-
-transactions
-------------
-
- * discard
-
-
-server
-------
-
- * debug object
- * slowlog
- * sync
- * shutdown
- * lastsave
- * debug segfault
- * monitor
- * config resetstat
- * config get
- * save
- * bgsave
- * bgrewriteaof
- * slaveof
- * info
- * config set
- * dbsize
 
 
 Contributing
