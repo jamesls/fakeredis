@@ -879,6 +879,9 @@ class FakeStrictRedis(object):
             keys_weights = [(k, 1) for k in keys]
         for key, weight in keys_weights:
             current_zset = self._db.get(key, {})
+            if isinstance(current_zset, set):
+                # When casting set to zset redis uses a default score of 1.0
+                current_zset = dict((k, 1.0) for k in current_zset)
             for el in current_zset:
                 if not should_include(el):
                     continue
