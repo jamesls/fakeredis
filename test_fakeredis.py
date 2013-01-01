@@ -627,6 +627,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sdiff('foo', 'bar'), set(['member1']))
+        # Original sets shouldn't be modified.
+        self.assertEqual(self.redis.smembers('foo'), set(['member1', 'member2']))
+        self.assertEqual(self.redis.smembers('bar'), set(['member2', 'member3']))
 
     def test_sdiff_one_key(self):
         self.redis.sadd('foo', 'member1')
