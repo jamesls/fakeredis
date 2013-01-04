@@ -541,7 +541,7 @@ class FakeStrictRedis(object):
     def sdiff(self, keys, *args):
         "Return the difference of sets specified by ``keys``"
         all_keys = redis.client.list_or_args(keys, args)
-        diff = self._db.get(all_keys[0], set())
+        diff = self._db.get(all_keys[0], set()).copy()
         for key in all_keys[1:]:
             diff -= self._db.get(key, set())
         return diff
