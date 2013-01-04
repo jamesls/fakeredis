@@ -972,6 +972,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
                          [('one', 3), ('two', 6), ('four', 8)])
 
+    def test_zunionstore_mixed_set_types(self):
+        self.redis.sadd('foo', 'one') # no score, redis will use 1.0
+        self.redis.sadd('foo', 'two') # no score, redis will use 1.0
+        self.redis.zadd('bar', one=1)
+        self.redis.zadd('bar', two=2)
+        self.redis.zadd('bar', three=3)
+        self.redis.zunionstore('baz', ['foo', 'bar'], aggregate='SUM')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 2), ('three', 3), ('two', 3)])
+
     def test_zunionstore_badkey(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -991,6 +1001,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zinterstore('baz', ['foo', 'bar'], aggregate='SUM')
         self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
                          [('one', 2), ('two', 4)])
+
+    def test_zinterstore_mixed_set_types(self):
+        self.redis.sadd('foo', 'one') # no score, redis will use 1.0
+        self.redis.sadd('foo', 'two') # no score, redis will use 1.0
+        self.redis.zadd('bar', one=1)
+        self.redis.zadd('bar', two=2)
+        self.redis.zadd('bar', three=3)
+        self.redis.zinterstore('baz', ['foo', 'bar'], aggregate='SUM')
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 2), ('two', 3)])
 
     def test_zinterstore_max(self):
         self.redis.zadd('foo', one=0)
