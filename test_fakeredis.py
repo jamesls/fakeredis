@@ -1281,6 +1281,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertItemsEqual(self.redis.keys(),
                               ['four', 'one', 'two', 'three'])
 
+    def test_ping(self):
+        res = self.redis.ping()
+        self.assertEqual(res, 'PONG')
+
 
 class TestFakeRedis(unittest.TestCase):
     def setUp(self):

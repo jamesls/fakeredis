@@ -130,6 +130,9 @@ class FakeStrictRedis(object):
     def persist(self, name):
         pass
 
+    def ping(self):
+        return 'PONG'
+
     def randomkey(self):
         pass
 
