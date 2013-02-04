@@ -75,7 +75,6 @@ connection
  * echo
  * select
  * quit
- * ping
  * auth
 
 
