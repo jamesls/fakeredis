@@ -10,6 +10,7 @@ import redis
 import redis.client
 
 
+__version__ = '0.3.1'
 DATABASES = {}
 
 _libc = CDLL(find_library('c'))
