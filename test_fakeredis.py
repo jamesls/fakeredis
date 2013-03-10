@@ -1359,7 +1359,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_ping(self):
         res = self.redis.ping()
-        self.assertEqual(res, 'PONG')
+        self.assertTrue(self.redis.ping())
 
 
 class TestFakeRedis(unittest.TestCase):

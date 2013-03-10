@@ -152,7 +152,7 @@ class FakeStrictRedis(object):
         pass
 
     def ping(self):
-        return 'PONG'
+        return True
 
     def randomkey(self):
         pass
