@@ -59,6 +59,15 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
+    def test_get_with_non_str_keys(self):
+        self.assertEqual(self.redis.set('2', 'bar'), True)
+        self.assertEqual(self.redis.get(2), 'bar')
+
+    def test_set_non_str_keys(self):
+        self.assertEqual(self.redis.set(2, 'bar'), True)
+        self.assertEqual(self.redis.get(2), 'bar')
+        self.assertEqual(self.redis.get('2'), 'bar')
+
     def test_getbit(self):
         self.redis.setbit('foo', 3, 1)
         self.assertEqual(self.redis.getbit('foo', 0), 0)
@@ -279,6 +288,15 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_lpush_key_does_not_exist(self):
         self.assertEqual(self.redis.lrange('foo', 0, -1), [])
+
+    def test_lpush_with_nonstr_key(self):
+        self.redis.lpush(1, 'one')
+        self.redis.lpush(1, 'two')
+        self.redis.lpush(1, 'three')
+        self.assertEqual(self.redis.lrange(1, 0, 2),
+                         ['three', 'two', 'one'])
+        self.assertEqual(self.redis.lrange('1', 0, 2),
+                         ['three', 'two', 'one'])
 
     def test_llen(self):
         self.redis.lpush('foo', 'one')
