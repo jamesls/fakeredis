@@ -12,10 +12,12 @@ setup(
     license='BSD',
     url="https://github.com/jamesls/fakeredis",
     author='James Saryerwinnie',
-    author_email='jlsnpi@gmail.com',
+    author_email='js@jamesls.com',
     py_modules=['fakeredis'],
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
+        'Programming Language :: Python :: 2.6',
+        'Programming Language :: Python :: 2.7',
         'License :: OSI Approved :: BSD License',
     ],
     install_requires=[

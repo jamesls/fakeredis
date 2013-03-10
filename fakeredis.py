@@ -4,6 +4,7 @@ import copy
 from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
+from collections import MutableMapping
 
 import redis
 import redis.client
@@ -17,10 +18,30 @@ _libc.strtod.argtypes = [c_char_p, POINTER(c_char_p)]
 _strtod = _libc.strtod
 
 
+class _StrKeyDict(MutableMapping):
+    def __init__(self, *args, **kwargs):
+        self._dict = dict(*args, **kwargs)
+
+    def __getitem__(self, key):
+        return self._dict[str(key)]
+
+    def __setitem__(self, key, value):
+        self._dict[str(key)] = value
+
+    def __delitem__(self, key):
+        del self._dict[key]
+
+    def __len__(self):
+        return len(self._dict)
+
+    def __iter__(self):
+        return iter(self._dict)
+
+
 class FakeStrictRedis(object):
     def __init__(self, db=0, **kwargs):
         if db not in DATABASES:
-            DATABASES[db] = {}
+            DATABASES[db] = _StrKeyDict()
         self._db = DATABASES[db]
         self._db_num = db
 
