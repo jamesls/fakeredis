@@ -59,6 +59,17 @@ class FakeStrictRedis(object):
         self._db[key] += value
         return len(self._db[key])
 
+    def bitcount(self, name, start=0, end=-1):
+        if end == -1:
+            end = None
+        else:
+            end += 1
+        try:
+            s = self._db[name][start:end]
+            return sum([bin(ord(l)).count('1') for l in s])
+        except KeyError:
+            return 0
+
     def decr(self, name, amount=1):
         try:
             self._db[name] = self._db.get(name, 0) - amount
