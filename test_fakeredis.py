@@ -114,6 +114,19 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.setbit('foo', 54, 1)
         self.assertEqual(self.redis.get('foo'), 'p@\x00\x00\x00\x00\x02')
 
+    def test_bitcount(self):
+        self.redis.delete('foo')
+        self.assertEqual(self.redis.bitcount('foo'), 0)
+        self.redis.setbit('foo', 1, 1)
+        self.assertEqual(self.redis.bitcount('foo'), 1)
+        self.redis.setbit('foo', 8, 1)
+        self.assertEqual(self.redis.bitcount('foo'), 2)
+        self.assertEqual(self.redis.bitcount('foo', 1, 1), 1)
+        self.redis.setbit('foo', 57, 1)
+        self.assertEqual(self.redis.bitcount('foo'), 3)
+        self.redis.set('foo', ' ')
+        self.assertEqual(self.redis.bitcount('foo'), 1)
+
     def test_getset_not_exist(self):
         val = self.redis.getset('foo', 'bar')
         self.assertEqual(val, None)

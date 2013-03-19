@@ -74,7 +74,6 @@ string
  * incrbyfloat
  * bitop
  * psetex
- * bitcount
 
 
 generic
