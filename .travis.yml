@@ -13,5 +13,5 @@ script:
   - coverage run --source fakeredis.py test_fakeredis.py
 notifications:
   email:
-    - jls.npi@gmail.com
+    - js@jamesls.com
 after_success: coveralls
