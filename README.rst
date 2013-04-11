@@ -4,6 +4,10 @@ fakeredis: A fake version of a redis-py
 .. image:: https://secure.travis-ci.org/jamesls/fakeredis.png?branch=master
    :target: http://travis-ci.org/jamesls/fakeredis
 
+.. image:: https://coveralls.io/repos/jamesls/fakeredis/badge.png?branch=master
+   :target: https://coveralls.io/r/jamesls/fakeredis
+
+
 fakeredis is a pure python implementation of the redis-py python client
 that simulates talking to a redis server.  This was created for a single
 purpose: **to write unittests**.  Setting up redis is not hard, but
