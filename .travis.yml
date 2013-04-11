@@ -8,7 +8,9 @@ before_install:
 install:
   - pip install -r requirements.txt --use-mirrors
   - pip install coverage python-coveralls --use-mirrors
-script: nosetests --with-coverage --cover-package=fakeredis --cover-erase test_fakeredis.py
+script:
+  - coverage erase
+  - coverage run --source fakeredis.py test_fakeredis.py
 notifications:
   email:
     - jls.npi@gmail.com
