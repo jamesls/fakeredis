@@ -1371,7 +1371,6 @@ class TestFakeStrictRedis(unittest.TestCase):
                               ['four', 'one', 'two', 'three'])
 
     def test_ping(self):
-        res = self.redis.ping()
         self.assertTrue(self.redis.ping())
 
 
