@@ -149,11 +149,12 @@ pubsub
 Contributing
 ============
 
-Contributions are welcome.  Adding support for more
-redis commands or fixing bugs is easy:
+Contributions are welcome.  Please see the `contributing guide`_ for
+more details.
 
-* Add unittests for the new command.
-* Implement new command.
+
+Running the Tests
+=================
 
 To ensure parity with the real redis, there are a set of integration tests
 that mirror the unittests.  For every unittest that is written, the same
@@ -162,14 +163,6 @@ instance.  In order to run these tests you must have a redis server running
 on localhost, port 6379 (the default settings).  The integration tests use
 db=10 in order to minimize collisions with an existing redis instance.
 
-In general, new features or bug fixes *will not be merged unless they
-have tests.*  This is not only to ensure the correctness of
-the code, but to also encourage others to expirement without wondering
-whether or not they are breaking things.
-
-
-Running the Tests
-=================
 
 To run all the tests, install the requirements file::
 
@@ -207,3 +200,4 @@ they have all been tagged as 'slow' so you can skip them by running::
 
 
 .. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
+.. _contributing guide: https://github.com/jamesls/fakeredis/blob/master/CONTRIBUTING.rst
