@@ -184,9 +184,12 @@ class FakeStrictRedis(object):
         else:
             return self.rename(src, dst)
 
-    def set(self, name, value):
-        self._db[name] = value
-        return True
+    def set(self, name, value, nx=False):
+        if not nx or (nx and self._db.get(name, None) is None):
+            self._db[name] = value
+            return True
+        else:
+            return None
     __setitem__ = set
 
     def setbit(self, name, offset, value):
