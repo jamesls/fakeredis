@@ -1,4 +1,4 @@
 nose==1.0.0
-redis==2.7.2
+redis==2.7.6
 unittest2==0.5.1
 tox==1.4.2
