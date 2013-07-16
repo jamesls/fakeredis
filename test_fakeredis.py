@@ -1503,6 +1503,21 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expire('bar', 1), False)
 
+    def test_ttl_should_return_none_for_non_expiring_key(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.assertEqual(self.redis.ttl('foo'), None)
+
+    def test_ttl_should_return_value_for_expiring_key(self):
+        self.redis.set('foo', 'bar')
+        self.redis.expire('foo', 1)
+        self.assertEqual(self.redis.ttl('foo'), 1)
+        self.redis.expire('foo', 2)
+        self.assertEqual(self.redis.ttl('foo'), 2)
+        long_long_c_max = 100000000000
+        self.redis.expire('foo', long_long_c_max)  # see https://github.com/antirez/redis/blob/unstable/src/db.c#L632
+        self.assertEqual(self.redis.ttl('foo'), long_long_c_max)
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):

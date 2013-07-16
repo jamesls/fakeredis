@@ -44,6 +44,11 @@ class _StrKeyDict(MutableMapping):
     def expire(self, key, timestamp):
         self._ex_keys[key] = timestamp
 
+    def expiring(self, key):
+        if not key in self._ex_keys.keys():
+            return None
+        return self._ex_keys[key]
+
     def _update_expired_keys(self):
         now = datetime.now()
         deleted = []
@@ -55,7 +60,9 @@ class _StrKeyDict(MutableMapping):
             del self._ex_keys[key]
             del self[key]
 
-
+    def clear(self):
+        super(_StrKeyDict, self).clear()
+        self._ex_keys.clear()
 
 class FakeStrictRedis(object):
     def __init__(self, db=0, **kwargs):
@@ -218,7 +225,6 @@ class FakeStrictRedis(object):
             if ex > 0:
                 self._db.expire(name, datetime.now() + timedelta(seconds=ex))
             elif px > 0:
-                pass
                 self._db.expire(name, datetime.now() + timedelta(milliseconds=px))
             self._db[name] = value
             return True
@@ -282,7 +288,20 @@ class FakeStrictRedis(object):
     getrange = substr
 
     def ttl(self, name):
-        pass
+        if name not in self._db:
+            return None
+
+        exp_time = self._db.expiring(name)
+        if not exp_time:
+            return None
+
+        now = datetime.now()
+        if now > exp_time:
+            return None
+        else:
+            return round((exp_time - now).days * 3600 * 24
+                         + (exp_time - now).seconds
+                         + (exp_time - now).microseconds / 1E6)
 
     def type(self, name):
         pass
