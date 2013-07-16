@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from time import sleep
+from time import sleep, time
 from redis.exceptions import ResponseError
 import unittest2 as unittest
 import inspect
@@ -11,6 +11,7 @@ import redis
 import redis.client
 
 import fakeredis
+from datetime import datetime, timedelta
 
 
 def redis_must_be_running(cls):
@@ -1485,8 +1486,22 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.expire('foo', 1)
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
-        self.assertEqual(self.redis.expire('bar', 1), False)  # non-exisent key
+        self.assertEqual(self.redis.expire('bar', 1), False)
 
+    def test_expireat_should_expire_key_by_datetime(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.expireat('foo', datetime.now() + timedelta(seconds=1))
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+
+    def test_expireat_should_expire_key_by_timestamp(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.expireat('foo', int(time() + 1))
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expire('bar', 1), False)
 
 
 @redis_must_be_running

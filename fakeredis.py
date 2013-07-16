@@ -108,7 +108,12 @@ class FakeStrictRedis(object):
             return False
 
     def expireat(self, name, when):
-        pass
+        if not self.exists(name):
+            return False
+        if isinstance(when, datetime):
+            self._db.expire(name, when)
+        else:
+            self._db.expire(name, datetime.fromtimestamp(when))
 
     def get(self, name):
         value = self._db.get(name)
