@@ -1451,7 +1451,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.zadd('foo', bar=1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), ['bar'])
 
-    def test_set_should_accept_nx(self):
+    def test_set_nx_doesnt_set_value_twice(self):
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), True)
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), None)
 
