@@ -1456,6 +1456,11 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), True)
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), None)
 
+    def test_set_xx_set_value_when_exists(self):
+        self.assertEqual(self.redis.set('foo', 'bar', xx=True), None)
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.set('foo', 'bar', xx=True), True)
+
     def test_set_ex_should_expire_value(self):
         self.redis.set('foo', 'bar', ex=0)
         self.assertEqual(self.redis.get('foo'), 'bar')

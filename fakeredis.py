@@ -205,8 +205,10 @@ class FakeStrictRedis(object):
 
 
 #self, name, value, ex=None, px=None, nx=False, xx=False
-    def set(self, name, value, ex=None, px=None, nx=False):
-        if not nx or (nx and self._db.get(name, None) is None):
+    def set(self, name, value, ex=None, px=None, nx=False, xx=False):
+        if (not nx and not xx) \
+        or (nx and self._db.get(name, None) is None)\
+        or (xx and not self._db.get(name, None) is None):
             if ex > 0:
                 self._db.expire(name, datetime.now() + timedelta(seconds=ex))
             elif px > 0:
