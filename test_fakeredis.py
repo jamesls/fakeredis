@@ -1463,6 +1463,12 @@ class TestFakeRedis(unittest.TestCase):
         sleep(1)
         self.assertEqual(self.redis.get('foo'), None)
 
+    def test_set_px_should_expire_value(self):
+        self.redis.set('foo', 'bar', px=0)
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.set('foo', 'bar', px=1000)
+        sleep(1)
+        self.assertEqual(self.redis.get('foo'), None)
 
 
 @redis_must_be_running
