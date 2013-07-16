@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from time import sleep
-
+from redis.exceptions import ResponseError
 import unittest2 as unittest
 import inspect
 from functools import wraps
@@ -1469,10 +1469,14 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
 
     def test_set_px_should_expire_value(self):
-        self.redis.set('foo', 'bar', px=0)
-        self.assertEqual(self.redis.get('foo'), 'bar')
-        self.redis.set('foo', 'bar', px=1000)
-        sleep(1)
+        self.redis.set('foo', 'bar', px=500)
+        sleep(0.5)
+        self.assertEqual(self.redis.get('foo'), None)
+
+    def test_psetex_expire_value(self):
+        self.assertRaises(ResponseError, self.redis.psetex, 'foo', 0, 'bar')
+        self.redis.psetex('foo', 500, 'bar')
+        sleep(0.5)
         self.assertEqual(self.redis.get('foo'), None)
 
 

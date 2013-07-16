@@ -7,6 +7,7 @@ import fnmatch
 from collections import MutableMapping
 from datetime import datetime, timedelta
 import redis
+from redis.exceptions import ResponseError
 import redis.client
 
 
@@ -202,12 +203,9 @@ class FakeStrictRedis(object):
         else:
             return self.rename(src, dst)
 
-
-
-#self, name, value, ex=None, px=None, nx=False, xx=False
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) \
-        or (nx and self._db.get(name, None) is None)\
+        or (nx and self._db.get(name, None) is None) \
         or (xx and not self._db.get(name, None) is None):
             if ex > 0:
                 self._db.expire(name, datetime.now() + timedelta(seconds=ex))
@@ -240,14 +238,18 @@ class FakeStrictRedis(object):
         self._db[name] = ''.join(reconstructed)
 
     def setex(self, name, time, value):
-        return self.set(name, value)
+        return self.set(name, value, ex=time)
+
+    def psetex(self, name, time_ms, value):
+        if time_ms == 0:
+            raise ResponseError("invalid expire time in SETEX")
+        return self.set(name, value, px=time_ms)
 
     def setnx(self, name, value):
-        if name in self._db:
+        result = self.set(name, value, nx=True)
+        if not result:  # real Redis returns False from setnx, but None from set(nx=...)
             return False
-        else:
-            self._db[name] = value
-            return True
+        return result
 
     def setrange(self, name, offset, value):
         pass
