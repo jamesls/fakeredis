@@ -1465,19 +1465,28 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.set('foo', 'bar', ex=0)
         self.assertEqual(self.redis.get('foo'), 'bar')
         self.redis.set('foo', 'bar', ex=1)
-        sleep(1)
+        sleep(2)
         self.assertEqual(self.redis.get('foo'), None)
 
     def test_set_px_should_expire_value(self):
         self.redis.set('foo', 'bar', px=500)
-        sleep(0.5)
+        sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
     def test_psetex_expire_value(self):
         self.assertRaises(ResponseError, self.redis.psetex, 'foo', 0, 'bar')
         self.redis.psetex('foo', 500, 'bar')
-        sleep(0.5)
+        sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
+
+    def test_expire_should_expire_key(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.expire('foo', 1)
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expire('bar', 1), False)  # non-exisent key
+
 
 
 @redis_must_be_running
