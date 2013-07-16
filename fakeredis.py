@@ -5,7 +5,7 @@ from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
 from collections import MutableMapping
-
+from datetime import datetime, timedelta
 import redis
 import redis.client
 
@@ -22,8 +22,10 @@ _strtod = _libc.strtod
 class _StrKeyDict(MutableMapping):
     def __init__(self, *args, **kwargs):
         self._dict = dict(*args, **kwargs)
+        self._ex_keys = {}
 
     def __getitem__(self, key):
+        self._update_expired_keys()
         return self._dict[str(key)]
 
     def __setitem__(self, key, value):
@@ -38,6 +40,21 @@ class _StrKeyDict(MutableMapping):
     def __iter__(self):
         return iter(self._dict)
 
+    def expire(self, key, timestamp):
+        self._ex_keys[key] = timestamp
+
+    def _update_expired_keys(self):
+        now = datetime.now()
+        deleted = []
+        for key in self._ex_keys.keys():
+            if now > self._ex_keys[key]:
+                deleted.append(key)
+
+        for key in deleted:
+            del self._ex_keys[key]
+            del self[key]
+
+
 
 class FakeStrictRedis(object):
     def __init__(self, db=0, **kwargs):
@@ -45,6 +62,7 @@ class FakeStrictRedis(object):
             DATABASES[db] = _StrKeyDict()
         self._db = DATABASES[db]
         self._db_num = db
+
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
@@ -184,12 +202,19 @@ class FakeStrictRedis(object):
         else:
             return self.rename(src, dst)
 
-    def set(self, name, value, nx=False):
+
+
+#self, name, value, ex=None, px=None, nx=False, xx=False
+    def set(self, name, value, ex=None, nx=False):
         if not nx or (nx and self._db.get(name, None) is None):
+            if ex > 0:
+                expire_time = datetime.now() + timedelta(seconds=ex)
+                self._db.expire(name, expire_time)
             self._db[name] = value
             return True
         else:
             return None
+
     __setitem__ = set
 
     def setbit(self, name, offset, value):

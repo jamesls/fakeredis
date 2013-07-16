@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from time import sleep
 
 import unittest2 as unittest
 import inspect
@@ -1454,6 +1455,13 @@ class TestFakeRedis(unittest.TestCase):
     def test_set_nx_doesnt_set_value_twice(self):
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), True)
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), None)
+
+    def test_set_ex_should_expire_value(self):
+        self.redis.set('foo', 'bar', ex=0)
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.set('foo', 'bar', ex=1)
+        sleep(1)
+        self.assertEqual(self.redis.get('foo'), None)
 
 
 
