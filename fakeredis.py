@@ -5,8 +5,9 @@ from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
 from collections import MutableMapping
-
+from datetime import datetime, timedelta
 import redis
+from redis.exceptions import ResponseError
 import redis.client
 
 
@@ -22,8 +23,10 @@ _strtod = _libc.strtod
 class _StrKeyDict(MutableMapping):
     def __init__(self, *args, **kwargs):
         self._dict = dict(*args, **kwargs)
+        self._ex_keys = {}
 
     def __getitem__(self, key):
+        self._update_expired_keys()
         return self._dict[str(key)]
 
     def __setitem__(self, key, value):
@@ -38,6 +41,28 @@ class _StrKeyDict(MutableMapping):
     def __iter__(self):
         return iter(self._dict)
 
+    def expire(self, key, timestamp):
+        self._ex_keys[key] = timestamp
+
+    def expiring(self, key):
+        if not key in self._ex_keys.keys():
+            return None
+        return self._ex_keys[key]
+
+    def _update_expired_keys(self):
+        now = datetime.now()
+        deleted = []
+        for key in self._ex_keys.keys():
+            if now > self._ex_keys[key]:
+                deleted.append(key)
+
+        for key in deleted:
+            del self._ex_keys[key]
+            del self[key]
+
+    def clear(self):
+        super(_StrKeyDict, self).clear()
+        self._ex_keys.clear()
 
 class FakeStrictRedis(object):
     def __init__(self, db=0, **kwargs):
@@ -45,6 +70,7 @@ class FakeStrictRedis(object):
             DATABASES[db] = _StrKeyDict()
         self._db = DATABASES[db]
         self._db_num = db
+
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
@@ -83,10 +109,18 @@ class FakeStrictRedis(object):
     __contains__ = exists
 
     def expire(self, name, time):
-        pass
+        if self.exists(name):
+            self._db.expire(name, datetime.now() + timedelta(seconds=time))
+        else:
+            return False
 
     def expireat(self, name, when):
-        pass
+        if not self.exists(name):
+            return False
+        if isinstance(when, datetime):
+            self._db.expire(name, when)
+        else:
+            self._db.expire(name, datetime.fromtimestamp(when))
 
     def get(self, name):
         value = self._db.get(name)
@@ -184,9 +218,19 @@ class FakeStrictRedis(object):
         else:
             return self.rename(src, dst)
 
-    def set(self, name, value):
-        self._db[name] = value
-        return True
+    def set(self, name, value, ex=None, px=None, nx=False, xx=False):
+        if (not nx and not xx) \
+        or (nx and self._db.get(name, None) is None) \
+        or (xx and not self._db.get(name, None) is None):
+            if ex > 0:
+                self._db.expire(name, datetime.now() + timedelta(seconds=ex))
+            elif px > 0:
+                self._db.expire(name, datetime.now() + timedelta(milliseconds=px))
+            self._db[name] = value
+            return True
+        else:
+            return None
+
     __setitem__ = set
 
     def setbit(self, name, offset, value):
@@ -208,14 +252,18 @@ class FakeStrictRedis(object):
         self._db[name] = ''.join(reconstructed)
 
     def setex(self, name, time, value):
-        return self.set(name, value)
+        return self.set(name, value, ex=time)
+
+    def psetex(self, name, time_ms, value):
+        if time_ms == 0:
+            raise ResponseError("invalid expire time in SETEX")
+        return self.set(name, value, px=time_ms)
 
     def setnx(self, name, value):
-        if name in self._db:
+        result = self.set(name, value, nx=True)
+        if not result:  # real Redis returns False from setnx, but None from set(nx=...)
             return False
-        else:
-            self._db[name] = value
-            return True
+        return result
 
     def setrange(self, name, offset, value):
         pass
@@ -240,7 +288,20 @@ class FakeStrictRedis(object):
     getrange = substr
 
     def ttl(self, name):
-        pass
+        if name not in self._db:
+            return None
+
+        exp_time = self._db.expiring(name)
+        if not exp_time:
+            return None
+
+        now = datetime.now()
+        if now > exp_time:
+            return None
+        else:
+            return round((exp_time - now).days * 3600 * 24
+                         + (exp_time - now).seconds
+                         + (exp_time - now).microseconds / 1E6)
 
     def type(self, name):
         pass
@@ -252,14 +313,14 @@ class FakeStrictRedis(object):
         pass
 
     def delete(self, *names):
-        any_deleted = False
+        deleted = 0
         for name in names:
             try:
                 del self._db[name]
-                any_deleted = True
+                deleted += 1
             except KeyError:
                 continue
-        return any_deleted
+        return deleted
 
     def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
              alpha=False, store=None):
@@ -494,7 +555,7 @@ class FakeStrictRedis(object):
             if k in h:
                 del h[k]
                 rem += 1
-        return rem > 0
+        return rem
 
     def hexists(self, name, key):
         "Returns a boolean indicating if ``key`` exists within hash ``name``"
@@ -643,7 +704,7 @@ class FakeStrictRedis(object):
         a_set = self._db.setdefault(name, set())
         card = len(a_set)
         a_set -= set(values)
-        return (card - len(a_set)) > 0
+        return card - len(a_set)
 
     def sunion(self, keys, *args):
         "Return the union of sets specifiued by ``keys``"
@@ -816,7 +877,7 @@ class FakeStrictRedis(object):
             if v in z:
                 del z[v]
                 rem += 1
-        return rem > 0
+        return rem
 
     def zremrangebyrank(self, name, min, max):
         """
