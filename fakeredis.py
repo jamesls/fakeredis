@@ -252,14 +252,14 @@ class FakeStrictRedis(object):
         pass
 
     def delete(self, *names):
-        any_deleted = False
+        deleted = 0
         for name in names:
             try:
                 del self._db[name]
-                any_deleted = True
+                deleted += 1
             except KeyError:
                 continue
-        return any_deleted
+        return deleted
 
     def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
              alpha=False, store=None):
@@ -494,7 +494,7 @@ class FakeStrictRedis(object):
             if k in h:
                 del h[k]
                 rem += 1
-        return rem > 0
+        return rem
 
     def hexists(self, name, key):
         "Returns a boolean indicating if ``key`` exists within hash ``name``"
@@ -643,7 +643,7 @@ class FakeStrictRedis(object):
         a_set = self._db.setdefault(name, set())
         card = len(a_set)
         a_set -= set(values)
-        return (card - len(a_set)) > 0
+        return card - len(a_set)
 
     def sunion(self, keys, *args):
         "Return the union of sets specifiued by ``keys``"
@@ -816,7 +816,7 @@ class FakeStrictRedis(object):
             if v in z:
                 del z[v]
                 rem += 1
-        return rem > 0
+        return rem
 
     def zremrangebyrank(self, name, min, max):
         """
