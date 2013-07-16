@@ -268,7 +268,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis['one'] = 'one'
         self.redis['two'] = 'two'
         self.redis['three'] = 'three'
-        self.assertEqual(self.redis.delete('one', 'two'), True)
+        self.assertEqual(self.redis.delete('one', 'two'), 2)  # since redis>=2.7.6 returns number of deleted items
         self.assertEqual(self.redis.get('one'), None)
         self.assertEqual(self.redis.get('two'), None)
         self.assertEqual(self.redis.get('three'), 'three')
@@ -600,7 +600,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hdel('foo', 'k1'), True)
         self.assertEqual(self.redis.hget('foo', 'k1'), None)
         self.assertEqual(self.redis.hdel('foo', 'k1'), False)
-        self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), True)
+        self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), 2)  # since redis>=2.7.6 returns number of deleted items
         self.assertEqual(self.redis.hget('foo', 'k2'), None)
         self.assertEqual(self.redis.hget('foo', 'k3'), None)
         self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), False)
@@ -729,7 +729,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.smembers('foo'),
                          set(['member2', 'member3', 'member4']))
         self.assertEqual(self.redis.srem('foo', 'member1'), False)
-        self.assertEqual(self.redis.srem('foo', 'member2', 'member3'), True)
+        self.assertEqual(self.redis.srem('foo', 'member2', 'member3'), 2)  # since redis>=2.7.6 returns number of deleted items
         self.assertEqual(self.redis.smembers('foo'), set(['member4']))
         self.assertEqual(self.redis.srem('foo', 'member3', 'member4'), True)
         self.assertEqual(self.redis.smembers('foo'), set([]))
@@ -848,7 +848,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrem('foo', 'one'), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1),
                          ['two', 'three', 'four'])
-        self.assertEqual(self.redis.zrem('foo', 'two', 'three'), True)
+        self.assertEqual(self.redis.zrem('foo', 'two', 'three'), 2)  # since redis>=2.7.6 returns number of deleted items
         self.assertEqual(self.redis.zrange('foo', 0, -1), ['four'])
         self.assertEqual(self.redis.zrem('foo', 'three', 'four'), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [])
@@ -1450,6 +1450,10 @@ class TestFakeRedis(unittest.TestCase):
     def test_zadd_with_single_keypair(self):
         self.redis.zadd('foo', bar=1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), ['bar'])
+
+    def test_set_should_accept_nx(self):
+        self.redis.set('foo', 'bar', nx=True)
+
 
 
 @redis_must_be_running
