@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-
+from time import sleep, time
+from redis.exceptions import ResponseError
 import unittest2 as unittest
 import inspect
 from functools import wraps
@@ -10,6 +11,7 @@ import redis
 import redis.client
 
 import fakeredis
+from datetime import datetime, timedelta
 
 
 def redis_must_be_running(cls):
@@ -268,7 +270,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis['one'] = 'one'
         self.redis['two'] = 'two'
         self.redis['three'] = 'three'
-        self.assertEqual(self.redis.delete('one', 'two'), True)
+        # Since redis>=2.7.6 returns number of deleted items.
+        self.assertEqual(self.redis.delete('one', 'two'), 2)
         self.assertEqual(self.redis.get('one'), None)
         self.assertEqual(self.redis.get('two'), None)
         self.assertEqual(self.redis.get('three'), 'three')
@@ -480,7 +483,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_blpop_test_multiple_lists(self):
         self.redis.rpush('baz', 'zero')
-        self.assertEqual(self.redis.blpop(['foo','baz'], timeout=1),
+        self.assertEqual(self.redis.blpop(['foo', 'baz'], timeout=1),
                          ('baz', 'zero'))
 
         self.redis.rpush('foo', 'one')
@@ -504,7 +507,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_brpop_test_multiple_lists(self):
         self.redis.rpush('baz', 'zero')
-        self.assertEqual(self.redis.brpop(['foo','baz'], timeout=1),
+        self.assertEqual(self.redis.brpop(['foo', 'baz'], timeout=1),
                          ('baz', 'zero'))
 
         self.redis.rpush('foo', 'one')
@@ -530,7 +533,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_blocking_operations_when_empty(self):
         self.assertEqual(self.redis.blpop(['foo'], timeout=1),
                          None)
-        self.assertEqual(self.redis.blpop(['bar','foo'], timeout=1),
+        self.assertEqual(self.redis.blpop(['bar', 'foo'], timeout=1),
                          None)
         self.assertEqual(self.redis.brpop('foo', timeout=1),
                          None)
@@ -600,7 +603,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hdel('foo', 'k1'), True)
         self.assertEqual(self.redis.hget('foo', 'k1'), None)
         self.assertEqual(self.redis.hdel('foo', 'k1'), False)
-        self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), True)
+        # Since redis>=2.7.6 returns number of deleted items.
+        self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), 2)
         self.assertEqual(self.redis.hget('foo', 'k2'), None)
         self.assertEqual(self.redis.hget('foo', 'k3'), None)
         self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), False)
@@ -659,8 +663,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sdiff('foo', 'bar'), set(['member1']))
         # Original sets shouldn't be modified.
-        self.assertEqual(self.redis.smembers('foo'), set(['member1', 'member2']))
-        self.assertEqual(self.redis.smembers('bar'), set(['member2', 'member3']))
+        self.assertEqual(self.redis.smembers('foo'),
+                         set(['member1', 'member2']))
+        self.assertEqual(self.redis.smembers('bar'),
+                         set(['member2', 'member3']))
 
     def test_sdiff_one_key(self):
         self.redis.sadd('foo', 'member1')
@@ -729,7 +735,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.smembers('foo'),
                          set(['member2', 'member3', 'member4']))
         self.assertEqual(self.redis.srem('foo', 'member1'), False)
-        self.assertEqual(self.redis.srem('foo', 'member2', 'member3'), True)
+        # Since redis>=2.7.6 returns number of deleted items.
+        self.assertEqual(self.redis.srem('foo', 'member2', 'member3'), 2)
         self.assertEqual(self.redis.smembers('foo'), set(['member4']))
         self.assertEqual(self.redis.srem('foo', 'member3', 'member4'), True)
         self.assertEqual(self.redis.smembers('foo'), set([]))
@@ -848,7 +855,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrem('foo', 'one'), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1),
                          ['two', 'three', 'four'])
-        self.assertEqual(self.redis.zrem('foo', 'two', 'three'), True)
+        # Since redis>=2.7.6 returns number of deleted items.
+        self.assertEqual(self.redis.zrem('foo', 'two', 'three'), 2)
         self.assertEqual(self.redis.zrange('foo', 0, -1), ['four'])
         self.assertEqual(self.redis.zrem('foo', 'three', 'four'), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [])
@@ -1004,8 +1012,9 @@ class TestFakeStrictRedis(unittest.TestCase):
                          [('one', 3), ('two', 6), ('four', 8)])
 
     def test_zunionstore_mixed_set_types(self):
-        self.redis.sadd('foo', 'one') # no score, redis will use 1.0
-        self.redis.sadd('foo', 'two') # no score, redis will use 1.0
+        # No score, redis will use 1.0.
+        self.redis.sadd('foo', 'one')
+        self.redis.sadd('foo', 'two')
         self.redis.zadd('bar', one=1)
         self.redis.zadd('bar', two=2)
         self.redis.zadd('bar', three=3)
@@ -1034,8 +1043,8 @@ class TestFakeStrictRedis(unittest.TestCase):
                          [('one', 2), ('two', 4)])
 
     def test_zinterstore_mixed_set_types(self):
-        self.redis.sadd('foo', 'one') # no score, redis will use 1.0
-        self.redis.sadd('foo', 'two') # no score, redis will use 1.0
+        self.redis.sadd('foo', 'one')
+        self.redis.sadd('foo', 'two')
         self.redis.zadd('bar', one=1)
         self.redis.zadd('bar', two=2)
         self.redis.zadd('bar', three=3)
@@ -1450,6 +1459,78 @@ class TestFakeRedis(unittest.TestCase):
     def test_zadd_with_single_keypair(self):
         self.redis.zadd('foo', bar=1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), ['bar'])
+
+    def test_set_nx_doesnt_set_value_twice(self):
+        self.assertEqual(self.redis.set('foo', 'bar', nx=True), True)
+        self.assertEqual(self.redis.set('foo', 'bar', nx=True), None)
+
+    def test_set_xx_set_value_when_exists(self):
+        self.assertEqual(self.redis.set('foo', 'bar', xx=True), None)
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.set('foo', 'bar', xx=True), True)
+
+    @attr('slow')
+    def test_set_ex_should_expire_value(self):
+        self.redis.set('foo', 'bar', ex=0)
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.set('foo', 'bar', ex=1)
+        sleep(2)
+        self.assertEqual(self.redis.get('foo'), None)
+
+    @attr('slow')
+    def test_set_px_should_expire_value(self):
+        self.redis.set('foo', 'bar', px=500)
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+
+    @attr('slow')
+    def test_psetex_expire_value(self):
+        self.assertRaises(ResponseError, self.redis.psetex, 'foo', 0, 'bar')
+        self.redis.psetex('foo', 500, 'bar')
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+
+    @attr('slow')
+    def test_expire_should_expire_key(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.expire('foo', 1)
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expire('bar', 1), False)
+
+    @attr('slow')
+    def test_expireat_should_expire_key_by_datetime(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.expireat('foo', datetime.now() + timedelta(seconds=1))
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+
+    @attr('slow')
+    def test_expireat_should_expire_key_by_timestamp(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.expireat('foo', int(time() + 1))
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expire('bar', 1), False)
+
+    def test_ttl_should_return_none_for_non_expiring_key(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.assertEqual(self.redis.ttl('foo'), None)
+
+    def test_ttl_should_return_value_for_expiring_key(self):
+        self.redis.set('foo', 'bar')
+        self.redis.expire('foo', 1)
+        self.assertEqual(self.redis.ttl('foo'), 1)
+        self.redis.expire('foo', 2)
+        self.assertEqual(self.redis.ttl('foo'), 2)
+        long_long_c_max = 100000000000
+        # See https://github.com/antirez/redis/blob/unstable/src/db.c#L632
+        self.redis.expire('foo', long_long_c_max)
+        self.assertEqual(self.redis.ttl('foo'), long_long_c_max)
 
 
 @redis_must_be_running
