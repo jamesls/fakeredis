@@ -1469,6 +1469,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.set('foo', 'bar', xx=True), True)
 
+    @attr('slow')
     def test_set_ex_should_expire_value(self):
         self.redis.set('foo', 'bar', ex=0)
         self.assertEqual(self.redis.get('foo'), 'bar')
@@ -1476,17 +1477,20 @@ class TestFakeRedis(unittest.TestCase):
         sleep(2)
         self.assertEqual(self.redis.get('foo'), None)
 
+    @attr('slow')
     def test_set_px_should_expire_value(self):
         self.redis.set('foo', 'bar', px=500)
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
+    @attr('slow')
     def test_psetex_expire_value(self):
         self.assertRaises(ResponseError, self.redis.psetex, 'foo', 0, 'bar')
         self.redis.psetex('foo', 500, 'bar')
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
+    @attr('slow')
     def test_expire_should_expire_key(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), 'bar')
@@ -1495,6 +1499,7 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expire('bar', 1), False)
 
+    @attr('slow')
     def test_expireat_should_expire_key_by_datetime(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), 'bar')
@@ -1502,6 +1507,7 @@ class TestFakeRedis(unittest.TestCase):
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
+    @attr('slow')
     def test_expireat_should_expire_key_by_timestamp(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), 'bar')
