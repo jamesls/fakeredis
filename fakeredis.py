@@ -64,6 +64,7 @@ class _StrKeyDict(MutableMapping):
         super(_StrKeyDict, self).clear()
         self._ex_keys.clear()
 
+
 class FakeStrictRedis(object):
     def __init__(self, db=0, **kwargs):
         if db not in DATABASES:
@@ -261,7 +262,8 @@ class FakeStrictRedis(object):
 
     def setnx(self, name, value):
         result = self.set(name, value, nx=True)
-        if not result:  # real Redis returns False from setnx, but None from set(nx=...)
+        # Real Redis returns False from setnx, but None from set(nx=...)
+        if not result:
             return False
         return result
 
