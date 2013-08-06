@@ -589,10 +589,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.hset('foo', 'k3', 'v3')
         # Normal case.
         self.assertEqual(self.redis.hmget('foo', ['k1', 'k3']), ['v1', 'v3'])
+        self.assertEqual(self.redis.hmget('foo', 'k1', 'k3'), ['v1', 'v3'])
         # Key does not exist.
         self.assertEqual(self.redis.hmget('bar', ['k1', 'k3']), [None, None])
+        self.assertEqual(self.redis.hmget('bar', 'k1', 'k3'), [None, None])
         # Some keys in the hash do not exist.
         self.assertEqual(self.redis.hmget('foo', ['k1', 'k500']),
+                         ['v1', None])
+        self.assertEqual(self.redis.hmget('foo', 'k1', 'k500'),
                          ['v1', None])
 
     def test_hdel(self):
