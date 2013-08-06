@@ -15,7 +15,7 @@ setup(
     author_email='js@jamesls.com',
     py_modules=['fakeredis'],
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'License :: OSI Approved :: BSD License',
