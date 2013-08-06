@@ -617,10 +617,11 @@ class FakeStrictRedis(object):
         self._db.setdefault(name, {}).update(mapping)
         return True
 
-    def hmget(self, name, keys):
+    def hmget(self, name, keys, *args):
         "Returns a list of values ordered identically to ``keys``"
         h = self._db.get(name, {})
-        return [h.get(k) for k in keys]
+        all_keys = self._list_or_args(keys, args)
+        return [h.get(k) for k in all_keys]
 
     def hvals(self, name):
         "Return the list of values within hash ``name``"
@@ -639,7 +640,7 @@ class FakeStrictRedis(object):
 
     def sdiff(self, keys, *args):
         "Return the difference of sets specified by ``keys``"
-        all_keys = redis.client.list_or_args(keys, args)
+        all_keys = self._list_or_args(keys, args)
         diff = self._db.get(all_keys[0], set()).copy()
         for key in all_keys[1:]:
             diff -= self._db.get(key, set())
@@ -656,7 +657,7 @@ class FakeStrictRedis(object):
 
     def sinter(self, keys, *args):
         "Return the intersection of sets specified by ``keys``"
-        all_keys = redis.client.list_or_args(keys, args)
+        all_keys = self._list_or_args(keys, args)
         intersect = self._db.get(all_keys[0], set()).copy()
         for key in all_keys[1:]:
             intersect.intersection_update(self._db.get(key, set()))
@@ -710,7 +711,7 @@ class FakeStrictRedis(object):
 
     def sunion(self, keys, *args):
         "Return the union of sets specifiued by ``keys``"
-        all_keys = redis.client.list_or_args(keys, args)
+        all_keys = self._list_or_args(keys, args)
         union = self._db.get(all_keys[0], set()).copy()
         for key in all_keys[1:]:
             union.update(self._db.get(key, set()))
