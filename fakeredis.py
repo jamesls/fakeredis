@@ -66,6 +66,12 @@ class _StrKeyDict(MutableMapping):
 
 
 class FakeStrictRedis(object):
+    @classmethod
+    def from_url(cls, url, db=None, **kwargs):
+        # Since we throw away most of this in `__init__`...
+        return cls(db=db)
+
+
     def __init__(self, db=0, **kwargs):
         if db not in DATABASES:
             DATABASES[db] = _StrKeyDict()
