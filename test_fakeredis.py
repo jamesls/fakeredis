@@ -1550,6 +1550,27 @@ class TestInitArgs(unittest.TestCase):
         fakeredis.FakeRedis(foo='bar', bar='baz')
         fakeredis.FakeStrictRedis(foo='bar', bar='baz')
 
+    def test_from_url(self):
+        db = fakeredis.FakeStrictRedis.from_url(
+            'redis://username:password@localhost:6379/0')
+        db.set('foo', 'bar')
+        self.assertEqual(db.get('foo'), 'bar')
+
+    def test_from_url_with_db_arg(self):
+        db = fakeredis.FakeStrictRedis.from_url(
+            'redis://username:password@localhost:6379/0')
+        db1 = fakeredis.FakeStrictRedis.from_url(
+            'redis://username:password@localhost:6379/1')
+        db2 = fakeredis.FakeStrictRedis.from_url(
+            'redis://username:password@localhost:6379/',
+            db=2)
+        db.set('foo', 'foo0')
+        db1.set('foo', 'foo1')
+        db2.set('foo', 'foo2')
+        self.assertEqual(db.get('foo'), 'foo0')
+        self.assertEqual(db1.get('foo'), 'foo1')
+        self.assertEqual(db2.get('foo'), 'foo2')
+
 
 if __name__ == '__main__':
     unittest.main()

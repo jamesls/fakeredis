@@ -4,6 +4,7 @@ import copy
 from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
+from urlparse import urlparse
 from collections import MutableMapping
 from datetime import datetime, timedelta
 import redis
@@ -68,9 +69,13 @@ class _StrKeyDict(MutableMapping):
 class FakeStrictRedis(object):
     @classmethod
     def from_url(cls, url, db=None, **kwargs):
-        # Since we throw away most of this in `__init__`...
+        url = urlparse(url)
+        if db is None:
+            try:
+                db = int(url.path.replace('/', ''))
+            except (AttributeError, ValueError):
+                db = 0
         return cls(db=db)
-
 
     def __init__(self, db=0, **kwargs):
         if db not in DATABASES:
