@@ -982,6 +982,8 @@ class FakeStrictRedis(object):
 
     def _zaggregate(self, dest, keys, aggregate, should_include):
         new_zset = {}
+        if aggregate is None:
+            aggregate = 'SUM'
         # This is what the actual redis client uses, so we'll use
         # the same type check.
         if isinstance(keys, dict):
