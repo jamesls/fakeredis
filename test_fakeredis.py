@@ -975,6 +975,16 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zremrangebyscore_badkey(self):
         self.assertEqual(self.redis.zremrangebyscore('foo', 0, 2), 0)
 
+    def test_zunionstore(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('bar', one=1)
+        self.redis.zadd('bar', two=2)
+        self.redis.zadd('bar', three=3)
+        self.redis.zunionstore('baz', ['foo', 'bar'])
+        self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
+                         [('one', 2), ('three', 3), ('two', 4)])
+
     def test_zunionstore_sum(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -1042,7 +1052,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zadd('bar', one=1)
         self.redis.zadd('bar', two=2)
         self.redis.zadd('bar', three=3)
-        self.redis.zinterstore('baz', ['foo', 'bar'], aggregate='SUM')
+        self.redis.zinterstore('baz', ['foo', 'bar'])
         self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
                          [('one', 2), ('two', 4)])
 
