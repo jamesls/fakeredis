@@ -583,7 +583,7 @@ class FakeStrictRedis(object):
 
     def hgetall(self, name):
         "Return a Python dict of the hash's name/value pairs"
-        return self._db.get(name, {})
+        return self._db.get(name, {}).copy()
 
     def hincrby(self, name, key, amount=1):
         "Increment the value of ``key`` in hash ``name`` by ``amount``"
@@ -636,7 +636,7 @@ class FakeStrictRedis(object):
 
     def hvals(self, name):
         "Return the list of values within hash ``name``"
-        return self._db.get(name, {}).values()
+        return self._db.get(name, {}).values().copy()
 
     def sadd(self, name, *values):
         "Add ``value`` to set ``name``"
