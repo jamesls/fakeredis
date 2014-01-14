@@ -2,10 +2,8 @@ language: python
 python:
   - "2.6"
   - "2.7"
-before_install:
-  - sudo apt-get update
-  - sudo apt-get install redis-server
-  - sudo /etc/init.d/redis-server start
+services:
+  - redis-server
 install:
   - pip install -r requirements.txt --use-mirrors
   - pip install coverage python-coveralls --use-mirrors
