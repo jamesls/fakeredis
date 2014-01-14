@@ -61,9 +61,18 @@ class _StrKeyDict(MutableMapping):
             del self._ex_keys[key]
             del self[key]
 
+    def copy(self):
+        new_copy = _StrKeyDict()
+        for key, value in self._dict.items():
+            new_copy[key] = value
+        return new_copy
+
     def clear(self):
         super(_StrKeyDict, self).clear()
         self._ex_keys.clear()
+
+    def to_bare_dict(self):
+        return copy.deepcopy(self._dict)
 
 
 class FakeStrictRedis(object):
@@ -110,8 +119,8 @@ class FakeStrictRedis(object):
 
     def decr(self, name, amount=1):
         try:
-            self._db[name] = self._db.get(name, 0) - amount
-        except TypeError:
+            self._db[name] = int(self._db.get(name, '0')) - amount
+        except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
         return self._db[name]
@@ -170,8 +179,8 @@ class FakeStrictRedis(object):
         the value will be initialized as ``amount``
         """
         try:
-            self._db[name] = self._db.get(name, 0) + amount
-        except TypeError:
+            self._db[name] = int(self._db.get(name, '0')) + amount
+        except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
         return self._db[name]
@@ -238,7 +247,7 @@ class FakeStrictRedis(object):
                 self._db.expire(name, datetime.now() + timedelta(seconds=ex))
             elif px > 0:
                 self._db.expire(name, datetime.now() + timedelta(milliseconds=px))
-            self._db[name] = value
+            self._db[name] = str(value)
             return True
         else:
             return None
@@ -583,11 +592,14 @@ class FakeStrictRedis(object):
 
     def hgetall(self, name):
         "Return a Python dict of the hash's name/value pairs"
-        return self._db.get(name, {})
+        all_items = self._db.get(name, {})
+        if hasattr(all_items, 'to_bare_dict'):
+            all_items = all_items.to_bare_dict()
+        return all_items
 
     def hincrby(self, name, key, amount=1):
         "Increment the value of ``key`` in hash ``name`` by ``amount``"
-        new = self._db.setdefault(name, {}).get(key, 0) + amount
+        new = int(self._db.setdefault(name, _StrKeyDict()).get(key, '0')) + amount
         self._db[name][key] = new
         return new
 
@@ -605,7 +617,7 @@ class FakeStrictRedis(object):
         Returns 1 if HSET created a new field, otherwise 0
         """
         key_is_new = key not in self._db.get(name, {})
-        self._db.setdefault(name, {})[key] = value
+        self._db.setdefault(name, _StrKeyDict())[key] = str(value)
         return 1 if key_is_new else 0
 
     def hsetnx(self, name, key, value):
@@ -615,7 +627,7 @@ class FakeStrictRedis(object):
         """
         if key in self._db.get(name, {}):
             return False
-        self._db.setdefault(name, {})[key] = value
+        self._db.setdefault(name, _StrKeyDict())[key] = str(value)
         return True
 
     def hmset(self, name, mapping):
@@ -625,7 +637,7 @@ class FakeStrictRedis(object):
         """
         if not mapping:
             raise redis.DataError("'hmset' with 'mapping' of length 0")
-        self._db.setdefault(name, {}).update(mapping)
+        self._db.setdefault(name, _StrKeyDict()).update(mapping)
         return True
 
     def hmget(self, name, keys, *args):
@@ -751,7 +763,7 @@ class FakeStrictRedis(object):
         if len(args) % 2 != 0:
             raise redis.RedisError("ZADD requires an equal number of "
                                    "values and scores")
-        zset = self._db.setdefault(name, {})
+        zset = self._db.setdefault(name, _StrKeyDict())
         added = 0
         for score, value in zip(*[args[i::2] for i in range(2)]):
             if value not in zset:
@@ -782,7 +794,7 @@ class FakeStrictRedis(object):
 
     def zincrby(self, name, value, amount=1):
         "Increment the score of ``value`` in sorted set ``name`` by ``amount``"
-        d = self._db.setdefault(name, {})
+        d = self._db.setdefault(name, _StrKeyDict())
         score = d.get(value, 0) + amount
         d[value] = score
         return score
@@ -981,7 +993,7 @@ class FakeStrictRedis(object):
         self._zaggregate(dest, keys, aggregate, lambda x: True)
 
     def _zaggregate(self, dest, keys, aggregate, should_include):
-        new_zset = {}
+        new_zset = _StrKeyDict()
         if aggregate is None:
             aggregate = 'SUM'
         # This is what the actual redis client uses, so we'll use
@@ -1069,7 +1081,7 @@ class FakeRedis(FakeStrictRedis):
         else:
             value = pairs.keys()[0]
             score = pairs.values()[0]
-        self._db.setdefault(name, {})[value] = score
+        self._db.setdefault(name, _StrKeyDict())[value] = score
 
 
 class FakePipeline(object):

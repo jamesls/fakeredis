@@ -557,6 +557,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hgetall('foo'), {'k1': 'v1', 'k2': 'v2',
                                                      'k3': 'v3'})
 
+    def test_hgetall_with_tuples(self):
+        self.assertEqual(self.redis.hset('foo', (1, 2), (1, 2, 3)), 1)
+        self.assertEqual(self.redis.hgetall('foo'), {'(1, 2)': '(1, 2, 3)'})
+
     def test_hgetall_empty_key(self):
         self.assertEqual(self.redis.hgetall('foo'), {})
 
@@ -772,6 +776,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zadd('foo', 7, 'zero', one=1, five=5), 1)
         self.assertEqual(self.redis.zrange('foo', 0, -1),
                          ['one', 'two', 'three', 'four', 'five', 'zero'])
+
+    def test_zadd_uses_str(self):
+        self.redis.zadd('foo', 12345, (1, 2, 3))
+        self.assertEqual(self.redis.zrange('foo', 0, 0), ['(1, 2, 3)'])
 
     def test_zadd_errors(self):
         # The args are backwards, it should be 2, "two", so we
