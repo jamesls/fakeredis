@@ -79,7 +79,7 @@ class _StrKeyDict(MutableMapping):
         return copy.deepcopy(self._dict)
 
 
-class FakeStrictRedis(object):
+class FakeStrictRedis(redis.StrictRedis):
     @classmethod
     def from_url(cls, url, db=None, **kwargs):
         url = urlparse(url)
@@ -1085,7 +1085,7 @@ class FakeStrictRedis(object):
         raise redis.WatchError('Could not run transaction after 5 tries')
 
 
-class FakeRedis(FakeStrictRedis):
+class FakeRedis(FakeStrictRedis, redis.Redis):
     def setex(self, name, value, time):
         return super(FakeRedis, self).setex(name, time, value)
 
