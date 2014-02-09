@@ -3,3 +3,5 @@ fakeredis.egg-info
 dump.rdb
 extras/*
 .tox
+*.pyc
+build/
