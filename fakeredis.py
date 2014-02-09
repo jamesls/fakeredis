@@ -12,7 +12,7 @@ from redis.exceptions import ResponseError
 import redis.client
 
 
-__version__ = '0.4.1'
+__version__ = '0.4.2'
 DATABASES = {}
 
 _libc = CDLL(find_library('c'))
@@ -473,7 +473,7 @@ class FakeStrictRedis(object):
         return len(indices_to_remove)
 
     def rpush(self, name, *values):
-        self._db.setdefault(name, []).extend(list(values))
+        self._db.setdefault(name, []).extend([str(x) for x in values])
         return len(self._db[name])
 
     def lpop(self, name):

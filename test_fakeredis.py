@@ -285,6 +285,24 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     ## Tests for the list type.
 
+    def test_rpush_then_lrange_with_nested_list1(self):
+        self.assertEqual(self.redis.rpush('foo', [12345L, 6789L]), 1)
+        self.assertEqual(self.redis.rpush('foo', [54321L, 9876L]), 2)
+        self.assertEqual(self.redis.lrange('foo', 0, -1), ['[12345L, 6789L]', '[54321L, 9876L]'])
+        self.redis.flushall()
+
+    def test_rpush_then_lrange_with_nested_list2(self):
+        self.assertEqual(self.redis.rpush('foo', [12345L, 'banana']), 1)
+        self.assertEqual(self.redis.rpush('foo', [54321L, 'elephant']), 2)
+        self.assertEqual(self.redis.lrange('foo', 0, -1), ['[12345L, \'banana\']', '[54321L, \'elephant\']'])
+        self.redis.flushall()
+
+    def test_rpush_then_lrange_with_nested_list3(self):
+        self.assertEqual(self.redis.rpush('foo', [12345L, []]), 1)
+        self.assertEqual(self.redis.rpush('foo', [54321L, []]), 2)
+        self.assertEqual(self.redis.lrange('foo', 0, -1), ['[12345L, []]', '[54321L, []]'])
+        self.redis.flushall()
+
     def test_lpush_then_lrange_all(self):
         self.assertEqual(self.redis.lpush('foo', 'bar'), 1)
         self.assertEqual(self.redis.lpush('foo', 'baz'), 2)
