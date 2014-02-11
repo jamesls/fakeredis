@@ -1027,7 +1027,13 @@ class FakeStrictRedis(object):
         # Returns a single list combining keys and args.
         # A string can be iterated, but indicates
         # keys wasn't passed as a list.
-        if isinstance(keys, basestring):
+        try:
+            iter(keys)
+            # a string or bytes instance can be iterated, but indicates
+            # keys wasn't passed as a list
+            if isinstance(keys, (basestring, bytes)):
+                keys = [keys]
+        except TypeError:
             keys = [keys]
         if args:
             keys.extend(args)
