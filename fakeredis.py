@@ -130,6 +130,8 @@ class FakeStrictRedis(object):
     __contains__ = exists
 
     def expire(self, name, time):
+        if isinstance(time, timedelta):
+            time = int(time.total_seconds())
         if self.exists(name):
             self._db.expire(name, datetime.now() + timedelta(seconds=time))
         else:
@@ -273,9 +275,13 @@ class FakeStrictRedis(object):
         self._db[name] = ''.join(reconstructed)
 
     def setex(self, name, time, value):
+        if isinstance(time, timedelta):
+            time = int(time.total_seconds())
         return self.set(name, value, ex=time)
 
     def psetex(self, name, time_ms, value):
+        if isinstance(time_ms, timedelta):
+            time_ms = int(time_ms.total_seconds() * 1000)
         if time_ms == 0:
             raise ResponseError("invalid expire time in SETEX")
         return self.set(name, value, px=time_ms)
