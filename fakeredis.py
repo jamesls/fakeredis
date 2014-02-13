@@ -21,6 +21,10 @@ _libc.strtod.argtypes = [c_char_p, POINTER(c_char_p)]
 _strtod = _libc.strtod
 
 
+def timedelta_total_seconds(delta):
+    return delta.days * 86400 + delta.seconds + delta.microseconds / 1E6
+
+
 class _StrKeyDict(MutableMapping):
     def __init__(self, *args, **kwargs):
         self._dict = dict(*args, **kwargs)
@@ -131,7 +135,7 @@ class FakeStrictRedis(object):
 
     def expire(self, name, time):
         if isinstance(time, timedelta):
-            time = int(time.total_seconds())
+            time = int(timedelta_total_seconds(time))
         if self.exists(name):
             self._db.expire(name, datetime.now() + timedelta(seconds=time))
         else:
@@ -276,12 +280,12 @@ class FakeStrictRedis(object):
 
     def setex(self, name, time, value):
         if isinstance(time, timedelta):
-            time = int(time.total_seconds())
+            time = int(timedelta_total_seconds(time))
         return self.set(name, value, ex=time)
 
     def psetex(self, name, time_ms, value):
         if isinstance(time_ms, timedelta):
-            time_ms = int(time_ms.total_seconds() * 1000)
+            time_ms = int(timedelta_total_seconds(time_ms) * 1000)
         if time_ms == 0:
             raise ResponseError("invalid expire time in SETEX")
         return self.set(name, value, px=time_ms)
