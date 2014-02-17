@@ -13,6 +13,11 @@ import redis
 from redis.exceptions import ResponseError
 import redis.client
 
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+
 
 __version__ = '0.4.1'
 DATABASES = {}
@@ -1291,6 +1296,23 @@ class FakeStrictRedis(object):
             return args[:3] + args[4:]
 
         return args
+
+    def dump(self, *args):
+        value = self._db[args[0]]
+        if isinstance(value, bool) or not isinstance(value, int):
+            return pickle.dumps(value, -1)
+
+        return value
+
+    def restore(self, *args):
+        key, ttl, value = args
+
+        try:
+            value = int(value)
+        except (ValueError, TypeError):
+            value = pickle.loads(value)
+
+        self.set(key, value, ex=ttl)
 
 
 class FakeRedis(FakeStrictRedis):
