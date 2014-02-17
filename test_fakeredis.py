@@ -2,7 +2,11 @@
 from time import sleep, time
 from hashlib import sha1
 from redis.exceptions import ResponseError
-import unittest
+import sys
+if sys.version_info < (2, 7):
+    import unittest2 as unittest
+else:
+    import unittest
 import inspect
 from functools import wraps
 
