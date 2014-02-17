@@ -1,17 +1,34 @@
 #!/usr/bin/env python
 from time import sleep, time
+from hashlib import sha1
 from redis.exceptions import ResponseError
-import unittest2 as unittest
+import sys
+if sys.version_info < (2, 7):
+    import unittest2 as unittest
+else:
+    import unittest
 import inspect
 from functools import wraps
 
-from nose.plugins.skip import SkipTest
-from nose.plugins.attrib import attr
 import redis
 import redis.client
 
 import fakeredis
+from fakeredis import Script as FakeScript, FakeRedis
 from datetime import datetime, timedelta
+
+LIST1 = u"test_list_1"
+LIST2 = u"test_list_2"
+
+SET1 = u"test_set_1"
+SET2 = u"test_set_2"
+
+VAL1 = u"val1"
+VAL2 = u"val2"
+VAL3 = u"val3"
+VAL4 = u"val4"
+
+LPOP_SCRIPT = u"return redis.call('LPOP', KEYS[1])"
 
 
 def redis_must_be_running(cls):
@@ -30,7 +47,7 @@ def redis_must_be_running(cls):
             if name.startswith('test_'):
                 @wraps(attr)
                 def skip_test(*args, **kwargs):
-                    raise SkipTest("Redis is not running.")
+                    raise unittest.SkipTest("Redis is not running.")
                 setattr(cls, name, skip_test)
         cls.setUp = lambda x: None
         cls.tearDown = lambda x: None
@@ -529,7 +546,6 @@ class TestFakeStrictRedis(unittest.TestCase):
                          'two')
         self.assertEqual(self.redis.lrange('bar', 0, -1), ['two'])
 
-    @attr('slow')
     def test_blocking_operations_when_empty(self):
         self.assertEqual(self.redis.blpop(['foo'], timeout=1),
                          None)
@@ -1491,7 +1507,6 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.set('foo', 'bar', xx=True), True)
 
-    @attr('slow')
     def test_set_ex_should_expire_value(self):
         self.redis.set('foo', 'bar', ex=0)
         self.assertEqual(self.redis.get('foo'), 'bar')
@@ -1499,20 +1514,17 @@ class TestFakeRedis(unittest.TestCase):
         sleep(2)
         self.assertEqual(self.redis.get('foo'), None)
 
-    @attr('slow')
     def test_set_px_should_expire_value(self):
         self.redis.set('foo', 'bar', px=500)
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
-    @attr('slow')
     def test_psetex_expire_value(self):
         self.assertRaises(ResponseError, self.redis.psetex, 'foo', 0, 'bar')
         self.redis.psetex('foo', 500, 'bar')
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
-    @attr('slow')
     def test_expire_should_expire_key(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), 'bar')
@@ -1521,7 +1533,6 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expire('bar', 1), False)
 
-    @attr('slow')
     def test_expireat_should_expire_key_by_datetime(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), 'bar')
@@ -1529,7 +1540,6 @@ class TestFakeRedis(unittest.TestCase):
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
-    @attr('slow')
     def test_expireat_should_expire_key_by_timestamp(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), 'bar')
@@ -1593,6 +1603,353 @@ class TestInitArgs(unittest.TestCase):
         self.assertEqual(db1.get('foo'), 'foo1')
         self.assertEqual(db2.get('foo'), 'foo2')
 
+
+class TestScript(unittest.TestCase):
+    """
+    Tests for MockRedis scripting operations
+    """
+
+    def setUp(self):
+        self.redis = FakeRedis()
+        self.LPOP_SCRIPT_SHA = sha1(LPOP_SCRIPT.encode("utf-8")).hexdigest()
+
+        try:
+            lua, lua_globals = FakeScript._import_lua()
+        except RuntimeError:
+            raise unittest.SkipTest("fakeredis was not installed with lua support")
+
+        self.lua = lua
+        self.lua_globals = lua_globals
+
+        assert_equal_list = """
+        function compare_list(list1, list2)
+            if #list1 ~= #list2 then
+                return false
+            end
+            for i, item1 in ipairs(list1) do
+                if item1 ~= list2[i] then
+                    return false
+                end
+            end
+            return true
+        end
+
+        function assert_equal_list(list1, list2)
+            assert(compare_list(list1, list2))
+        end
+        return assert_equal_list
+        """
+        self.lua_assert_equal_list = self.lua.execute(assert_equal_list)
+
+        assert_equal_list_with_pairs = """
+        function pair_exists(list1, key, value)
+            i = 1
+            for i, item1 in ipairs(list1) do
+                if i%2 == 1 then
+                    if (list1[i] == key) and (list1[i + 1] == value) then
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+
+        function compare_list_with_pairs(list1, list2)
+            if #list1 ~= #list2 or #list1 % 2 == 1 then
+                return false
+            end
+            for i = 1, #list1, 2 do
+                if not pair_exists(list2, list1[i], list1[i + 1]) then
+                    return false
+                end
+            end
+            return true
+        end
+
+        function assert_equal_list_with_pairs(list1, list2)
+            assert(compare_list_with_pairs(list1, list2))
+        end
+        return assert_equal_list_with_pairs
+        """
+        self.lua_assert_equal_list_with_pairs = self.lua.execute(assert_equal_list_with_pairs)
+
+        compare_val = """
+        function compare_val(var1, var2)
+            return var1 == var2
+        end
+        return compare_val
+        """
+        self.lua_compare_val = self.lua.execute(compare_val)
+
+    def tearDown(self):
+        self.redis.flushdb()
+
+    def test_register_script_lpush(self):
+        # lpush two values
+        script_content = "redis.call('LPUSH', KEYS[1], ARGV[1], ARGV[2])"
+        script = self.redis.register_script(script_content)
+        script(keys=[LIST1], args=[VAL1, VAL2])
+
+        # validate insertion
+        self.assertEqual([VAL2, VAL1], self.redis.lrange(LIST1, 0, -1))
+
+    def test_register_script_lpop(self):
+        self.redis.lpush(LIST1, VAL2, VAL1)
+
+        # lpop one value
+        script_content = "return redis.call('LPOP', KEYS[1])"
+        script = self.redis.register_script(script_content)
+        list_item = script(keys=[LIST1])
+
+        # validate lpop
+        self.assertEqual(VAL1, list_item)
+        self.assertEqual([VAL2], self.redis.lrange(LIST1, 0, -1))
+
+    def test_register_script_rpoplpush(self):
+        self.redis.lpush(LIST1, VAL2, VAL1)
+        self.redis.lpush(LIST2, VAL4, VAL3)
+
+        # rpoplpush
+        script_content = "redis.call('RPOPLPUSH', KEYS[1], KEYS[2])"
+        script = self.redis.register_script(script_content)
+        script(keys=[LIST1, LIST2])
+
+        #validate rpoplpush
+        self.assertEqual([VAL1], self.redis.lrange(LIST1, 0, -1))
+        self.assertEqual([VAL2, VAL3, VAL4], self.redis.lrange(LIST2, 0, -1))
+
+    def test_register_script_rpop_lpush(self):
+        self.redis.lpush(LIST1, VAL2, VAL1)
+        self.redis.lpush(LIST2, VAL4, VAL3)
+
+        # rpop from LIST1 and lpush the same value to LIST2
+        script_content = """
+        local tmp_item = redis.call('RPOP', KEYS[1])
+        redis.call('LPUSH', KEYS[2], tmp_item)
+        """
+        script = self.redis.register_script(script_content)
+        script(keys=[LIST1, LIST2])
+
+        #validate rpop and then lpush
+        self.assertEqual([VAL1], self.redis.lrange(LIST1, 0, -1))
+        self.assertEqual([VAL2, VAL3, VAL4], self.redis.lrange(LIST2, 0, -1))
+
+    def test_register_script_client(self):
+        # lpush two values in LIST1 in first instance of redis
+        self.redis.lpush(LIST1, VAL2, VAL1)
+
+        # create script on first instance of redis
+        script_content = LPOP_SCRIPT
+        script = self.redis.register_script(script_content)
+
+        # lpush two values in LIST1 in redis2 (second instance of redis)
+        redis2 = FakeRedis()
+        redis2.lpush(LIST1, VAL4, VAL3)
+
+        # execute LPOP script on redis2 instance
+        list_item = script(keys=[LIST1], client=redis2)
+
+        # validate lpop from LIST1 in redis2
+        self.assertEqual(VAL3, list_item)
+        self.assertEqual([VAL4, VAL1, VAL2], redis2.lrange(LIST1, 0, -1))
+        self.assertEqual([VAL4, VAL1, VAL2], self.redis.lrange(LIST1, 0, -1))
+
+    def test_eval_lpush(self):
+        # lpush two values
+        script_content = "redis.call('LPUSH', KEYS[1], ARGV[1], ARGV[2])"
+        self.redis.eval(script_content, 1, LIST1, VAL1, VAL2)
+
+        # validate insertion
+        self.assertEqual([VAL2, VAL1], self.redis.lrange(LIST1, 0, -1))
+
+    def test_eval_lpop(self):
+        self.redis.lpush(LIST1, VAL2, VAL1)
+
+        # lpop one value
+        script_content = "return redis.call('LPOP', KEYS[1])"
+        list_item = self.redis.eval(script_content, 1, LIST1)
+
+        # validate lpop
+        self.assertEqual(VAL1, list_item)
+        self.assertEqual([VAL2], self.redis.lrange(LIST1, 0, -1))
+
+    def test_eval_zadd(self):
+        # The score and member are reversed when the client is not strict.
+        self.redis.strict = False
+        script_content = "return redis.call('zadd', KEYS[1], ARGV[1], ARGV[2])"
+        self.redis.eval(script_content, 1, SET1, 42, VAL1)
+
+        self.assertEqual(42, self.redis.zscore(SET1, VAL1))
+
+    def test_eval_zrangebyscore(self):
+        # Make sure the limit is removed.
+        script = "return redis.call('zrangebyscore',KEYS[1],ARGV[1],ARGV[2])"
+        self.eval_zrangebyscore(script)
+
+    def test_eval_zrangebyscore_with_limit(self):
+        # Make sure the limit is removed.
+        script = ("return redis.call('zrangebyscore', "
+                  "KEYS[1], ARGV[1], ARGV[2], 'LIMIT', 0, 2)")
+
+        self.eval_zrangebyscore(script)
+
+    def eval_zrangebyscore(self, script):
+        self.redis.strict = False
+        self.redis.zadd(SET1, VAL1, 1)
+        self.redis.zadd(SET1, VAL2, 2)
+
+        self.assertEqual([],           self.redis.eval(script, 1, SET1, 0, 0))
+        self.assertEqual([VAL1],       self.redis.eval(script, 1, SET1, 0, 1))
+        self.assertEqual([VAL1, VAL2], self.redis.eval(script, 1, SET1, 0, 2))
+        self.assertEqual([VAL2],       self.redis.eval(script, 1, SET1, 2, 2))
+
+    def test_table_type(self):
+        self.redis.lpush(LIST1, VAL2, VAL1)
+        script_content = """
+        local items = redis.call('LRANGE', KEYS[1], ARGV[1], ARGV[2])
+        return type(items)
+        """
+        script = self.redis.register_script(script_content)
+        itemType = script(keys=[LIST1], args=[0, -1])
+        self.assertEqual('table', itemType)
+
+    def test_script_hgetall(self):
+        myhash = {"k1": "v1"}
+        self.redis.hmset("myhash", myhash)
+        script_content = """
+        return redis.call('HGETALL', KEYS[1])
+        """
+        script = self.redis.register_script(script_content)
+        item = script(keys=["myhash"])
+        self.assertTrue(isinstance(item, list))
+        self.assertEqual(["k1", "v1"], item)
+
+    def test_evalsha(self):
+        self.redis.lpush(LIST1, VAL1)
+        script = LPOP_SCRIPT
+        sha = self.LPOP_SCRIPT_SHA
+
+        # validator error when script not registered
+        with self.assertRaises(redis.RedisError) as redis_error:
+            self.redis.evalsha(self.LPOP_SCRIPT_SHA, 1, LIST1)
+
+        self.assertEqual("Sha not registered", str(redis_error.exception))
+
+        with self.assertRaises(redis.RedisError):
+            self.redis.evalsha(self.LPOP_SCRIPT_SHA, 1, LIST1)
+
+        # load script and then evalsha
+        self.assertEqual(sha, self.redis.script_load(script))
+        self.assertEqual(VAL1, self.redis.evalsha(sha, 1, LIST1))
+        self.assertEqual(0, self.redis.llen(LIST1))
+
+    def test_script_exists(self):
+        script = LPOP_SCRIPT
+        sha = self.LPOP_SCRIPT_SHA
+        self.assertEqual([False], self.redis.script_exists(sha))
+        self.redis.register_script(script)
+        self.assertEqual([True], self.redis.script_exists(sha))
+
+    def test_script_flush(self):
+        script = LPOP_SCRIPT
+        sha = self.LPOP_SCRIPT_SHA
+        self.redis.register_script(script)
+        self.assertEqual([True], self.redis.script_exists(sha))
+        self.redis.script_flush()
+        self.assertEqual([False], self.redis.script_exists(sha))
+
+    def test_script_load(self):
+        script = LPOP_SCRIPT
+        sha = self.LPOP_SCRIPT_SHA
+        self.assertEqual([False], self.redis.script_exists(sha))
+        self.assertEqual(sha, self.redis.script_load(script))
+        self.assertEqual([True], self.redis.script_exists(sha))
+
+    def test_lua_to_python_none(self):
+        lval = self.lua.eval("")
+        pval = FakeScript._lua_to_python(lval)
+        self.assertTrue(pval is None)
+
+    def test_lua_to_python_list(self):
+        lval = self.lua.eval('{"val1", "val2"}')
+        pval = FakeScript._lua_to_python(lval)
+        self.assertTrue(isinstance(pval, list))
+        self.assertEqual(["val1", "val2"], pval)
+
+    def test_lua_to_python_long(self):
+        lval = self.lua.eval('22')
+        pval = FakeScript._lua_to_python(lval)
+        self.assertTrue(isinstance(pval, long))
+        self.assertEqual(22, pval)
+
+    def test_lua_to_python_flota(self):
+        lval = self.lua.eval('22.2')
+        pval = FakeScript._lua_to_python(lval)
+        self.assertTrue(isinstance(pval, float))
+        self.assertEqual(22.2, pval)
+
+    def test_lua_to_python_string(self):
+        lval = self.lua.eval('"somestring"')
+        pval = FakeScript._lua_to_python(lval)
+        self.assertTrue(isinstance(pval, str))
+        self.assertEqual("somestring", pval)
+
+    def test_lua_to_python_bool(self):
+        lval = self.lua.eval('true')
+        pval = FakeScript._lua_to_python(lval)
+        self.assertTrue(isinstance(pval, bool))
+        self.assertEqual(True, pval)
+
+    def test_python_to_lua_none(self):
+        pval = None
+        lval = FakeScript._python_to_lua(pval)
+        is_null = """
+        function is_null(var1)
+            return var1 == nil
+        end
+        return is_null
+        """
+        lua_is_null = self.lua.execute(is_null)
+        self.assertTrue(FakeScript._lua_to_python(lua_is_null(lval)))
+
+    def test_python_to_lua_string(self):
+        pval = "somestring"
+        lval = FakeScript._python_to_lua(pval)
+        lval_expected = self.lua.eval('"somestring"')
+        self.assertEqual("string", self.lua_globals.type(lval))
+        self.assertEqual(lval_expected, lval)
+
+    def test_python_to_lua_list(self):
+        pval = ["abc", "xyz"]
+        lval = FakeScript._python_to_lua(pval)
+        lval_expected = self.lua.eval('{"abc", "xyz"}')
+        self.lua_assert_equal_list(lval_expected, lval)
+
+    def test_python_to_lua_dict(self):
+        pval = {"k1": "v1", "k2": "v2"}
+        lval = FakeScript._python_to_lua(pval)
+        lval_expected = self.lua.eval('{"k1", "v1", "k2", "v2"}')
+        self.lua_assert_equal_list_with_pairs(lval_expected, lval)
+
+    def test_python_to_lua_long(self):
+        pval = long(10)
+        lval = FakeScript._python_to_lua(pval)
+        lval_expected = self.lua.eval('10')
+        self.assertEqual("number", self.lua_globals.type(lval))
+        self.assertTrue(FakeScript._lua_to_python(self.lua_compare_val(lval_expected, lval)))
+
+    def test_python_to_lua_float(self):
+        pval = 10.1
+        lval = FakeScript._python_to_lua(pval)
+        lval_expected = self.lua.eval('10.1')
+        self.assertEqual("number", self.lua_globals.type(lval))
+        self.assertTrue(FakeScript._lua_to_python(self.lua_compare_val(lval_expected, lval)))
+
+    def test_python_to_lua_boolean(self):
+        pval = True
+        lval = FakeScript._python_to_lua(pval)
+        self.assertEqual("boolean", self.lua_globals.type(lval))
+        self.assertTrue(FakeScript._lua_to_python(lval))
 
 if __name__ == '__main__':
     unittest.main()
