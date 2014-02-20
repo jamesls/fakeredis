@@ -10,9 +10,9 @@ from urlparse import urlparse
 from collections import MutableMapping
 from datetime import datetime, timedelta
 import redis
+import json
 from redis.exceptions import ResponseError
 import redis.client
-
 
 __version__ = '0.4.1'
 DATABASES = {}
@@ -108,7 +108,6 @@ class Script(object):
         def _call(*call_args):
             response = client.call(*call_args)
             return self._python_to_lua(response)
-
         lua_globals.redis = {"call": _call}
         return self._lua_to_python(lua.execute(self.script))
 
@@ -1289,8 +1288,20 @@ class FakeStrictRedis(object):
         if command == 'zrangebyscore' and len(args) == 6:
             # Remove 'limit' from arguments
             return args[:3] + args[4:]
-
+        elif command == 'lrem' and isinstance(self, FakeRedis):
+            key, count, value = args
+            return (key, value, count)
         return args
+
+    def dump(self, *args):
+        value = self._db.get(args[0])
+        return json.dumps(value)
+
+    def restore(self, *args):
+        key, ttl, value = args
+
+        value = json.loads(value)
+        self._db[key] = value
 
 
 class FakeRedis(FakeStrictRedis):
