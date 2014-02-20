@@ -1,5 +1,6 @@
-nose==1.0.0
-redis==2.7.6
+ipdb==0.8
+ipython==1.2.0
+lunatic-python-bugfix==1.1.1
+redis==2.9.1
 unittest2==0.5.1
-tox==1.4.2
-wheel==0.22.0
+wsgiref==0.1.2

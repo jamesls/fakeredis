@@ -1,6 +1,8 @@
 import random
 import warnings
 import copy
+import string
+from hashlib import sha1
 from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
@@ -8,9 +10,9 @@ from urlparse import urlparse
 from collections import MutableMapping
 from datetime import datetime, timedelta
 import redis
+import json
 from redis.exceptions import ResponseError
 import redis.client
-
 
 __version__ = '0.4.1'
 DATABASES = {}
@@ -75,6 +77,158 @@ class _StrKeyDict(MutableMapping):
         return copy.deepcopy(self._dict)
 
 
+class Script(object):
+    """
+    An executable LUA script object returned by ``MockRedis.register_script``.
+    """
+
+    def __init__(self, registered_client, script):
+        self.registered_client = registered_client
+        self.script = script
+        self.sha = registered_client.script_load(script)
+
+    def __call__(self, keys=[], args=[], client=None):
+        """Execute the script, passing any required ``args``"""
+        client = client or self.registered_client
+
+        if not client.script_exists(self.sha)[0]:
+            self.sha = client.script_load(self.script)
+
+        return self._execute_lua(keys, args, client)
+
+    def _execute_lua(self, keys, args, client):
+        """
+        Sets KEYS and ARGV alongwith redis.call() function in lua globals
+        and executes the lua redis script
+        """
+        lua, lua_globals = Script._import_lua()
+        lua_globals.KEYS = self._python_to_lua(keys)
+        lua_globals.ARGV = self._python_to_lua(args)
+
+        def _call(*call_args):
+            response = client.call(*call_args)
+            return self._python_to_lua(response)
+        lua_globals.redis = {"call": _call}
+        return self._lua_to_python(lua.execute(self.script))
+
+    @staticmethod
+    def _import_lua():
+        """
+        Import lua and dependencies.
+
+        :raises: RuntimeError if LUA is not available
+        """
+        try:
+            import lua
+        except ImportError:
+            raise RuntimeError("LUA not installed")
+
+        lua_globals = lua.globals()
+        Script._import_lua_dependencies(lua, lua_globals)
+        return lua, lua_globals
+
+    @staticmethod
+    def _import_lua_dependencies(lua, lua_globals):
+        """
+        Imports lua dependencies that are supported by redis lua scripts.
+        Included:
+            - cjson lib.
+        Pending:
+            - base lib.
+            - table lib.
+            - string lib.
+            - math lib.
+            - debug lib.
+            - cmsgpack lib.
+        """
+
+        import ctypes
+        ctypes.CDLL('liblua.dylib', mode=ctypes.RTLD_GLOBAL)
+
+        try:
+            lua_globals.cjson = lua.eval('require "cjson"')
+        except RuntimeError:
+            raise RuntimeError("cjson not installed")
+
+    @staticmethod
+    def _lua_to_python(lval):
+        """
+        Convert Lua object(s) into Python object(s), as at times Lua object(s)
+        are not compatible with Python functions
+        """
+        import lua
+        lua_globals = lua.globals()
+        if lval is None:
+            # Lua None --> Python None
+            return None
+        if lua_globals.type(lval) == "table":
+            # Lua table --> Python list
+            pval = []
+            for i in lval:
+                pval.append(Script._lua_to_python(lval[i]))
+            return pval
+        elif isinstance(lval, long):
+            # Lua number --> Python long
+            return long(lval)
+        elif isinstance(lval, float):
+            # Lua number --> Python float
+            return float(lval)
+        elif lua_globals.type(lval) == "userdata":
+            # Lua userdata --> Python string
+            return str(lval)
+        elif lua_globals.type(lval) == "string":
+            # Lua string --> Python string
+            return lval
+        elif lua_globals.type(lval) == "boolean":
+            # Lua boolean --> Python bool
+            return bool(lval)
+        raise RuntimeError("Invalid Lua type: " + str(lua_globals.type(lval)))
+
+    @staticmethod
+    def _python_to_lua(pval):
+        """
+        Convert Python object(s) into Lua object(s), as at times Python object(s)
+        are not compatible with Lua functions
+        """
+        import lua
+        if pval is None:
+            # Python None --> Lua None
+            return lua.eval("")
+        if isinstance(pval, (list, tuple, set)):
+            # Python list --> Lua table
+            # e.g.: in lrange
+            #     in Python returns: [v1, v2, v3]
+            #     in Lua returns: {v1, v2, v3}
+            lua_list = lua.eval("{}")
+            lua_table = lua.eval("table")
+            for item in pval:
+                lua_table.insert(lua_list, Script._python_to_lua(item))
+            return lua_list
+        elif isinstance(pval, dict):
+            # Python dict --> Lua dict
+            # e.g.: in hgetall
+            #     in Python returns: {k1:v1, k2:v2, k3:v3}
+            #     in Lua returns: {k1, v1, k2, v2, k3, v3}
+            lua_dict = lua.eval("{}")
+            lua_table = lua.eval("table")
+            for k, v in pval.iteritems():
+                lua_table.insert(lua_dict, Script._python_to_lua(k))
+                lua_table.insert(lua_dict, Script._python_to_lua(v))
+            return lua_dict
+        elif isinstance(pval, (str, unicode)):
+            # Python string --> Lua userdata
+            return pval
+        elif isinstance(pval, bool):
+            # Python bool--> Lua boolean
+            return lua.eval(str(pval).lower())
+        elif isinstance(pval, (int, long, float)):
+            # Python int --> Lua number
+            lua_globals = lua.globals()
+            return lua_globals.tonumber(str(pval))
+
+        raise RuntimeError("Invalid Python type: " + str(type(pval)))
+
+
 class FakeStrictRedis(object):
     @classmethod
     def from_url(cls, url, db=None, **kwargs):
@@ -91,6 +245,8 @@ class FakeStrictRedis(object):
             DATABASES[db] = _StrKeyDict()
         self._db = DATABASES[db]
         self._db_num = db
+        # Dictionary from script to sha ''Script''
+        self.shas = dict()
 
 
     def flushdb(self):
@@ -1027,7 +1183,13 @@ class FakeStrictRedis(object):
         # Returns a single list combining keys and args.
         # A string can be iterated, but indicates
         # keys wasn't passed as a list.
-        if isinstance(keys, basestring):
+        try:
+            iter(keys)
+            # a string or bytes instance can be iterated, but indicates
+            # keys wasn't passed as a list
+            if isinstance(keys, (basestring, bytes)):
+                keys = [keys]
+        except TypeError:
             keys = [keys]
         if args:
             keys.extend(args)
@@ -1056,6 +1218,91 @@ class FakeStrictRedis(object):
                     continue
         raise redis.WatchError('Could not run transaction after 5 tries')
 
+        #### Script Commands ####
+
+    def eval(self, script, numkeys, *keys_and_args):
+        """Emulate eval"""
+        sha = self.script_load(script)
+        return self.evalsha(sha, numkeys, *keys_and_args)
+
+    def evalsha(self, sha, numkeys, *keys_and_args):
+        """Emulates evalsha"""
+        if not self.script_exists(sha)[0]:
+            raise redis.RedisError("Sha not registered")
+        script_callable = Script(self, self.shas[sha])
+        numkeys = max(numkeys, 0)
+        keys = keys_and_args[:numkeys]
+        args = keys_and_args[numkeys:]
+        return script_callable(keys, args)
+
+    def script_exists(self, *args):
+        """Emulates script_exists"""
+        return [arg in self.shas for arg in args]
+
+    def script_flush(self):
+        """Emulate script_flush"""
+        self.shas.clear()
+
+    def script_kill(self):
+        """Emulate script_kill"""
+        """XXX: To be implemented, should not be called before that."""
+        raise NotImplementedError("Not yet implemented.")
+
+    def script_load(self, script):
+        """Emulate script_load"""
+        sha_digest = sha1(script.encode("utf-8")).hexdigest()
+        self.shas[sha_digest] = script
+        return sha_digest
+
+    def register_script(self, script):
+        """Emulate register_script"""
+        return Script(self, script)
+
+    def call(self, command, *args):
+        """
+        Sends call to the function, whose name is specified by command.
+        """
+        command = self._normalize_command_name(command)
+        args = self._normalize_command_args(command, *args)
+
+        redis_function = getattr(self, command)
+        value = redis_function(*args)
+        return value
+
+    def _normalize_command_name(self, command):
+        """
+        Modifies the command string to match the redis client method name.
+        """
+        command = string.lower(command)
+
+        if command == 'del':
+            return 'delete'
+
+        return command
+
+    def _normalize_command_args(self, command, *args):
+        """
+        Modifies the command arguments to match the
+        strictness of the redis client.
+        """
+        if command == 'zrangebyscore' and len(args) == 6:
+            # Remove 'limit' from arguments
+            return args[:3] + args[4:]
+        elif command == 'lrem' and isinstance(self, FakeRedis):
+            key, count, value = args
+            return (key, value, count)
+        return args
+
+    def dump(self, *args):
+        value = self._db.get(args[0])
+        return json.dumps(value)
+
+    def restore(self, *args):
+        key, ttl, value = args
+
+        value = json.loads(value)
+        self._db[key] = value
+
 
 class FakeRedis(FakeStrictRedis):
     def setex(self, name, value, time):
@@ -1082,6 +1329,17 @@ class FakeRedis(FakeStrictRedis):
             value = pairs.keys()[0]
             score = pairs.values()[0]
         self._db.setdefault(name, _StrKeyDict())[value] = score
+
+    def _normalize_command_args(self, command, *args):
+        """
+        Modifies the command arguments to match the
+        strictness of the redis client.
+        """
+        if command == 'zadd' and len(args) >= 3:
+            # Reorder score and name
+            zadd_args = [x for tup in zip(args[2::2], args[1::2]) for x in tup]
+            return [args[0]] + zadd_args
+        return super(FakeRedis, self)._normalize_command_args(command, *args)
 
 
 class FakePipeline(object):
