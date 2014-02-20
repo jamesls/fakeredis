@@ -255,6 +255,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.setex('foo', 100, 'bar'), True)
         self.assertEqual(self.redis.get('foo'), 'bar')
 
+    def test_setex_using_timedelta(self):
+        self.assertEqual(self.redis.setex('foo', timedelta(seconds=100), 'bar'), True)
+        self.assertEqual(self.redis.get('foo'), 'bar')
+
     def test_setnx(self):
         self.assertEqual(self.redis.setnx('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'),  'bar')
@@ -1441,6 +1445,10 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.setex('foo', 'bar', 100), True)
         self.assertEqual(self.redis.get('foo'), 'bar')
 
+    def test_setex_using_timedelta(self):
+        self.assertEqual(self.redis.setex('foo', 'bar', timedelta(seconds=100)), True)
+        self.assertEqual(self.redis.get('foo'), 'bar')
+
     def test_lrem_postitive_count(self):
         self.redis.lpush('foo', 'same')
         self.redis.lpush('foo', 'same')
@@ -1534,10 +1542,26 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
 
     @attr('slow')
+    def test_psetex_expire_value_using_timedelta(self):
+        self.assertRaises(ResponseError, self.redis.psetex, 'foo', timedelta(seconds=0), 'bar')
+        self.redis.psetex('foo', timedelta(seconds=0.5), 'bar')
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+
+    @attr('slow')
     def test_expire_should_expire_key(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), 'bar')
         self.redis.expire('foo', 1)
+        sleep(1.5)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expire('bar', 1), False)
+
+    @attr('slow')
+    def test_expire_should_expire_key_using_timedelta(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.redis.expire('foo', timedelta(seconds=1))
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expire('bar', 1), False)
