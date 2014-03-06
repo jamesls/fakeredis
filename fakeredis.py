@@ -248,6 +248,10 @@ class FakeStrictRedis(object):
         # Dictionary from script to sha ''Script''
         self.shas = dict()
 
+    def __assertList(self, name):
+        value = self._db.get(name)
+        if not value is None and not isinstance(value, list):
+            raise redis.ResponseError('Value at key `%s` not of type list' % name)
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
@@ -597,10 +601,12 @@ class FakeStrictRedis(object):
         data.sort(key=_by_key)
 
     def lpush(self, name, *values):
+        self.__assertList(name)
         self._db.setdefault(name, [])[0:0] = list(reversed((values)))
         return len(self._db[name])
 
     def lrange(self, name, start, end):
+        self.__assertList(name)
         if end == -1:
             end = None
         else:
@@ -608,9 +614,11 @@ class FakeStrictRedis(object):
         return self._db.get(name, [])[start:end]
 
     def llen(self, name):
+        self.__assertList(name)
         return len(self._db.get(name, []))
 
     def lrem(self, name, count, value):
+        self.__assertList(name)
         a_list = self._db.get(name, [])
         found = []
         for i, el in enumerate(a_list):
@@ -629,16 +637,19 @@ class FakeStrictRedis(object):
         return len(indices_to_remove)
 
     def rpush(self, name, *values):
+        self.__assertList(name)
         self._db.setdefault(name, []).extend(list(values))
         return len(self._db[name])
 
     def lpop(self, name):
+        self.__assertList(name)
         try:
             return self._db.get(name, []).pop(0)
         except IndexError:
             return None
 
     def lset(self, name, index, value):
+        self.__assertList(name)
         try:
             self._db.get(name, [])[index] = value
         except IndexError:
