@@ -108,7 +108,17 @@ class Script(object):
         def _call(*call_args):
             response = client.call(*call_args)
             return self._python_to_lua(response)
-        lua_globals.redis = {"call": _call}
+
+        def _pcall(*call_args):
+            try:
+                response = client.call(*call_args)
+            except redis.RedisError, e:
+                response = str(e)
+                ok = False
+            else:
+                ok = True
+            return self._python_to_lua((ok, response))
+        lua_globals.redis = {"call": _call, "pcall": _pcall}
         return self._lua_to_python(lua.execute(self.script))
 
     @staticmethod
