@@ -38,7 +38,7 @@ class _StrKeyDict(MutableMapping):
         self._dict[str(key)] = value
 
     def __delitem__(self, key):
-        del self._dict[key]
+        del self._dict[str(key)]
 
     def __len__(self):
         return len(self._dict)
