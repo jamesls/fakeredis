@@ -380,7 +380,7 @@ class FakeStrictRedis(object):
             raise redis.RedisError(
                 "RedisError: ``start`` and ``num`` must both be specified")
         try:
-            data = self._db[name][:]
+            data = list(self._db[name])[:]
             if by is not None:
                 # _sort_using_by_arg mutates data so we don't
                 # need need a return value.
