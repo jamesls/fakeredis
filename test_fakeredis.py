@@ -1250,6 +1250,12 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.sort('foo', by='record_*->age', get='record_*->name'),
             ['baby', 'teen', 'adult'])
 
+    def test_sort_with_set(self):
+        self.redis.sadd('foo', '3')
+        self.redis.sadd('foo', '1')
+        self.redis.sadd('foo', '2')
+        self.assertEqual(self.redis.sort('foo'), ['1', '2', '3'])
+
     def test_pipeline(self):
         # The pipeline method returns an object for
         # issuing multiple commands in a batch.
