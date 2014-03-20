@@ -25,6 +25,11 @@ _strtod = _libc.strtod
 
 class _StrKeyDict(MutableMapping):
     def __init__(self, *args, **kwargs):
+        is_zset = kwargs.pop('zset', False)
+        if is_zset is True:
+            self.type = 'zset'
+        else:
+            self.type = 'hash'
         self._dict = dict(*args, **kwargs)
         self._ex_keys = {}
 
@@ -64,7 +69,7 @@ class _StrKeyDict(MutableMapping):
             del self[key]
 
     def copy(self):
-        new_copy = _StrKeyDict()
+        new_copy = _StrKeyDict(zset=(self.type == 'zset'))
         for key, value in self._dict.items():
             new_copy[key] = value
         return new_copy
@@ -107,7 +112,7 @@ class Script(object):
 
         def _call(*call_args):
             response = client.call(*call_args)
-            return self._python_to_lua(response)
+            return self._python_to_lua(response, call_args=call_args)
 
         def _pcall(*call_args):
             try:
@@ -117,7 +122,7 @@ class Script(object):
                 ok = False
             else:
                 ok = True
-            return self._python_to_lua((ok, response))
+            return self._python_to_lua((ok, response), call_args=call_args)
         lua_globals.redis = {"call": _call, "pcall": _pcall}
         return self._lua_to_python(lua.execute(self.script))
 
@@ -195,7 +200,7 @@ class Script(object):
         raise RuntimeError("Invalid Lua type: " + str(lua_globals.type(lval)))
 
     @staticmethod
-    def _python_to_lua(pval):
+    def _python_to_lua(pval, call_args=None):
         """
         Convert Python object(s) into Lua object(s), as at times Python object(s)
         are not compatible with Lua functions
@@ -219,17 +224,27 @@ class Script(object):
             # e.g.: in hgetall
             #     in Python returns: {k1:v1, k2:v2, k3:v3}
             #     in Lua returns: {k1, v1, k2, v2, k3, v3}
-            lua_dict = lua.eval("{}")
-            lua_table = lua.eval("table")
-            for k, v in pval.iteritems():
-                lua_table.insert(lua_dict, Script._python_to_lua(k))
-                lua_table.insert(lua_dict, Script._python_to_lua(v))
+            # else in Python: {k1: v1, k2:v2}
+            # in Lua: {[k1]: v1, [k2]: v2}
+            command = call_args[0] if call_args else None
+            if command == 'HGETALL':
+                lua_dict = lua.eval("{}")
+                lua_table = lua.eval("table")
+                for k, v in pval.iteritems():
+                    lua_table.insert(lua_dict, Script._python_to_lua(k))
+                    lua_table.insert(lua_dict, Script._python_to_lua(v))
+            else:
+                comps = ['["%s"] = "%s"' % (Script._python_to_lua(k), Script._python_to_lua(v)) for k, v in pval.iteritems()]
+                lua_dict = lua.eval('{%s}' % ','.join(comps))
             return lua_dict
         elif isinstance(pval, (str, unicode)):
             # Python string --> Lua userdata
             return pval
         elif isinstance(pval, bool):
+            command = call_args[0] if call_args else None
             # Python bool--> Lua boolean
+            if command == "EXISTS":
+                return lua.eval({True: '1', False: '0'}[pval])
             return lua.eval(str(pval).lower())
         elif isinstance(pval, (int, long, float)):
             # Python int --> Lua number
@@ -258,10 +273,15 @@ class FakeStrictRedis(object):
         # Dictionary from script to sha ''Script''
         self.shas = dict()
 
-    def __assertList(self, name):
+    def __assertZSET(self, name):
         value = self._db.get(name)
-        if not value is None and not isinstance(value, list):
-            raise redis.ResponseError('Value at key `%s` not of type list' % name)
+        if value is None:
+            return
+        try:
+            if value.type != 'zset':
+                raise redis.ResponseError('Value at key `%s` not of type zset' % name)
+        except AttributeError:
+            raise redis.ResponseError('Value at key `%s` not of type zset' % name)
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
@@ -496,7 +516,28 @@ class FakeStrictRedis(object):
                          + (exp_time - now).microseconds / 1E6)
 
     def type(self, name):
-        pass
+        retval = {}
+        try:
+            value = self._db[name]
+        except KeyError:
+            # Key does not exist
+            retval["ok"] = 'none'
+        else:
+            if isinstance(value, list):
+                retval['ok'] = 'list'
+            elif isinstance(value, (str, unicode)):
+                retval['ok'] = 'string'
+            elif isinstance(value, bool):
+                retval['ok'] = 'boolean'
+            elif isinstance(value, set):
+                retval['ok'] = 'set'
+            else:
+                # Determine hash or zset
+                if value.type == 'zset':
+                    retval['ok'] = 'zset'
+                else:
+                    retval['ok'] = 'hash'
+        return retval
 
     def watch(self, *names):
         pass
@@ -611,12 +652,10 @@ class FakeStrictRedis(object):
         data.sort(key=_by_key)
 
     def lpush(self, name, *values):
-        self.__assertList(name)
         self._db.setdefault(name, [])[0:0] = list(reversed((values)))
         return len(self._db[name])
 
     def lrange(self, name, start, end):
-        self.__assertList(name)
         if end == -1:
             end = None
         else:
@@ -624,11 +663,9 @@ class FakeStrictRedis(object):
         return self._db.get(name, [])[start:end]
 
     def llen(self, name):
-        self.__assertList(name)
         return len(self._db.get(name, []))
 
     def lrem(self, name, count, value):
-        self.__assertList(name)
         a_list = self._db.get(name, [])
         found = []
         for i, el in enumerate(a_list):
@@ -647,19 +684,16 @@ class FakeStrictRedis(object):
         return len(indices_to_remove)
 
     def rpush(self, name, *values):
-        self.__assertList(name)
         self._db.setdefault(name, []).extend(list(values))
         return len(self._db[name])
 
     def lpop(self, name):
-        self.__assertList(name)
         try:
             return self._db.get(name, []).pop(0)
         except IndexError:
             return None
 
     def lset(self, name, index, value):
-        self.__assertList(name)
         try:
             self._db.get(name, [])[index] = value
         except IndexError:
@@ -937,10 +971,11 @@ class FakeStrictRedis(object):
         The following example would add four values to the 'my-key' key:
         redis.zadd('my-key', 1.1, 'name1', 2.2, 'name2', name3=3.3, name4=4.4)
         """
+        self.__assertZSET(name)
         if len(args) % 2 != 0:
             raise redis.RedisError("ZADD requires an equal number of "
                                    "values and scores")
-        zset = self._db.setdefault(name, _StrKeyDict())
+        zset = self._db.setdefault(name, _StrKeyDict(zset=True))
         added = 0
         for score, value in zip(*[args[i::2] for i in range(2)]):
             if value not in zset:
@@ -971,7 +1006,7 @@ class FakeStrictRedis(object):
 
     def zincrby(self, name, value, amount=1):
         "Increment the score of ``value`` in sorted set ``name`` by ``amount``"
-        d = self._db.setdefault(name, _StrKeyDict())
+        d = self._db.setdefault(name, _StrKeyDict(zset=True))
         score = d.get(value, 0) + amount
         d[value] = score
         return score
@@ -1007,6 +1042,7 @@ class FakeStrictRedis(object):
         ``withscores`` indicates to return the scores along with the values.
         The return type is a list of (value, score) pairs
         """
+        self.__assertZSET(name)
         if end == -1:
             end = None
         else:
@@ -1170,7 +1206,7 @@ class FakeStrictRedis(object):
         self._zaggregate(dest, keys, aggregate, lambda x: True)
 
     def _zaggregate(self, dest, keys, aggregate, should_include):
-        new_zset = _StrKeyDict()
+        new_zset = _StrKeyDict(zset=True)
         if aggregate is None:
             aggregate = 'SUM'
         # This is what the actual redis client uses, so we'll use
@@ -1332,34 +1368,19 @@ class FakeRedis(FakeStrictRedis):
     def lrem(self, name, value, num=0):
         return super(FakeRedis, self).lrem(name, num, value)
 
-    def zadd(self, name, value=None, score=None, **pairs):
-        """
-        For each kwarg in ``pairs``, add that item and it's score to the
-        sorted set ``name``.
-
-        The ``value`` and ``score`` arguments are deprecated.
-        """
-        if value is not None or score is not None:
-            if value is None or score is None:
-                raise redis.RedisError(
-                    "Both 'value' and 'score' must be specified to ZADD")
-            warnings.warn(DeprecationWarning(
-                "Passing 'value' and 'score' has been deprecated. "
-                "Please pass via kwargs instead."))
-        else:
-            value = pairs.keys()[0]
-            score = pairs.values()[0]
-        self._db.setdefault(name, _StrKeyDict())[value] = score
-
     def _normalize_command_args(self, command, *args):
         """
         Modifies the command arguments to match the
         strictness of the redis client.
         """
-        if command == 'zadd' and len(args) >= 3:
-            # Reorder score and name
-            zadd_args = [x for tup in zip(args[2::2], args[1::2]) for x in tup]
-            return [args[0]] + zadd_args
+        if command in ('zunionstore', 'zinterstore'):
+            # Skip numkeys
+            command_args = (args[0],) + (args[2:], )
+            return command_args
+        elif command == 'zrem':
+            command_args = [str(arg) for arg in args]
+            return command_args
+
         return super(FakeRedis, self)._normalize_command_args(command, *args)
 
 
