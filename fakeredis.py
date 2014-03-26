@@ -828,7 +828,7 @@ class FakeStrictRedis(object):
                                 lambda x: x in
                                 valid_keys)
 
-    def zrange(self, name, start, end, desc=False, withscores=False):
+    def zrange(self, name, start, end, desc=False, withscores=False, score_cast_func=float):
         """
         Return a range of values from sorted set ``name`` between
         ``start`` and ``end`` sorted in ascending order.
@@ -854,7 +854,7 @@ class FakeStrictRedis(object):
         if not withscores:
             return items
         else:
-            return [(k, all_items[k]) for k in items]
+            return [(k, score_cast_func(all_items[k])) for k in items]
 
     def _get_zelements_in_order(self, all_items, reverse=False):
         by_keyname = sorted(all_items.items(), key=lambda x: x[0])
@@ -862,7 +862,7 @@ class FakeStrictRedis(object):
         return [el[0] for el in in_order]
 
     def zrangebyscore(self, name, min, max,
-                      start=None, num=None, withscores=False):
+                      start=None, num=None, withscores=False, score_cast_func=float):
         """
         Return a range of values from the sorted set ``name`` with scores
         between ``min`` and ``max``.
@@ -874,9 +874,9 @@ class FakeStrictRedis(object):
         The return type is a list of (value, score) pairs
         """
         return self._zrangebyscore(name, min, max, start, num, withscores,
-                                   reverse=False)
+                                   reverse=False, score_cast_func=score_cast_func)
 
-    def _zrangebyscore(self, name, min, max, start, num, withscores, reverse):
+    def _zrangebyscore(self, name, min, max, start, num, withscores, reverse, score_cast_func=float):
         if (start is not None and num is None) or \
                 (num is not None and start is None):
             raise redis.RedisError("``start`` and ``num`` must both "
@@ -890,7 +890,7 @@ class FakeStrictRedis(object):
         if start is not None:
             matches = matches[start:start + num]
         if withscores:
-            return [(k, all_items[k]) for k in matches]
+            return [(k, score_cast_func(all_items[k])) for k in matches]
         return matches
 
     def zrank(self, name, value):
@@ -947,7 +947,7 @@ class FakeStrictRedis(object):
                 removed += 1
         return removed
 
-    def zrevrange(self, name, start, num, withscores=False):
+    def zrevrange(self, name, start, num, withscores=False, score_cast_func=float):
         """
         Return a range of values from sorted set ``name`` between
         ``start`` and ``num`` sorted in descending order.
@@ -957,10 +957,10 @@ class FakeStrictRedis(object):
         ``withscores`` indicates to return the scores along with the values
         The return type is a list of (value, score) pairs
         """
-        return self.zrange(name, start, num, True, withscores)
+        return self.zrange(name, start, num, True, withscores, score_cast_func)
 
     def zrevrangebyscore(self, name, max, min,
-                         start=None, num=None, withscores=False):
+                         start=None, num=None, withscores=False, score_cast_func=float):
         """
         Return a range of values from the sorted set ``name`` with scores
         between ``min`` and ``max`` in descending order.
@@ -972,7 +972,7 @@ class FakeStrictRedis(object):
         The return type is a list of (value, score) pairs
         """
         return self._zrangebyscore(name, min, max, start, num, withscores,
-                                   reverse=True)
+                                   reverse=True, score_cast_func=score_cast_func)
 
     def zrevrank(self, name, value):
         """
