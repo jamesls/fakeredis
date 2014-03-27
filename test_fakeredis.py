@@ -928,6 +928,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrevrange('foo', 0, -1),
                          ['three', 'two', 'one'])
 
+    def test_zrevrange_sorted_keys(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', 2, 'two_b')
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrevrange('foo', 0, 2), ['three', 'two_b', 'two'])
+        self.assertEqual(self.redis.zrevrange('foo', 0, -1),
+                         ['three', 'two_b', 'two', 'one'])
+
+
     def test_zrangebyscore(self):
         self.redis.zadd('foo', zero=0)
         self.redis.zadd('foo', two=2)
