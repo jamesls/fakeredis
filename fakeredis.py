@@ -857,7 +857,7 @@ class FakeStrictRedis(object):
             return [(k, score_cast_func(all_items[k])) for k in items]
 
     def _get_zelements_in_order(self, all_items, reverse=False):
-        by_keyname = sorted(all_items.items(), key=lambda x: x[0])
+        by_keyname = sorted(all_items.items(), key=lambda x: x[0], reverse=reverse)
         in_order = sorted(by_keyname, key=lambda x: x[1], reverse=reverse)
         return [el[0] for el in in_order]
 
