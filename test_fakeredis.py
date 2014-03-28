@@ -902,6 +902,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zrem_non_existent_member(self):
         self.assertFalse(self.redis.zrem('foo', 'one'))
 
+    def test_zrem_numeric_member(self):
+        self.redis.zadd('foo', **{'128': 13.0, '129': 12.0})
+        self.assertEqual(self.redis.zrem('foo',  128), True)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), ['129'])
+
     def test_zscore(self):
         self.redis.zadd('foo', one=54)
         self.assertEqual(self.redis.zscore('foo', 'one'), 54)
