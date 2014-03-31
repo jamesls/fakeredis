@@ -50,7 +50,10 @@ class _StrKeyDict(MutableMapping):
         return iter(self._dict)
 
     def expire(self, key, timestamp):
-        self._ex_keys[key] = timestamp
+        if type(timestamp) == int and timestamp < 0:
+            del self._ex_keys[key]
+        else:
+            self._ex_keys[key] = timestamp
 
     def expiring(self, key):
         if not key in self._ex_keys.keys():
@@ -406,7 +409,11 @@ class FakeStrictRedis(object):
         pass
 
     def persist(self, name):
-        pass
+        if self._db.expiring(name):
+            self._db.expire(name, -1)
+            return True
+        else:
+            return False
 
     def ping(self):
         return True
