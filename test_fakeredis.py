@@ -1420,6 +1420,12 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_ping(self):
         self.assertTrue(self.redis.ping())
 
+    def test_persist(self):
+        self.redis.set('test', 100, ex=3600)
+        self.assertGreater(self.redis.ttl('test'), 3600 - 60)
+        self.assertEquals(self.redis.persist('test'), 1)
+        self.assertEquals(self.redis.persist('test'), 0)
+
 
 class TestFakeRedis(unittest.TestCase):
     def setUp(self):
