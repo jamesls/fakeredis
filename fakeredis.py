@@ -242,7 +242,7 @@ class Script(object):
             return lua_dict
         elif isinstance(pval, (str, unicode)):
             # Python string --> Lua userdata
-            return pval
+            return str(pval)
         elif isinstance(pval, bool):
             command = call_args[0] if call_args else None
             # Python bool--> Lua boolean
@@ -1369,6 +1369,7 @@ class FakeStrictRedis(object):
 
 
 class FakeRedis(FakeStrictRedis):
+
     def setex(self, name, value, time):
         return super(FakeRedis, self).setex(name, time, value)
 
@@ -1389,6 +1390,29 @@ class FakeRedis(FakeStrictRedis):
             return command_args
 
         return super(FakeRedis, self)._normalize_command_args(command, *args)
+
+    def zadd(self, name, *args, **kwargs):
+        """
+        NOTE: The order of arguments differs from that of the official ZADD
+        command. For backwards compatability, this method accepts arguments
+        in the form of name1, score1, name2, score2, while the official Redis
+        documents expects score1, name1, score2, name2.
+
+        If you're looking to use the standard syntax, consider using the
+        StrictRedis class. See the API Reference section of the docs for more
+        information.
+
+        Set any number of element-name, score pairs to the key ``name``. Pairs
+        can be specified in two ways:
+
+        As *args, in the form of: name1, score1, name2, score2, ...
+        or as **kwargs, in the form of: name1=score1, name2=score2, ...
+
+        The following example would add four values to the 'my-key' key:
+        redis.zadd('my-key', 'name1', 1.1, 'name2', 2.2, name3=3.3, name4=4.4)
+        """
+        args = list(reversed(args))
+        return super(FakeRedis, self).zadd(name, *args, **kwargs)
 
 
 class FakePipeline(object):
