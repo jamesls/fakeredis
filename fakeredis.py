@@ -193,7 +193,10 @@ class Script(object):
             return float(lval)
         elif lua_globals.type(lval) == "userdata":
             # Lua userdata --> Python string
-            return str(lval)
+            try:
+                return str(lval)
+            except UnicodeEncodeError:
+                return unicode(lval)
         elif lua_globals.type(lval) == "string":
             # Lua string --> Python string
             return lval
@@ -242,7 +245,10 @@ class Script(object):
             return lua_dict
         elif isinstance(pval, (str, unicode)):
             # Python string --> Lua userdata
-            return str(pval)
+            try:
+                return str(pval)
+            except UnicodeEncodeError:
+                return unicode(pval)
         elif isinstance(pval, bool):
             command = call_args[0] if call_args else None
             # Python bool--> Lua boolean
@@ -1338,7 +1344,6 @@ class FakeStrictRedis(object):
         Modifies the command string to match the redis client method name.
         """
         command = string.lower(command)
-
         if command == 'del':
             return 'delete'
 
@@ -1387,6 +1392,9 @@ class FakeRedis(FakeStrictRedis):
             return command_args
         elif command == 'zrem':
             command_args = [str(arg) for arg in args]
+            return command_args
+        elif command == 'zadd':
+            command_args = (args[0],) + tuple(reversed(args[1:]))
             return command_args
 
         return super(FakeRedis, self)._normalize_command_args(command, *args)
