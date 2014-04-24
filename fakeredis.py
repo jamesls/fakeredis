@@ -320,6 +320,12 @@ class FakeStrictRedis(object):
     getrange = substr
 
     def ttl(self, name):
+        return self._ttl(name)
+
+    def pttl(self, name):
+        return self._ttl(name, 1000)
+
+    def _ttl(self, name, multiplier=1):
         if name not in self._db:
             return None
 
@@ -331,9 +337,9 @@ class FakeStrictRedis(object):
         if now > exp_time:
             return None
         else:
-            return round((exp_time - now).days * 3600 * 24
-                         + (exp_time - now).seconds
-                         + (exp_time - now).microseconds / 1E6)
+            return round(((exp_time - now).days * 3600 * 24
+                          + (exp_time - now).seconds
+                          + (exp_time - now).microseconds / 1E6) * multiplier)
 
     def type(self, name):
         pass
