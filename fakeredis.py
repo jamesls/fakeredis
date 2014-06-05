@@ -647,6 +647,8 @@ class FakeStrictRedis(object):
         """
         if not mapping:
             raise redis.DataError("'hmset' with 'mapping' of length 0")
+        for k, v in mapping.items():
+          mapping[k] = str(v)
         self._db.setdefault(name, _StrKeyDict()).update(mapping)
         return True
 
