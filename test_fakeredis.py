@@ -1476,6 +1476,10 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.flushall()
         del self.redis
 
+    def assertInRange(self, value, start, end, msg=None):
+        self.assertGreaterEqual(value, start, msg)
+        self.assertLessEqual(value, end, msg)
+
     def create_redis(self, db=0):
         return fakeredis.FakeRedis(db=db)
 
@@ -1636,6 +1640,25 @@ class TestFakeRedis(unittest.TestCase):
         # See https://github.com/antirez/redis/blob/unstable/src/db.c#L632
         self.redis.expire('foo', long_long_c_max)
         self.assertEqual(self.redis.ttl('foo'), long_long_c_max)
+
+    def test_pttl_should_return_none_for_non_expiring_key(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), 'bar')
+        self.assertEqual(self.redis.pttl('foo'), None)
+
+    def test_pttl_should_return_value_for_expiring_key(self):
+        d = 100
+        self.redis.set('foo', 'bar')
+        self.redis.expire('foo', 1)
+        self.assertInRange(self.redis.pttl('foo'), 1000 - d, 1000)
+        self.redis.expire('foo', 2)
+        self.assertInRange(self.redis.pttl('foo'), 2000 - d, 2000)
+        long_long_c_max = 100000000000
+        # See https://github.com/antirez/redis/blob/unstable/src/db.c#L632
+        self.redis.expire('foo', long_long_c_max)
+        self.assertInRange(self.redis.pttl('foo'),
+                           long_long_c_max * 1000 - d,
+                           long_long_c_max * 1000)
 
 
 @redis_must_be_running
