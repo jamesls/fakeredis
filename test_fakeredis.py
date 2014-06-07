@@ -849,6 +849,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zcount('foo', 2, 4), 1)
         self.assertEqual(self.redis.zcount('foo', 1, 4), 2)
         self.assertEqual(self.redis.zcount('foo', 0, 5), 3)
+        self.assertEqual(self.redis.zcount('foo', 4, '+inf'), 1)
+        self.assertEqual(self.redis.zcount('foo', '-inf', 4), 2)
+        self.assertEqual(self.redis.zcount('foo', '-inf', '+inf'), 3)
 
     def test_zincrby(self):
         self.redis.zadd('foo', one=1)
@@ -958,6 +961,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrangebyscore('foo', 2, 3),
                          ['two', 'two_a_also', 'two_b_also'])
         self.assertEqual(self.redis.zrangebyscore('foo', 0, 4),
+                         ['zero', 'two', 'two_a_also', 'two_b_also', 'four'])
+        self.assertEqual(self.redis.zrangebyscore('foo', '-inf', 1),
+                         ['zero'])
+        self.assertEqual(self.redis.zrangebyscore('foo', 2, '+inf'),
+                         ['two', 'two_a_also', 'two_b_also', 'four'])
+        self.assertEqual(self.redis.zrangebyscore('foo', '-inf', '+inf'),
                          ['zero', 'two', 'two_a_also', 'two_b_also', 'four'])
 
     def test_zrangebyscore_slice(self):

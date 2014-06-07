@@ -761,6 +761,11 @@ class FakeStrictRedis(object):
         self._db[dest] = union
         return len(union)
 
+    def _get_zelement_range(self, min, max):
+        # This will also handle the case when
+        # min/max are '-inf', '+inf'
+        return float(min), float(max)
+
     def zadd(self, name, *args, **kwargs):
         """
         Set any number of score, element-name pairs to the key ``name``. Pairs
@@ -799,6 +804,7 @@ class FakeStrictRedis(object):
 
     def zcount(self, name, min, max):
         found = 0
+        min, max = self._get_zelement_range(min, max)
         for score in self._db.get(name, {}).values():
             if min <= score <= max:
                 found += 1
@@ -885,6 +891,7 @@ class FakeStrictRedis(object):
                                    "be specified")
         all_items = self._db.get(name, {})
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
+        min, max = self._get_zelement_range(min, max)
         matches = []
         for item in in_order:
             if min <= all_items[item] <= max:
@@ -942,6 +949,7 @@ class FakeStrictRedis(object):
         between ``min`` and ``max``. Returns the number of elements removed.
         """
         all_items = self._db.get(name, {})
+        min, max = self._get_zelement_range(min, max)
         removed = 0
         for key in all_items.copy():
             if min <= all_items[key] <= max:
