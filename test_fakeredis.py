@@ -683,6 +683,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.smembers('foo'),
                          set(['member1', 'member2', 'member3', 'member4']))
 
+    def test_sadd_as_str_type(self):
+        self.assertEqual(self.redis.sadd('foo', *range(3)), 3)
+        self.assertEqual(self.redis.smembers('foo'), set(['0', '1', '2']))
+
     def test_scard(self):
         self.redis.sadd('foo', 'member1')
         self.redis.sadd('foo', 'member2')
