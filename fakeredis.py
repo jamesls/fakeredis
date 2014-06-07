@@ -666,7 +666,7 @@ class FakeStrictRedis(object):
         "Add ``value`` to set ``name``"
         a_set = self._db.setdefault(name, set())
         card = len(a_set)
-        a_set |= set(values)
+        a_set |= set(map(str, values))
         return len(a_set) - card
 
     def scard(self, name):
