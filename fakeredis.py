@@ -1,7 +1,6 @@
 import random
 import warnings
 import copy
-import re
 from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
@@ -20,7 +19,6 @@ _libc = CDLL(find_library('c'))
 _libc.strtod.restype = c_double
 _libc.strtod.argtypes = [c_char_p, POINTER(c_char_p)]
 _strtod = _libc.strtod
-zrange_pattern = re.compile('^[\+\-]inf$')
 
 
 def timedelta_total_seconds(delta):
@@ -761,16 +759,10 @@ class FakeStrictRedis(object):
         self._db[dest] = union
         return len(union)
 
-    def _get_zelement_range(self, name, min, max):
-        min_match = zrange_pattern.match(min) if type(min) == str else False
-        max_match = zrange_pattern.match(max) if type(max) == str else False
-        if (min_match or max_match):
-            scores = sorted(self._db.get(name, {}).values())
-            if min_match:
-                min = scores[0]-1
-            if max_match:
-                max = scores[-1]+1
-        return (min, max)
+    def _get_zelement_range(self, min, max):
+        # This will also handle the case when
+        # min/max are '-inf', '+inf'
+        return float(min), float(max)
 
     def zadd(self, name, *args, **kwargs):
         """
@@ -810,7 +802,7 @@ class FakeStrictRedis(object):
 
     def zcount(self, name, min, max):
         found = 0
-        min, max = self._get_zelement_range(name, min, max)
+        min, max = self._get_zelement_range(min, max)
         for score in self._db.get(name, {}).values():
             if min <= score <= max:
                 found += 1
@@ -897,7 +889,7 @@ class FakeStrictRedis(object):
                                    "be specified")
         all_items = self._db.get(name, {})
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
-        min, max = self._get_zelement_range(name, min, max)
+        min, max = self._get_zelement_range(min, max)
         matches = []
         for item in in_order:
             if min <= all_items[item] <= max:
@@ -955,7 +947,7 @@ class FakeStrictRedis(object):
         between ``min`` and ``max``. Returns the number of elements removed.
         """
         all_items = self._db.get(name, {})
-        min, max = self._get_zelement_range(name, min, max)
+        min, max = self._get_zelement_range(min, max)
         removed = 0
         for key in all_items.copy():
             if min <= all_items[key] <= max:
