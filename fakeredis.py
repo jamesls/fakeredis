@@ -395,10 +395,10 @@ class FakeStrictRedis(object):
                 data.sort(key=self._strtod_key_func)
             else:
                 data.sort()
-            if not (start is None and num is None):
-                data = data[start:start + num]
             if desc:
                 data = list(reversed(data))
+            if not (start is None and num is None):
+                data = data[start:start + num]
             if store is not None:
                 self._db[store] = data
                 return len(data)

@@ -1191,6 +1191,14 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         self.assertEqual(self.redis.sort('foo', start=0, num=2), ['1', '2'])
 
+    def test_sort_range_offset_range_and_desc(self):
+        self.redis.rpush('foo', '2')
+        self.redis.rpush('foo', '1')
+        self.redis.rpush('foo', '4')
+        self.redis.rpush('foo', '3')
+
+        self.assertEqual(self.redis.sort("foo", start=0, num=1, desc=True), ["4"])
+
     def test_sort_range_offset_norange(self):
         with self.assertRaises(redis.RedisError):
             self.redis.sort('foo', start=1)
