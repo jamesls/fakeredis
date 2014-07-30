@@ -355,6 +355,8 @@ class FakeStrictRedis(object):
         for name in names:
             try:
                 del self._db[name]
+                if name in self._db._ex_keys:
+                    del self._db._ex_keys[name]
                 deleted += 1
             except KeyError:
                 continue
