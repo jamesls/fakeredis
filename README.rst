@@ -77,7 +77,6 @@ string
 
  * incrbyfloat
  * bitop
- * psetex
 
 
 generic
@@ -86,7 +85,6 @@ generic
  * restore
  * dump
  * pexpireat
- * pttl
  * pexpire
  * migrate
  * object
@@ -101,13 +99,13 @@ server
  * slowlog
  * sync
  * shutdown
+ * debug segfault
  * monitor
  * client kill
  * config resetstat
  * time
  * config get
  * save
- * debug segfault
  * bgsave
  * bgrewriteaof
  * slaveof
