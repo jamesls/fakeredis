@@ -12,7 +12,7 @@ from redis.exceptions import ResponseError
 import redis.client
 
 
-__version__ = '0.4.2'
+__version__ = '0.4.3'
 DATABASES = {}
 
 _libc = CDLL(find_library('c'))
