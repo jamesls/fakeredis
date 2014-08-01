@@ -270,6 +270,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.delete('foo'), True)
         self.assertEqual(self.redis.get('foo'), None)
 
+    @attr('slow')
+    def test_delete_expire(self):
+        self.redis.set("foo", "bar", ex=1)
+        self.redis.delete("foo")
+        self.redis.set("foo", "bar")
+        sleep(2)
+        self.assertEqual(self.redis.get("foo"), 'bar')
+
     def test_delete_multiple(self):
         self.redis['one'] = 'one'
         self.redis['two'] = 'two'
