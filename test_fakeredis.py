@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 from time import sleep, time
 from redis.exceptions import ResponseError
-import unittest2 as unittest
 import inspect
 from functools import wraps
 import sys
@@ -18,6 +17,11 @@ PY2 = sys.version_info[0] == 2
 
 if not PY2:
     long = int
+
+if sys.version_info[:2] == (2, 6):
+    import unittest2 as unittest
+else:
+    import unittest
 
 
 def redis_must_be_running(cls):
