@@ -9,6 +9,14 @@ from datetime import datetime, timedelta
 import operator
 import sys
 
+import redis
+from redis.exceptions import ResponseError
+import redis.client
+
+
+__version__ = '0.4.3'
+
+
 if sys.version_info[0] == 2:
     text_type = unicode
     string_types = (str, unicode)
@@ -67,12 +75,7 @@ else:
     iteritems = lambda d: iter(d.items())
     from urllib.parse import urlparse
 
-import redis
-from redis.exceptions import ResponseError
-import redis.client
 
-
-__version__ = '0.4.3'
 DATABASES = {}
 
 _libc = CDLL(find_library('c'))
