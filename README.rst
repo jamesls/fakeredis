@@ -4,6 +4,15 @@ fakeredis: A fake version of a redis-py
 .. image:: https://secure.travis-ci.org/jamesls/fakeredis.png?branch=master
    :target: http://travis-ci.org/jamesls/fakeredis
 
+.. image:: https://pypip.in/version/fakeredis/badge.svg
+   :target: https://pypi.python.org/pypi/fakeredis
+
+.. image:: https://pypip.in/py_versions/fakeredis/badge.svg
+    :target: https://pypi.python.org/pypi/fakeredis/
+
+.. image:: https://pypip.in/license/fakeredis/badge.svg
+    :target: https://pypi.python.org/pypi/fakeredis/
+
 .. image:: https://coveralls.io/repos/jamesls/fakeredis/badge.png?branch=master
    :target: https://coveralls.io/r/jamesls/fakeredis
 
