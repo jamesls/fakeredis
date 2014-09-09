@@ -1040,6 +1040,8 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.zrangebyscore('foo', 2, 'three')
         with self.assertRaises(redis.ResponseError):
             self.redis.zrangebyscore('foo', 2, '3)')
+        with self.assertRaises(redis.RedisError):
+            self.redis.zrangebyscore('foo', 2, '3)', 0, None)
 
     def test_zrangebyscore_slice(self):
         self.redis.zadd('foo', two_a=2)
@@ -1752,6 +1754,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.expireat('foo', datetime.now() + timedelta(seconds=1))
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expireat('bar', datetime.now()), False)
 
     @attr('slow')
     def test_expireat_should_expire_key_by_timestamp(self):
@@ -1835,6 +1838,12 @@ class TestInitArgs(unittest.TestCase):
         self.assertEqual(db.get('foo'), b'foo0')
         self.assertEqual(db1.get('foo'), b'foo1')
         self.assertEqual(db2.get('foo'), b'foo2')
+
+    def test_from_url_db_value_error(self):
+        # In ValueError, should default to 0
+        db = fakeredis.FakeStrictRedis.from_url(
+           'redis://username:password@localhost:6379/a')
+        self.assertEqual(db._db_num, 0)
 
 
 if __name__ == '__main__':
