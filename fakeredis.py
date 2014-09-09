@@ -8,6 +8,7 @@ from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
 import sys
+import re
 
 import redis
 from redis.exceptions import ResponseError
@@ -842,8 +843,29 @@ class FakeStrictRedis(object):
 
     def _get_zelement_range(self, min, max):
         # This will also handle the case when
-        # min/max are '-inf', '+inf'
-        return float(min), float(max)
+        # min/max are '-inf', '+inf' or strings 
+        # representing exclusive cases, like '(10.1'
+        exclusive_min = False
+        exclusive_max = False
+        try:
+            return_min = float(min)
+        except ValueError:
+            # May be an exlusive query
+            try:
+                return_min = float(re.match('\(([\d\.\d]+)', min).group(1))
+                exclusive_min = True
+            except Exception:
+                raise redis.ResponseError("min or max is not a float")
+        try:
+            return_max = float(max)
+        except ValueError:
+            # May be an exlusive query
+            try:
+                return_max = float(re.match('\(([\d\.\d]+)', max).group(1))
+                exclusive_max = True
+            except Exception:
+                raise redis.ResponseError("min or max is not a float")
+        return return_min, return_max, exclusive_min, exclusive_max
 
     def zadd(self, name, *args, **kwargs):
         """
@@ -883,11 +905,25 @@ class FakeStrictRedis(object):
 
     def zcount(self, name, min, max):
         found = 0
-        min, max = self._get_zelement_range(min, max)
-        for score in self._db.get(name, {}).values():
-            if min <= score <= max:
-                found += 1
+        min, max, exclusive_min, exclusive_max = self._get_zelement_range(min, max)
+        if exclusive_min and exclusive_max:
+            for score in self._db.get(name, {}).values():
+                if min < score < max:
+                    found += 1
+        elif exclusive_min and not exclusive_max:
+            for score in self._db.get(name, {}).values():
+                if min < score <= max:
+                    found += 1
+        elif not exclusive_min and exclusive_max:
+            for score in self._db.get(name, {}).values():
+                if min <= score < max:
+                    found += 1
+        else:      
+            for score in self._db.get(name, {}).values():
+                if min <= score <= max:
+                    found += 1
         return found
+
 
     def zincrby(self, name, value, amount=1):
         "Increment the score of ``value`` in sorted set ``name`` by ``amount``"
@@ -970,11 +1006,24 @@ class FakeStrictRedis(object):
                                    "be specified")
         all_items = self._db.get(name, {})
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
-        min, max = self._get_zelement_range(min, max)
+        min, max, exclusive_min, exclusive_max = self._get_zelement_range(min, max)
         matches = []
-        for item in in_order:
-            if min <= all_items[item] <= max:
-                matches.append(item)
+        if exclusive_min and exclusive_max:
+            for item in in_order:
+                if min < all_items[item] < max:
+                    matches.append(item)
+        elif exclusive_min and not exclusive_max:
+            for item in in_order:
+                if min < all_items[item] <= max:
+                    matches.append(item)
+        elif not exclusive_min and exclusive_max:
+            for item in in_order:
+                if min <= all_items[item] < max:
+                    matches.append(item)
+        else:
+            for item in in_order:
+                if min <= all_items[item] <= max:
+                    matches.append(item)        
         if start is not None:
             matches = matches[start:start + num]
         if withscores:
@@ -1028,12 +1077,28 @@ class FakeStrictRedis(object):
         between ``min`` and ``max``. Returns the number of elements removed.
         """
         all_items = self._db.get(name, {})
-        min, max = self._get_zelement_range(min, max)
+        min, max, exclusive_min, exclusive_max = self._get_zelement_range(min, max)
         removed = 0
-        for key in all_items.copy():
-            if min <= all_items[key] <= max:
-                del all_items[key]
-                removed += 1
+        if exclusive_min and exclusive_max:
+            for key in all_items.copy():
+                if min < all_items[key] < max:
+                    del all_items[key]
+                    removed += 1
+        elif exclusive_min and not exclusive_max:
+            for key in all_items.copy():
+                if min < all_items[key] <= max:
+                    del all_items[key]
+                    removed += 1
+        elif not exclusive_min and exclusive_max:
+            for key in all_items.copy():
+                if min <= all_items[key] < max:
+                    del all_items[key]
+                    removed += 1    
+        else:
+            for key in all_items.copy():
+                if min <= all_items[key] <= max:
+                    del all_items[key]
+                    removed += 1      
         return removed
 
     def zrevrange(self, name, start, num, withscores=False):
