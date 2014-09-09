@@ -850,6 +850,9 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.zadd('foo', 'two', 2)
         with self.assertRaises(redis.ResponseError):
             self.redis.zadd('foo', two='two')
+        # It's expected an equal number of values and scores
+        with self.assertRaises(redis.RedisError):
+            self.redis.zadd('foo', 'two')
 
     def test_zadd_multiple(self):
         self.redis.zadd('foo', 1, 'one', 2, 'two')
@@ -895,6 +898,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zcount('foo', '(5', '+inf'), 0)
         self.assertEqual(self.redis.zcount('foo', '(1', 5), 2)
         self.assertEqual(self.redis.zcount('foo', '(2', '(5'), 0)
+        self.assertEqual(self.redis.zcount('foo', '(1', '(5'), 1)
         self.assertEqual(self.redis.zcount('foo', 2, '(5'), 1)
 
     def test_zincrby(self):
