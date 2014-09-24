@@ -8,6 +8,7 @@ from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
 import sys
+import re
 
 import redis
 from redis.exceptions import ResponseError
@@ -840,10 +841,39 @@ class FakeStrictRedis(object):
         self._db[dest] = union
         return len(union)
 
-    def _get_zelement_range(self, min, max):
+    def _get_zelement_range_filter_func(self, min_val, max_val):
+        # This will return a filter function based on the
+        # min and max values.  It takes a single argument
+        # and return True if it matches the range filter
+        # criteria, and False otherwise.
+
         # This will also handle the case when
-        # min/max are '-inf', '+inf'
-        return float(min), float(max)
+        # min/max are '-inf', '+inf'.
+        # It needs to handle exclusive intervals
+        # where the min/max value is something like
+        # '(0'
+        #     a             <    x        <           b
+        #     ^             ^             ^           ^
+        # actual_min   left_comp     right_comp  actual_max
+        left_comparator, actual_min = self._get_comparator_and_val(min_val)
+        right_comparator, actual_max = self._get_comparator_and_val(max_val)
+
+        def _matches(x):
+            return (left_comparator(actual_min, x) and
+                    right_comparator(x, actual_max))
+        return _matches
+
+    def _get_comparator_and_val(self, value):
+        try:
+            if isinstance(value, string_types) and value.startswith('('):
+                comparator = operator.lt
+                actual_value = float(value[1:])
+            else:
+                comparator = operator.le
+                actual_value = float(value)
+        except ValueError:
+            raise redis.ResponseError('min or max is not a float')
+        return comparator, actual_value
 
     def zadd(self, name, *args, **kwargs):
         """
@@ -883,9 +913,9 @@ class FakeStrictRedis(object):
 
     def zcount(self, name, min, max):
         found = 0
-        min, max = self._get_zelement_range(min, max)
+        filter_func = self._get_zelement_range_filter_func(min, max)
         for score in self._db.get(name, {}).values():
-            if min <= score <= max:
+            if filter_func(score):
                 found += 1
         return found
 
@@ -970,10 +1000,10 @@ class FakeStrictRedis(object):
                                    "be specified")
         all_items = self._db.get(name, {})
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
-        min, max = self._get_zelement_range(min, max)
+        filter_func = self._get_zelement_range_filter_func(min, max)
         matches = []
         for item in in_order:
-            if min <= all_items[item] <= max:
+            if filter_func(all_items[item]):
                 matches.append(item)
         if start is not None:
             matches = matches[start:start + num]
@@ -1028,13 +1058,14 @@ class FakeStrictRedis(object):
         between ``min`` and ``max``. Returns the number of elements removed.
         """
         all_items = self._db.get(name, {})
-        min, max = self._get_zelement_range(min, max)
+        filter_func = self._get_zelement_range_filter_func(min, max)
         removed = 0
         for key in all_items.copy():
-            if min <= all_items[key] <= max:
+            if filter_func(all_items[key]):
                 del all_items[key]
                 removed += 1
         return removed
+
 
     def zrevrange(self, name, start, num, withscores=False):
         """

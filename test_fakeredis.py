@@ -850,6 +850,9 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.zadd('foo', 'two', 2)
         with self.assertRaises(redis.ResponseError):
             self.redis.zadd('foo', two='two')
+        # It's expected an equal number of values and scores
+        with self.assertRaises(redis.RedisError):
+            self.redis.zadd('foo', 'two')
 
     def test_zadd_multiple(self):
         self.redis.zadd('foo', 1, 'one', 2, 'two')
@@ -885,6 +888,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zcount('foo', 4, '+inf'), 1)
         self.assertEqual(self.redis.zcount('foo', '-inf', 4), 2)
         self.assertEqual(self.redis.zcount('foo', '-inf', '+inf'), 3)
+
+    def test_zcount_exclusive(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', three=2)
+        self.redis.zadd('foo', five=5)
+        self.assertEqual(self.redis.zcount('foo', '-inf', '(2'), 1)
+        self.assertEqual(self.redis.zcount('foo', '-inf', 2), 2)
+        self.assertEqual(self.redis.zcount('foo', '(5', '+inf'), 0)
+        self.assertEqual(self.redis.zcount('foo', '(1', 5), 2)
+        self.assertEqual(self.redis.zcount('foo', '(2', '(5'), 0)
+        self.assertEqual(self.redis.zcount('foo', '(1', '(5'), 1)
+        self.assertEqual(self.redis.zcount('foo', 2, '(5'), 1)
 
     def test_zincrby(self):
         self.redis.zadd('foo', one=1)
@@ -982,7 +997,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrevrange('foo', 0, -1),
                          [b'three', b'two_b', b'two', b'one'])
 
-
     def test_zrangebyscore(self):
         self.redis.zadd('foo', zero=0)
         self.redis.zadd('foo', two=2)
@@ -1003,6 +1017,31 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrangebyscore('foo', '-inf', '+inf'),
                          [b'zero', b'two', b'two_a_also', b'two_b_also',
                           b'four'])
+
+    def test_zrangebysore_exclusive(self):
+        self.redis.zadd('foo', zero=0)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', four=4)
+        self.redis.zadd('foo', five=5)
+        self.assertEqual(self.redis.zrangebyscore('foo', '(0', 6),
+                         [b'two', b'four', b'five'])
+        self.assertEqual(self.redis.zrangebyscore('foo', '(2', '(5'),
+                         [b'four'])
+        self.assertEqual(self.redis.zrangebyscore('foo', 0, '(4'),
+                         [b'zero', b'two'])
+
+    def test_zrangebyscore_raises_error(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebyscore('foo', 'one', 2)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebyscore('foo', 2, 'three')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebyscore('foo', 2, '3)')
+        with self.assertRaises(redis.RedisError):
+            self.redis.zrangebyscore('foo', 2, '3)', 0, None)
 
     def test_zrangebyscore_slice(self):
         self.redis.zadd('foo', two_a=2)
@@ -1033,6 +1072,36 @@ class TestFakeStrictRedis(unittest.TestCase):
                          [b'three'])
         self.assertEqual(self.redis.zrevrangebyscore('foo', 3, 1, 1, 2),
                          [b'two', b'one'])
+
+    def test_zrevrangebyscore_exclusive(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrevrangebyscore('foo', '(3', 1),
+                         [b'two', b'one'])
+        self.assertEqual(self.redis.zrevrangebyscore('foo', 3, '(2'),
+                         [b'three'])
+        self.assertEqual(self.redis.zrevrangebyscore('foo', '(3', '(1'),
+                         [b'two'])
+        self.assertEqual(self.redis.zrevrangebyscore('foo', '(2', 1, 0, 1),
+                         [b'one'])
+        self.assertEqual(self.redis.zrevrangebyscore('foo', '(2', '(1', 0, 1),
+                         [])
+        self.assertEqual(self.redis.zrevrangebyscore('foo', '(3', '(0', 1, 2),
+                         [b'one'])
+
+    def test_zrevrangebyscore_raises_error(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebyscore('foo', 'three', 1)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebyscore('foo', 3, 'one')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebyscore('foo', 3, '1)')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebyscore('foo', '((3', '1)')
 
     def test_zremrangebyrank(self):
         self.redis.zadd('foo', one=1)
@@ -1067,6 +1136,36 @@ class TestFakeStrictRedis(unittest.TestCase):
         # Entire range.
         self.assertEqual(self.redis.zremrangebyscore('foo', 0, 4), 2)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [])
+
+    def test_zremrangebyscore_exclusive(self):
+        self.redis.zadd('foo', zero=0)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', four=4)
+        self.assertEqual(self.redis.zremrangebyscore('foo', '(0', 1), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1),
+                         [b'zero', b'two', b'four'])
+        self.assertEqual(self.redis.zremrangebyscore('foo', '-inf', '(0'), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), 
+                         [b'zero', b'two', b'four'])
+        self.assertEqual(self.redis.zremrangebyscore('foo', '(2', 5), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'zero', b'two'])
+        self.assertEqual(self.redis.zremrangebyscore('foo', 0, '(2'), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'two'])
+        self.assertEqual(self.redis.zremrangebyscore('foo', '(1', '(3'), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [])
+
+    def test_zremrangebyscore_raises_error(self):
+        self.redis.zadd('foo', zero=0)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', four=4)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebyscore('foo', 'three', 1)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebyscore('foo', 3, 'one')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebyscore('foo', 3, '1)')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebyscore('foo', '((3', '1)')
 
     def test_zremrangebyscore_badkey(self):
         self.assertEqual(self.redis.zremrangebyscore('foo', 0, 2), 0)
@@ -1655,6 +1754,7 @@ class TestFakeRedis(unittest.TestCase):
         self.redis.expireat('foo', datetime.now() + timedelta(seconds=1))
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expireat('bar', datetime.now()), False)
 
     @attr('slow')
     def test_expireat_should_expire_key_by_timestamp(self):
@@ -1738,6 +1838,12 @@ class TestInitArgs(unittest.TestCase):
         self.assertEqual(db.get('foo'), b'foo0')
         self.assertEqual(db1.get('foo'), b'foo1')
         self.assertEqual(db2.get('foo'), b'foo2')
+
+    def test_from_url_db_value_error(self):
+        # In ValueError, should default to 0
+        db = fakeredis.FakeStrictRedis.from_url(
+           'redis://username:password@localhost:6379/a')
+        self.assertEqual(db._db_num, 0)
 
 
 if __name__ == '__main__':
