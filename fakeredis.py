@@ -312,6 +312,9 @@ class FakeStrictRedis(object):
         else:
             return self.rename(src, dst)
 
+    def scan(self, cursor=0, pattern=None, count=None):
+        return 0, self.keys(pattern)
+
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) \
         or (nx and self._db.get(name, None) is None) \
