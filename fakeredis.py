@@ -313,7 +313,16 @@ class FakeStrictRedis(object):
             return self.rename(src, dst)
 
     def scan(self, cursor=0, match=None, count=None):
-        return 0, self.keys(match)
+        if count is None:
+            count = 10
+        match_keys = [key for key in self._db
+                if not key or not match or
+                fnmatch.fnmatch(to_native(key), to_native(match))]
+        keys = match_keys[cursor:cursor+count]
+        if cursor + count >= len(match_keys):
+            return 0, keys
+        else:
+            return cursor+count, keys
 
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) \
