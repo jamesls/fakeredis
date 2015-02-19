@@ -685,6 +685,31 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hincrby('foo', 'counter', 2), 4)
         self.assertEqual(self.redis.hincrby('foo', 'counter', 2), 6)
 
+    def test_hincrbyfloat(self):
+        self.redis.hset('foo', 'counter', 0.0)
+        self.assertEqual(self.redis.hincrbyfloat('foo', 'counter'), 1.0)
+        self.assertEqual(self.redis.hincrbyfloat('foo', 'counter'), 2.0)
+        self.assertEqual(self.redis.hincrbyfloat('foo', 'counter'), 3.0)
+
+    def test_hincrbyfloat_with_no_starting_value(self):
+        self.assertEqual(self.redis.hincrbyfloat('foo', 'counter'), 1.0)
+        self.assertEqual(self.redis.hincrbyfloat('foo', 'counter'), 2.0)
+        self.assertEqual(self.redis.hincrbyfloat('foo', 'counter'), 3.0)
+
+    def test_hincrbyfloat_with_range_param(self):
+        self.assertAlmostEqual(self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.1)
+        self.assertAlmostEqual(self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.2)
+        self.assertAlmostEqual(self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.3)
+
+    def test_hincrbyfloat_on_non_float_value_raises_error(self):
+        self.redis.hset('foo', 'counter', 'cat')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hincrbyfloat('foo', 'counter')
+
+    def test_hincrbyfloat_with_non_float_amount_raises_error(self):
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hincrbyfloat('foo', 'counter', 'cat')
+
     def test_hsetnx(self):
         self.assertEqual(self.redis.hsetnx('foo', 'newkey', 'v1'), True)
         self.assertEqual(self.redis.hsetnx('foo', 'newkey', 'v1'), False)
