@@ -75,12 +75,6 @@ All of the redis commands are implemented in fakeredis with
 these exceptions:
 
 
-hash
-----
-
- * hincrbyfloat
-
-
 string
 ------
 
