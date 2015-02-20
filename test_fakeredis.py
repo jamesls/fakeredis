@@ -79,6 +79,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.set('2', 'bar'), True)
         self.assertEqual(self.redis.get(2), b'bar')
 
+    def test_get_invalid_type(self):
+        self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.get('foo')
+
     def test_set_non_str_keys(self):
         self.assertEqual(self.redis.set(2, 'bar'), True)
         self.assertEqual(self.redis.get(2), b'bar')
