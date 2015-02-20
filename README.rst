@@ -75,11 +75,24 @@ All of the redis commands are implemented in fakeredis with
 these exceptions:
 
 
-string
-------
+set
+---
 
- * incrbyfloat
- * bitop
+ * sscan
+
+
+hash
+----
+
+ * hscan
+
+
+hyperloglog
+-----------
+
+ * pfcount
+ * pfadd
+ * pfmerge
 
 
 generic
@@ -87,6 +100,7 @@ generic
 
  * restore
  * dump
+ * scan
  * pexpireat
  * pexpire
  * migrate
@@ -96,25 +110,45 @@ generic
 server
 ------
 
- * debug object
  * client list
  * lastsave
  * slowlog
- * sync
+ * debug object
  * shutdown
  * debug segfault
+ * command count
  * monitor
  * client kill
+ * cluster slots
+ * role
  * config resetstat
  * time
  * config get
+ * config set
  * save
- * bgsave
+ * client setname
+ * command getkeys
+ * config rewrite
+ * sync
+ * client getname
  * bgrewriteaof
  * slaveof
  * info
- * config set
+ * client pause
+ * bgsave
+ * command
  * dbsize
+ * command info
+
+
+sorted_set
+----------
+
+ * zrangebylex
+ * zscan
+ * zrevrangebylex
+ * zremrangebylex
+ * zlexcount
 
 
 connection
@@ -137,12 +171,21 @@ scripting
  * script exists
 
 
+string
+------
+
+ * incrbyfloat
+ * bitop
+ * bitpos
+
+
 pubsub
 ------
 
  * punsubscribe
  * subscribe
  * publish
+ * pubsub
  * psubscribe
  * unsubscribe
 
