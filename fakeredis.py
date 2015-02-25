@@ -322,7 +322,7 @@ class FakeStrictRedis(object):
         if cursor + count >= len(match_keys):
             return 0, keys
         else:
-            return cursor+count, keys
+            return cursor + count, keys
 
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) \
