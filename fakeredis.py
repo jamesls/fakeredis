@@ -204,16 +204,18 @@ class FakeStrictRedis(object):
             time = int(timedelta_total_seconds(time))
         if self.exists(name):
             self._db.expire(name, datetime.now() + timedelta(seconds=time))
+            return True
         else:
             return False
 
     def expireat(self, name, when):
-        if not self.exists(name):
-            return False
-        if isinstance(when, datetime):
+        if not isinstance(when, datetime):
+            when = datetime.fromtimestamp(when)
+        if self.exists(name):
             self._db.expire(name, when)
+            return True
         else:
-            self._db.expire(name, datetime.fromtimestamp(when))
+            return False
 
     def get(self, name):
         value = self._db.get(name)
