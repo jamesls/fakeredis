@@ -1768,6 +1768,15 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expire('bar', 1), False)
 
+    def test_expire_should_return_true_for_existing_key(self):
+        self.redis.set('foo', 'bar')
+        rv = self.redis.expire('foo', 1)
+        self.assertIs(rv, True)
+
+    def test_expire_should_return_false_for_missing_key(self):
+        rv = self.redis.expire('missing', 1)
+        self.assertIs(rv, False)
+
     @attr('slow')
     def test_expire_should_expire_key_using_timedelta(self):
         self.redis.set('foo', 'bar')
@@ -1794,6 +1803,15 @@ class TestFakeRedis(unittest.TestCase):
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expire('bar', 1), False)
+
+    def test_expireat_should_return_true_for_existing_key(self):
+        self.redis.set('foo', 'bar')
+        rv = self.redis.expireat('foo', int(time() + 1))
+        self.assertIs(rv, True)
+
+    def test_expireat_should_return_false_for_missing_key(self):
+        rv = self.redis.expireat('missing', int(time() + 1))
+        self.assertIs(rv, False)
 
     def test_ttl_should_return_none_for_non_expiring_key(self):
         self.redis.set('foo', 'bar')
