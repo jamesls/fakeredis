@@ -317,6 +317,27 @@ class FakeStrictRedis(object):
         else:
             return self.rename(src, dst)
 
+    def scan(self, cursor=0, match=None, count=None):
+        cursor = int(cursor)
+        if count is None:
+            count = 10
+        match_keys = [key for key in self._db \
+            if not key or not match or \
+            fnmatch.fnmatch(to_native(key), to_native(match))]
+        keys = match_keys[cursor:cursor+count]
+        if cursor + count >= len(match_keys):
+            return 0, keys
+        else:
+            return cursor + count, keys[cursor:cursor+count]
+
+    def scan_iter(self, match=None, count=None):
+        # This is from redis-py
+        cursor = '0'
+        while cursor != 0:
+            cursor, data = self.scan(cursor=cursor, match=match, count=count)
+            for item in data:
+                yield item
+
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) \
         or (nx and self._db.get(name, None) is None) \
