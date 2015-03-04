@@ -752,6 +752,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo1', 'bar1')
         self.assertEqual(self.redis.scan(match="foo*"), (0, [b'foo1']))
 
+    def test_scan_iter(self):
+        self.redis.set('foo1', 'bar1')
+        self.redis.set('foo2', 'bar2')
+        self.assertEqual(set(self.redis.scan_iter(match="foo*")), set([b'foo1',b'foo2']))
+
     def test_scard(self):
         self.redis.sadd('foo', 'member1')
         self.redis.sadd('foo', 'member2')
