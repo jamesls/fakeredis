@@ -748,14 +748,49 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.sadd('foo', *range(3)), 3)
         self.assertEqual(self.redis.smembers('foo'), set([b'0', b'1', b'2']))
 
-    def test_scan(self):
+    def test_scan_single(self):
         self.redis.set('foo1', 'bar1')
         self.assertEqual(self.redis.scan(match="foo*"), (0, [b'foo1']))
 
-    def test_scan_iter(self):
+    def test_scan_iter_single_page(self):
         self.redis.set('foo1', 'bar1')
         self.redis.set('foo2', 'bar2')
         self.assertEqual(set(self.redis.scan_iter(match="foo*")), set([b'foo1',b'foo2']))
+
+    def test_scan_iter_multiple_pages(self):
+        all_keys = dict([('key:%s' % i, str(i)) for i in range(100)])
+        self.assertTrue(
+            all(self.redis.set(k, v) for k, v in all_keys.items()))
+        self.assertEqual(
+            set(self.redis.scan_iter()),
+            set(all_keys))
+
+    def test_scan_iter_multiple_pages_with_match(self):
+        all_keys = dict([('key:%s' % i, str(i)) for i in range(100)])
+        self.assertTrue(
+            all(self.redis.set(k, v) for k, v in all_keys.items()))
+        # Now add a few keys that don't match the key:<number> pattern.
+        self.redis.set('otherkey', 'foo')
+        self.redis.set('andanother', 'bar')
+        actual = set(self.redis.scan_iter(match='key:*'))
+        self.assertEqual(actual, set(all_keys))
+
+    def test_scan_multiple_pages_with_count_arg(self):
+        all_keys = dict([('key:%s' % i, str(i)) for i in range(100)])
+        self.assertTrue(
+            all(self.redis.set(k, v) for k, v in all_keys.items()))
+        self.assertEqual(
+            set(self.redis.scan_iter(count=1000)),
+            set(all_keys))
+
+    def test_scan_all_in_single_call(self):
+        all_keys = dict([('key:%s' % i, str(i)) for i in range(100)])
+        self.assertTrue(
+            all(self.redis.set(k, v) for k, v in all_keys.items()))
+        # Specify way more than the 100 keys we've added.
+        actual = self.redis.scan(count=1000)
+        self.assertEqual(set(actual[1]), set(all_keys))
+        self.assertEqual(actual[0], 0)
 
     def test_scard(self):
         self.redis.sadd('foo', 'member1')
