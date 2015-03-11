@@ -100,7 +100,6 @@ generic
 
  * restore
  * dump
- * scan
  * pexpireat
  * pexpire
  * migrate
