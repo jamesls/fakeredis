@@ -47,6 +47,11 @@ def redis_must_be_running(cls):
     return cls
 
 
+def key_val_dict(size=100):
+    return dict([(b'key:' + bytes([i]), b'val:' + bytes([i]))
+                 for i in range(size)])
+
+
 class TestFakeStrictRedis(unittest.TestCase):
     def setUp(self):
         self.redis = self.create_redis()
@@ -771,7 +776,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(set(self.redis.scan_iter(match="foo*")), set([b'foo1',b'foo2']))
 
     def test_scan_iter_multiple_pages(self):
-        all_keys = dict([('key:%s' % i, str(i)) for i in range(100)])
+        all_keys = key_val_dict(size=100)
         self.assertTrue(
             all(self.redis.set(k, v) for k, v in all_keys.items()))
         self.assertEqual(
@@ -779,7 +784,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             set(all_keys))
 
     def test_scan_iter_multiple_pages_with_match(self):
-        all_keys = dict([('key:%s' % i, str(i)) for i in range(100)])
+        all_keys = key_val_dict(size=100)
         self.assertTrue(
             all(self.redis.set(k, v) for k, v in all_keys.items()))
         # Now add a few keys that don't match the key:<number> pattern.
@@ -789,7 +794,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(actual, set(all_keys))
 
     def test_scan_multiple_pages_with_count_arg(self):
-        all_keys = dict([('key:%s' % i, str(i)) for i in range(100)])
+        all_keys = key_val_dict(size=100)
         self.assertTrue(
             all(self.redis.set(k, v) for k, v in all_keys.items()))
         self.assertEqual(
@@ -797,7 +802,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             set(all_keys))
 
     def test_scan_all_in_single_call(self):
-        all_keys = dict([('key:%s' % i, str(i)) for i in range(100)])
+        all_keys = key_val_dict(size=100)
         self.assertTrue(
             all(self.redis.set(k, v) for k, v in all_keys.items()))
         # Specify way more than the 100 keys we've added.
