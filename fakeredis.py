@@ -270,6 +270,9 @@ class FakeStrictRedis(object):
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
         found = []
+        if not all_keys:
+            raise redis.ResponseError(
+                "wrong number of arguments for 'mget' command")
         for key in all_keys:
             found.append(self._db.get(key))
         return found
