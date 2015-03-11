@@ -277,8 +277,12 @@ class FakeStrictRedis(object):
             found.append(self._db.get(key))
         return found
 
-    def mset(self, mapping):
-        for key, val in iteritems(mapping):
+    def mset(self, *args, **kwargs):
+        if args:
+            if len(args) != 1 or not isinstance(args[0], dict):
+                raise RedisError('MSET requires **kwargs or a single dict arg')
+            kwargs.update(args[0])
+        for key, val in iteritems(kwargs):
             self.set(key, val)
         return True
 

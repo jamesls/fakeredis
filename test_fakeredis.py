@@ -267,6 +267,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.mset({'foo': 'one', 'bar': 'two'}), True)
         self.assertEqual(self.redis.mget('foo', 'bar'), [b'one', b'two'])
 
+    def test_mset_accepts_kwargs(self):
+        self.assertEqual(
+            self.redis.mset(foo='one', bar='two'), True)
+        self.assertEqual(
+            self.redis.mset(foo='one', baz='three'), True)
+        self.assertEqual(self.redis.mget('foo', 'bar', 'baz'),
+                         [b'one', b'two', b'three'])
+
     def test_msetnx(self):
         self.assertEqual(self.redis.msetnx({'foo': 'one', 'bar': 'two'}),
                          True)
