@@ -774,9 +774,10 @@ class FakeStrictRedis(object):
         """
         if not mapping:
             raise redis.DataError("'hmset' with 'mapping' of length 0")
+        new_mapping = {}
         for k, v in mapping.items():
-          mapping[k] = to_bytes(v)
-        self._db.setdefault(name, _StrKeyDict()).update(mapping)
+          new_mapping[k] = to_bytes(v)
+        self._db.setdefault(name, _StrKeyDict()).update(new_mapping)
         return True
 
     def hmget(self, name, keys, *args):

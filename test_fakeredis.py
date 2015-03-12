@@ -751,6 +751,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.hmset('foo', {'k1': True, 'k2': 1})
         self.assertEqual(self.redis.hgetall('foo'), {b'k1': b'True', b'k2': b'1'})
 
+    def test_hmset_does_not_mutate_input_params(self):
+        original = {'key': [123, 456]}
+        self.redis.hmset('foo', original)
+        self.assertEqual(original, {'key': [123, 456]})
+
     def test_sadd(self):
         self.assertEqual(self.redis.sadd('foo', 'member1'), 1)
         self.assertEqual(self.redis.sadd('foo', 'member1'), 0)
