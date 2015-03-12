@@ -15,7 +15,7 @@ from redis.exceptions import ResponseError
 import redis.client
 
 
-__version__ = '0.6.0'
+__version__ = '0.6.1'
 
 
 if sys.version_info[0] == 2:
