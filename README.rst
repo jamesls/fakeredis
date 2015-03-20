@@ -30,7 +30,9 @@ How to Use
 
 The intent is for fakeredis to act as though you're talking to a real
 redis server.  It does this by storing state in the fakeredis module.
-For example::
+For example:
+
+.. code-block:: python
 
   >>> import fakeredis
   >>> r = fakeredis.FakeStrictRedis()
@@ -46,7 +48,9 @@ For example::
   [2, 1]
 
 By storing state in the fakeredis module, instances can share
-data::
+data:
+
+.. code-block:: python
 
   >>> import fakeredis
   >>> r1 = fakeredis.FakeStrictRedis()
