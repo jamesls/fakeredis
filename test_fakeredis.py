@@ -1703,6 +1703,29 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_ping(self):
         self.assertTrue(self.redis.ping())
 
+    def test_type(self):
+        self.redis.set('string_key', "value")
+        self.redis.lpush("lpush_key", "value")
+        self.redis.sadd("set_key", "value")
+        self.redis.zadd("zset_key", 1, "value")
+        self.redis.hset('hset_key', 'key', 'value')
+
+        self.assertEqual(self.redis.type(
+            self.redis.keys('string_key')[0]), b'string'
+        )
+        self.assertEqual(self.redis.type(
+            self.redis.keys('lpush_key')[0]), b'list'
+        )
+        self.assertEqual(self.redis.type(
+            self.redis.keys('set_key')[0]), b'set'
+        )
+        self.assertEqual(self.redis.type(
+            self.redis.keys('zset_key')[0]), b'zset'
+        )
+        self.assertEqual(self.redis.type(
+            self.redis.keys('hset_key')[0]), b'hash'
+        )
+
 
 class TestFakeRedis(unittest.TestCase):
     def setUp(self):
