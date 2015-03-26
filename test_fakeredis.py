@@ -886,6 +886,14 @@ class TestFakeStrictRedis(unittest.TestCase):
                                            withscores=True),
                          [('three', 3), ('two', 2), ('one', 1)])
 
+    def test_zrange_descending_with_scores_cast_func(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrange('foo', 0, -1, desc=True,
+                                           withscores=True, score_cast_func=str),
+                         [('three', "3.0"), ('two', "2.0"), ('one', "1.0")])
+
     def test_zrange_with_positive_indices(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -997,6 +1005,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zadd('foo', three=3)
         self.assertEqual(self.redis.zrangebyscore('foo', 1, 3, 0, 2, True),
                          [('one', 1), ('two', 2)])
+
+    def test_zrangebyscore_withscores_cast_func(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrangebyscore('foo', 1, 3, 0, 2, True, score_cast_func=str),
+                         [('one', "1.0"), ('two', "2.0")])
 
     def test_zrevrangebyscore(self):
         self.redis.zadd('foo', one=1)
