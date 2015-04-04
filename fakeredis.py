@@ -148,8 +148,10 @@ class _ZSet(_StrKeyDict):
     redis_type = b'zset'
 
 
+
 class _Hash(_StrKeyDict):
     redis_type = b'hash'
+
 
 
 class FakeStrictRedis(object):
@@ -224,6 +226,11 @@ class FakeStrictRedis(object):
             return True
         else:
             return False
+
+    def echo(self, value):
+        if isinstance(value, text_type):
+            return value.encode('utf-8')
+        return value
 
     def get(self, name):
         value = self._db.get(name)
