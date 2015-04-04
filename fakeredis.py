@@ -8,7 +8,6 @@ from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
 import sys
-import re
 
 import redis
 from redis.exceptions import ResponseError
@@ -116,7 +115,7 @@ class _StrKeyDict(MutableMapping):
         self._ex_keys[key] = timestamp
 
     def expiring(self, key):
-        if not key in self._ex_keys:
+        if key not in self._ex_keys:
             return None
         return self._ex_keys[key]
 
@@ -171,7 +170,6 @@ class FakeStrictRedis(object):
         self._db_num = db
         self._encoding = charset
         self._encoding_errors = errors
-
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
@@ -290,7 +288,8 @@ class FakeStrictRedis(object):
     def mset(self, *args, **kwargs):
         if args:
             if len(args) != 1 or not isinstance(args[0], dict):
-                raise RedisError('MSET requires **kwargs or a single dict arg')
+                raise redis.RedisError(
+                    'MSET requires **kwargs or a single dict arg')
             kwargs.update(args[0])
         for key, val in iteritems(kwargs):
             self.set(key, val)
@@ -357,13 +356,13 @@ class FakeStrictRedis(object):
                 yield item
 
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
-        if (not nx and not xx) \
-        or (nx and self._db.get(name, None) is None) \
-        or (xx and not self._db.get(name, None) is None):
+        if (not nx and not xx) or (nx and self._db.get(name, None) is None) \
+                or (xx and not self._db.get(name, None) is None):
             if ex is not None and ex > 0:
                 self._db.expire(name, datetime.now() + timedelta(seconds=ex))
             elif px is not None and px > 0:
-                self._db.expire(name, datetime.now() + timedelta(milliseconds=px))
+                self._db.expire(name, datetime.now() +
+                                timedelta(milliseconds=px))
             self._db[name] = to_bytes(value)
             return True
         else:
@@ -570,6 +569,7 @@ class FakeStrictRedis(object):
 
     def _sort_using_by_arg(self, data, by):
         by = to_bytes(by)
+
         def _by_key(arg):
             key = by.replace(b'*', arg)
             if b'->' in by:
@@ -577,6 +577,7 @@ class FakeStrictRedis(object):
                 return self._db.get(key, {}).get(hash_key)
             else:
                 return self._db.get(key)
+
         data.sort(key=_by_key)
 
     def lpush(self, name, *values):
@@ -745,7 +746,7 @@ class FakeStrictRedis(object):
         return new
 
     def hincrbyfloat(self, name, key, amount=1.0):
-        "Increment the value of ``key`` in hash ``name`` by floating ``amount``"
+        """Increment the value of key in hash name by floating amount"""
         try:
             amount = float(amount)
         except ValueError:
@@ -794,7 +795,7 @@ class FakeStrictRedis(object):
             raise redis.DataError("'hmset' with 'mapping' of length 0")
         new_mapping = {}
         for k, v in mapping.items():
-          new_mapping[k] = to_bytes(v)
+            new_mapping[k] = to_bytes(v)
         self._db.setdefault(name, _Hash()).update(new_mapping)
         return True
 
@@ -1041,7 +1042,8 @@ class FakeStrictRedis(object):
             return [(k, all_items[k]) for k in items]
 
     def _get_zelements_in_order(self, all_items, reverse=False):
-        by_keyname = sorted(all_items.items(), key=lambda x: x[0], reverse=reverse)
+        by_keyname = sorted(
+            all_items.items(), key=lambda x: x[0], reverse=reverse)
         in_order = sorted(by_keyname, key=lambda x: x[1], reverse=reverse)
         return [el[0] for el in in_order]
 
@@ -1132,7 +1134,6 @@ class FakeStrictRedis(object):
                 del all_items[key]
                 removed += 1
         return removed
-
 
     def zrevrange(self, name, start, num, withscores=False):
         """

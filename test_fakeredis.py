@@ -267,6 +267,11 @@ class TestFakeStrictRedis(unittest.TestCase):
                 redis.ResponseError, 'wrong number of arguments'):
             self.redis.mget([])
 
+    def test_mset_with_no_keys_raises_error(self):
+        with self.assertRaisesRegexp(
+                redis.RedisError, 'MSET requires'):
+            self.redis.mset([])
+
     def test_mset(self):
         self.assertEqual(self.redis.mset({'foo': 'one', 'bar': 'two'}), True)
         self.assertEqual(self.redis.mset({'foo': 'one', 'bar': 'two'}), True)
