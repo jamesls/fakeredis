@@ -21,6 +21,7 @@ __version__ = '0.6.1'
 if sys.version_info[0] == 2:
     text_type = unicode
     string_types = (str, unicode)
+    redis_string_types = (str, unicode, bytes)
     byte_to_int = ord
     int_to_byte = chr
 
@@ -47,6 +48,7 @@ if sys.version_info[0] == 2:
 else:
     text_type = str
     string_types = (str,)
+    redis_string_types = (bytes, str)
 
     def byte_to_int(b):
         if isinstance(b, int):
@@ -144,15 +146,11 @@ class _StrKeyDict(MutableMapping):
 
 
 class _ZSet(_StrKeyDict):
-    class Type():
-        __name__ = 'zset'
-    __class__ = Type()
+    redis_type = b'zset'
 
 
 class _Hash(_StrKeyDict):
-    class Type():
-        __name__ = 'hash'
-    __class__ = Type()
+    redis_type = b'hash'
 
 
 class FakeStrictRedis(object):
@@ -455,13 +453,15 @@ class FakeStrictRedis(object):
                           + (exp_time - now).microseconds / 1E6) * multiplier)
 
     def type(self, name):
-        "Returns the type of key ``name``"
-        key = self._db.get(name.decode())
-        type_of_key = key.__class__.__name__
-        # bytes on python3 & str on python2
-        if type_of_key == "bytes" or type_of_key == "str":
-            return b"string"
-        return str.encode(type_of_key)
+        key = self._db.get(name)
+        if hasattr(key.__class__, 'redis_type'):
+            return key.redis_type
+        if isinstance(key, redis_string_types):
+            return b'string'
+        elif isinstance(key, list):
+            return b'list'
+        elif isinstance(key, set):
+            return b'set'
 
     def watch(self, *names):
         pass
