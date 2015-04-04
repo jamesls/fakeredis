@@ -21,6 +21,7 @@ __version__ = '0.6.1'
 if sys.version_info[0] == 2:
     text_type = unicode
     string_types = (str, unicode)
+    redis_string_types = (str, unicode, bytes)
     byte_to_int = ord
     int_to_byte = chr
 
@@ -47,6 +48,7 @@ if sys.version_info[0] == 2:
 else:
     text_type = str
     string_types = (str,)
+    redis_string_types = (bytes, str)
 
     def byte_to_int(b):
         if isinstance(b, int):
@@ -141,6 +143,14 @@ class _StrKeyDict(MutableMapping):
 
     def to_bare_dict(self):
         return copy.deepcopy(self._dict)
+
+
+class _ZSet(_StrKeyDict):
+    redis_type = b'zset'
+
+
+class _Hash(_StrKeyDict):
+    redis_type = b'hash'
 
 
 class FakeStrictRedis(object):
@@ -443,7 +453,15 @@ class FakeStrictRedis(object):
                           + (exp_time - now).microseconds / 1E6) * multiplier)
 
     def type(self, name):
-        pass
+        key = self._db.get(name)
+        if hasattr(key.__class__, 'redis_type'):
+            return key.redis_type
+        if isinstance(key, redis_string_types):
+            return b'string'
+        elif isinstance(key, list):
+            return b'list'
+        elif isinstance(key, set):
+            return b'set'
 
     def watch(self, *names):
         pass
@@ -722,7 +740,7 @@ class FakeStrictRedis(object):
 
     def hincrby(self, name, key, amount=1):
         "Increment the value of ``key`` in hash ``name`` by ``amount``"
-        new = int(self._db.setdefault(name, _StrKeyDict()).get(key, '0')) + amount
+        new = int(self._db.setdefault(name, _Hash()).get(key, '0')) + amount
         self._db[name][key] = new
         return new
 
@@ -733,7 +751,7 @@ class FakeStrictRedis(object):
         except ValueError:
             raise redis.ResponseError("value is not a valid float")
         try:
-            current = float(self._db.setdefault(name, _StrKeyDict()).get(key, '0'))
+            current = float(self._db.setdefault(name, _Hash()).get(key, '0'))
         except ValueError:
             raise redis.ResponseError("hash value is not a valid float")
         new = current + amount
@@ -754,7 +772,7 @@ class FakeStrictRedis(object):
         Returns 1 if HSET created a new field, otherwise 0
         """
         key_is_new = key not in self._db.get(name, {})
-        self._db.setdefault(name, _StrKeyDict())[key] = to_bytes(value)
+        self._db.setdefault(name, _Hash())[key] = to_bytes(value)
         return 1 if key_is_new else 0
 
     def hsetnx(self, name, key, value):
@@ -764,7 +782,7 @@ class FakeStrictRedis(object):
         """
         if key in self._db.get(name, {}):
             return False
-        self._db.setdefault(name, _StrKeyDict())[key] = to_bytes(value)
+        self._db.setdefault(name, _Hash())[key] = to_bytes(value)
         return True
 
     def hmset(self, name, mapping):
@@ -777,7 +795,7 @@ class FakeStrictRedis(object):
         new_mapping = {}
         for k, v in mapping.items():
           new_mapping[k] = to_bytes(v)
-        self._db.setdefault(name, _StrKeyDict()).update(new_mapping)
+        self._db.setdefault(name, _Hash()).update(new_mapping)
         return True
 
     def hmget(self, name, keys, *args):
@@ -938,7 +956,7 @@ class FakeStrictRedis(object):
         if len(args) % 2 != 0:
             raise redis.RedisError("ZADD requires an equal number of "
                                    "values and scores")
-        zset = self._db.setdefault(name, _StrKeyDict())
+        zset = self._db.setdefault(name, _ZSet())
         added = 0
         for score, value in zip(*[args[i::2] for i in range(2)]):
             if value not in zset:
@@ -970,7 +988,7 @@ class FakeStrictRedis(object):
 
     def zincrby(self, name, value, amount=1):
         "Increment the score of ``value`` in sorted set ``name`` by ``amount``"
-        d = self._db.setdefault(name, _StrKeyDict())
+        d = self._db.setdefault(name, _ZSet())
         score = d.get(value, 0) + amount
         d[value] = score
         return score
@@ -1172,7 +1190,7 @@ class FakeStrictRedis(object):
         self._zaggregate(dest, keys, aggregate, lambda x: True)
 
     def _zaggregate(self, dest, keys, aggregate, should_include):
-        new_zset = _StrKeyDict()
+        new_zset = _ZSet()
         if aggregate is None:
             aggregate = 'SUM'
         # This is what the actual redis client uses, so we'll use
@@ -1260,7 +1278,7 @@ class FakeRedis(FakeStrictRedis):
         else:
             value = list(pairs)[0]
             score = list(pairs.values())[0]
-        self._db.setdefault(name, _StrKeyDict())[value] = score
+        self._db.setdefault(name, _ZSet())[value] = score
 
 
 class FakePipeline(object):
