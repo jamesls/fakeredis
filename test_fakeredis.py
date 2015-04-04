@@ -36,9 +36,9 @@ def redis_must_be_running(cls):
     else:
         redis_running = True
     if not redis_running:
-        for name, attr in inspect.getmembers(cls):
+        for name, attribute in inspect.getmembers(cls):
             if name.startswith('test_'):
-                @wraps(attr)
+                @wraps(attribute)
                 def skip_test(*args, **kwargs):
                     raise SkipTest("Redis is not running.")
                 setattr(cls, name, skip_test)
@@ -298,7 +298,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), b'bar')
 
     def test_setex_using_timedelta(self):
-        self.assertEqual(self.redis.setex('foo', timedelta(seconds=100), 'bar'), True)
+        self.assertEqual(
+            self.redis.setex('foo', timedelta(seconds=100), 'bar'), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
     def test_setnx(self):
@@ -337,7 +338,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_delete_nonexistent_key(self):
         self.assertEqual(self.redis.delete('foo'), False)
 
-    ## Tests for the list type.
+    # Tests for the list type.
 
     def test_rpush_then_lrange_with_nested_list1(self):
         self.assertEqual(self.redis.rpush('foo', [long(12345), long(6789)]), 1)
@@ -351,8 +352,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.rpush('foo', [long(12345), 'banana']), 1)
         self.assertEqual(self.redis.rpush('foo', [long(54321), 'elephant']), 2)
         self.assertEqual(self.redis.lrange(
-            'foo', 0, -1), ['[12345L, \'banana\']', '[54321L, \'elephant\']'] if PY2 else
-                           [b'[12345, \'banana\']', b'[54321, \'elephant\']'])
+            'foo', 0, -1),
+            ['[12345L, \'banana\']', '[54321L, \'elephant\']'] if PY2 else
+            [b'[12345, \'banana\']', b'[54321, \'elephant\']'])
         self.redis.flushall()
 
     def test_rpush_then_lrange_with_nested_list3(self):
@@ -619,7 +621,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.brpoplpush('foo', 'bar', timeout=1),
                          None)
 
-    ## Tests for the hash type.
+    # Tests for the hash type.
 
     def test_hset_then_hget(self):
         self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
@@ -725,9 +727,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hincrbyfloat('foo', 'counter'), 3.0)
 
     def test_hincrbyfloat_with_range_param(self):
-        self.assertAlmostEqual(self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.1)
-        self.assertAlmostEqual(self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.2)
-        self.assertAlmostEqual(self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.3)
+        self.assertAlmostEqual(
+            self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.1)
+        self.assertAlmostEqual(
+            self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.2)
+        self.assertAlmostEqual(
+            self.redis.hincrbyfloat('foo', 'counter', 0.1), 0.3)
 
     def test_hincrbyfloat_on_non_float_value_raises_error(self):
         self.redis.hset('foo', 'counter', 'cat')
@@ -754,7 +759,8 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_hmset_convert_values(self):
         self.redis.hmset('foo', {'k1': True, 'k2': 1})
-        self.assertEqual(self.redis.hgetall('foo'), {b'k1': b'True', b'k2': b'1'})
+        self.assertEqual(
+            self.redis.hgetall('foo'), {b'k1': b'True', b'k2': b'1'})
 
     def test_hmset_does_not_mutate_input_params(self):
         original = {'key': [123, 456]}
@@ -783,7 +789,8 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_scan_iter_single_page(self):
         self.redis.set('foo1', 'bar1')
         self.redis.set('foo2', 'bar2')
-        self.assertEqual(set(self.redis.scan_iter(match="foo*")), set([b'foo1',b'foo2']))
+        self.assertEqual(set(self.redis.scan_iter(match="foo*")),
+                         set([b'foo1', b'foo2']))
 
     def test_scan_iter_multiple_pages(self):
         all_keys = key_val_dict(size=100)
@@ -1095,7 +1102,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zadd('foo', two=2)
         self.redis.zadd('foo', 2, 'two_b')
         self.redis.zadd('foo', three=3)
-        self.assertEqual(self.redis.zrevrange('foo', 0, 2), [b'three', b'two_b', b'two'])
+        self.assertEqual(self.redis.zrevrange('foo', 0, 2),
+                         [b'three', b'two_b', b'two'])
         self.assertEqual(self.redis.zrevrange('foo', 0, -1),
                          [b'three', b'two_b', b'two', b'one'])
 
@@ -1429,7 +1437,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', '4')
         self.redis.rpush('foo', '3')
 
-        self.assertEqual(self.redis.sort("foo", start=0, num=1, desc=True), [b"4"])
+        self.assertEqual(self.redis.sort("foo", start=0, num=1, desc=True),
+                         [b"4"])
 
     def test_sort_range_offset_norange(self):
         with self.assertRaises(redis.RedisError):
@@ -1586,7 +1595,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         p.multi()
         p.set('foo', nextf)
 
-        self.assertRaises(redis.WatchError, p.execute)
+        with self.assertRaises(redis.WatchError):
+            p.execute()
 
     def test_pipeline_succeeds_despite_unwatched_key_changed(self):
         # Same setup as before except for the params to the WATCH command.
@@ -1742,7 +1752,8 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), b'bar')
 
     def test_setex_using_timedelta(self):
-        self.assertEqual(self.redis.setex('foo', 'bar', timedelta(seconds=100)), True)
+        self.assertEqual(
+            self.redis.setex('foo', 'bar', timedelta(seconds=100)), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
     def test_lrem_postitive_count(self):
@@ -1832,14 +1843,16 @@ class TestFakeRedis(unittest.TestCase):
 
     @attr('slow')
     def test_psetex_expire_value(self):
-        self.assertRaises(ResponseError, self.redis.psetex, 'foo', 0, 'bar')
+        with self.assertRaises(ResponseError):
+            self.redis.psetex('foo', 0, 'bar')
         self.redis.psetex('foo', 500, 'bar')
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
     @attr('slow')
     def test_psetex_expire_value_using_timedelta(self):
-        self.assertRaises(ResponseError, self.redis.psetex, 'foo', timedelta(seconds=0), 'bar')
+        with self.assertRaises(ResponseError):
+            self.redis.psetex('foo', timedelta(seconds=0), 'bar')
         self.redis.psetex('foo', timedelta(seconds=0.5), 'bar')
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
@@ -1975,7 +1988,7 @@ class TestInitArgs(unittest.TestCase):
     def test_from_url_db_value_error(self):
         # In ValueError, should default to 0
         db = fakeredis.FakeStrictRedis.from_url(
-           'redis://username:password@localhost:6379/a')
+            'redis://username:password@localhost:6379/a')
         self.assertEqual(db._db_num, 0)
 
 
