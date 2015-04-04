@@ -270,6 +270,13 @@ class FakeStrictRedis(object):
                                       "range.")
         return self._db[name]
 
+    def incrbyfloat(self, name, amount=1.0):
+        try:
+            self._db[name] = float(self._db.get(name, '0')) + amount
+        except (TypeError, ValueError):
+            raise redis.ResponseError("value is not a valid float.")
+        return self._db[name]
+
     def keys(self, pattern=None):
         return [key for key in self._db
                 if not key or not pattern or

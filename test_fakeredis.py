@@ -205,6 +205,20 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.incr('foo', 15)
 
+    def test_incrbyfloat(self):
+        self.redis.set('foo', 0)
+        self.assertEqual(self.redis.incrbyfloat('foo', 1.0), 1.0)
+        self.assertEqual(self.redis.incrbyfloat('foo', 1.0), 2.0)
+
+    def test_incrbyfloat_with_noexist(self):
+        self.assertEqual(self.redis.incrbyfloat('foo', 1.0), 1.0)
+        self.assertEqual(self.redis.incrbyfloat('foo', 1.0), 2.0)
+
+    def test_incrbyfloat_bad_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaisesRegexp(redis.ResponseError, 'not a valid float'):
+            self.redis.incrbyfloat('foo', 1.0)
+
     def test_decr(self):
         self.redis.set('foo', 10)
         self.assertEqual(self.redis.decr('foo'), 9)
