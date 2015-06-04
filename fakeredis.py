@@ -277,6 +277,12 @@ class FakeStrictRedis(object):
                                       "range.")
         return self._db[name]
 
+    def incrby(self, name, amount=1):
+        """
+        Alias for command ``incr``
+        """
+        return self.incr(name, amount)
+
     def incrbyfloat(self, name, amount=1.0):
         try:
             self._db[name] = float(self._db.get(name, '0')) + amount
