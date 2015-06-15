@@ -186,11 +186,7 @@ pubsub
 ------
 
  * punsubscribe
- * subscribe
- * publish
- * pubsub
  * psubscribe
- * unsubscribe
 
 
 Contributing

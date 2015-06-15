@@ -4,6 +4,7 @@ from redis.exceptions import ResponseError
 import inspect
 from functools import wraps
 import sys
+import thread
 
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
@@ -12,6 +13,7 @@ import redis.client
 
 import fakeredis
 from datetime import datetime, timedelta
+from Queue import Queue
 
 PY2 = sys.version_info[0] == 2
 
@@ -1752,6 +1754,61 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.type('set_key'), b'set')
         self.assertEqual(self.redis.type('zset_key'), b'zset')
         self.assertEqual(self.redis.type('hset_key'), b'hash')
+
+    @attr('slow')
+    def test_pubsub_subscribe(self):
+        pubsub = self.redis.pubsub()
+        pubsub.subscribe("test-channel")
+        sleep(1)
+        expected_message = {'type': 'subscribe', 'pattern': None,
+                            'channel': 'test-channel', 'data': long(1)}
+        message = pubsub.get_message()
+        keys = pubsub.channels.keys()
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(keys[0], 'test-channel')
+        self.assertEqual(message, expected_message)
+
+    @attr('slow')
+    def test_pubsub_unsubscribe(self):
+        pubsub = self.redis.pubsub()
+        pubsub.subscribe('test-channel-1', 'test-channel-2')
+        sleep(1)
+        expected_message = {'type': 'unsubscribe', 'pattern': None,
+                            'channel': 'test-channel-1', 'data': long(1)}
+        message = pubsub.get_message()
+        message = pubsub.get_message()
+
+        pubsub.unsubscribe('test-channel-1')
+        sleep(1)
+        message = pubsub.get_message()
+
+        self.assertEqual(message, expected_message)
+
+        keys = pubsub.channels.keys()
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(keys[0], 'test-channel-2')
+
+    @attr('slow')
+    def test_pubsub_listen(self):
+        def _listen(pubsub, q):
+            for message in pubsub.listen():
+                q.put(message)
+                pubsub.close()
+
+        channel = 'test-channel'
+        pubsub = self.redis.pubsub()
+        pubsub.subscribe(channel)
+        sleep(1)
+        pubsub.get_message()
+
+        q = Queue()
+        t = thread.start_new_thread(_listen, (pubsub, q))
+        msg = 'hello world'
+        self.redis.publish(channel, msg)
+        sleep(1)
+
+        message = q.get()
+        assert message['data'] == msg
 
 
 class TestFakeRedis(unittest.TestCase):

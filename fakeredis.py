@@ -8,6 +8,8 @@ from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
 import sys
+from Queue import Queue, Empty
+import time
 
 import redis
 from redis.exceptions import ResponseError
@@ -172,6 +174,7 @@ class FakeStrictRedis(object):
         self._db_num = db
         self._encoding = charset
         self._encoding_errors = errors
+        self._pubsubs = []
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
@@ -1274,6 +1277,30 @@ class FakeStrictRedis(object):
                     continue
         raise redis.WatchError('Could not run transaction after 5 tries')
 
+    def pubsub(self):
+        """
+        Returns a new FakePubSub instance
+        """
+        ps = FakePubSub()
+        self._pubsubs.append(ps)
+
+        return ps
+
+    def publish(self, channel, message):
+        """
+        Loops throug all available pubsub objects and publishes the
+        ``message`` to then for the given ``channel``.
+        """
+        count = 0
+        for i, ps in enumerate(self._pubsubs):
+            if not ps.subscribed:
+                del self._pubsubs[i]
+                continue
+
+            count += ps.put(channel, message, 'message')
+
+        return count
+
 
 class FakeRedis(FakeStrictRedis):
     def setex(self, name, value, time):
@@ -1383,3 +1410,133 @@ class FakePipeline(object):
 
     def reset(self):
         self.need_reset = False
+
+
+class FakePubSub(object):
+
+    PUBLISH_MESSAGE_TYPES = ['message']
+    UNSUBSCRIBE_MESSAGE_TYPES = ['unsubscribe']
+
+    def __init__(self, *args, **kwargs):
+        self.channels = {}
+        self._q = Queue()
+        self.subscribed = False
+
+        self.ignore_subscribe_messages = kwargs['ignore_subscribe_messages']\
+            if 'ignore_subscribe_messages' in kwargs else False
+
+    def put(self, channel, message, message_type):
+        """
+        Utility function to be used as the publishing entrypoint for this
+        pubsub object
+        """
+        if channel not in self.channels.keys():
+            return 0
+
+        msg = {
+            'type': message_type,
+            'pattern': None,
+            'channel': channel,
+            'data': message
+        }
+
+        self._q.put(msg)
+
+        return 1
+
+    def subscribe(self, *args, **kwargs):
+        """
+        Subscribes to one or more given ``channels``.
+        """
+        new_channels = {}
+        if args:
+            new_channels.update(dict.fromkeys(args))
+
+        for channel, handler in iteritems(kwargs):
+            new_channels[channel] = handler
+
+        self.channels.update(new_channels)
+        self.subscribed = True
+
+        for channel in new_channels:
+            self.put(channel, long(len(self.channels.keys())), 'subscribe')
+
+    def unsubscribe(self, *args):
+        """
+        Unsubscribes from one or more given ``channels``.
+        """
+
+        if args:
+            for channel in args:
+                if channel in self.channels:
+                    self.put(channel,
+                             long(len(self.channels.keys()) - 1),
+                             'unsubscribe')
+
+        else:
+
+            # unsubscribe from all channels
+            count = len(self.channels.keys())
+            for channel in self.channels:
+                count -= 1
+                self.put(channel, long(count), 'unsubscribe')
+            self.channels.clear()
+
+        if not bool(self.channels):
+            self.subscribed = False
+
+    def listen(self):
+        """
+        Listens for queued messages and yields the to the calling process
+        """
+        while self.subscribed:
+            message = self.get_message()
+            if message:
+                yield message
+
+            time.sleep(1)
+
+    def close(self):
+        """
+        Stops the listen function by setting stopped to True
+        """
+        self.unsubscribe()
+
+    def get_message(self, ignore_subscribe_messages=False, timeout=0):
+        """
+        Returns the next available message.
+        """
+
+        try:
+            message = self._q.get(True, timeout)
+            return self.handle_message(message, ignore_subscribe_messages)
+        except Empty:
+            return None
+
+    def handle_message(self, message, ignore_subscribe_messages=False):
+        """
+        Parses a pubsub message. It invokes the handler of a message type,
+        if the handler is avaialble. If the message is of type ``subscribe``
+        and ignore_subscribe_messages if True, then it returns None. Otherwise,
+        it returns the message.
+        """
+        message_type = message['type']
+        if message_type in self.UNSUBSCRIBE_MESSAGE_TYPES:
+            try:
+                del self.channels[message['channel']]
+            except:
+                pass
+
+        if message_type in self.PUBLISH_MESSAGE_TYPES:
+            # if there's a message handler, invoke it
+            handler = self.channels.get(message['channel'], None)
+            if handler:
+                handler(message)
+                return None
+        else:
+            # this is a subscribe/unsubscribe message. ignore if we don't
+            # want them
+            if ignore_subscribe_messages or self.ignore_subscribe_messages:
+                return None
+
+        return message
