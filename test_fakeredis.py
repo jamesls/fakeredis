@@ -1758,47 +1758,102 @@ class TestFakeStrictRedis(unittest.TestCase):
     @attr('slow')
     def test_pubsub_subscribe(self):
         pubsub = self.redis.pubsub()
-        pubsub.subscribe("test-channel")
+        pubsub.subscribe("channel")
         sleep(1)
         expected_message = {'type': 'subscribe', 'pattern': None,
-                            'channel': 'test-channel', 'data': long(1)}
+                            'channel': 'channel', 'data': long(1)}
         message = pubsub.get_message()
         keys = pubsub.channels.keys()
         self.assertEqual(len(keys), 1)
-        self.assertEqual(keys[0], 'test-channel')
+        self.assertEqual(keys[0], 'channel')
+        self.assertEqual(message, expected_message)
+
+    @attr('slow')
+    def test_pubsub_psubscribe(self):
+        pubsub = self.redis.pubsub()
+        pubsub.psubscribe("channel.*")
+        sleep(1)
+        expected_message = {'type': 'psubscribe', 'pattern': None,
+                            'channel': 'channel.*', 'data': long(1)}
+
+        message = pubsub.get_message()
+        keys = pubsub.patterns.keys()
+        self.assertEqual(len(keys), 1)
         self.assertEqual(message, expected_message)
 
     @attr('slow')
     def test_pubsub_unsubscribe(self):
         pubsub = self.redis.pubsub()
-        pubsub.subscribe('test-channel-1', 'test-channel-2')
+        pubsub.subscribe('channel-1', 'channel-2', 'channel-3')
         sleep(1)
         expected_message = {'type': 'unsubscribe', 'pattern': None,
-                            'channel': 'test-channel-1', 'data': long(1)}
-        message = pubsub.get_message()
-        message = pubsub.get_message()
+                            'channel': 'channel-1', 'data': long(2)}
+        pubsub.get_message()
+        pubsub.get_message()
+        pubsub.get_message()
 
-        pubsub.unsubscribe('test-channel-1')
+        # unsubscribe from one
+        pubsub.unsubscribe('channel-1')
         sleep(1)
         message = pubsub.get_message()
-
-        self.assertEqual(message, expected_message)
-
         keys = pubsub.channels.keys()
-        self.assertEqual(len(keys), 1)
-        self.assertEqual(keys[0], 'test-channel-2')
+        self.assertEqual(message, expected_message)
+        self.assertEqual(len(keys), 2)
+
+        # unsubscribe from multiple
+        pubsub.unsubscribe()
+        sleep(1)
+        pubsub.get_message()
+        pubsub.get_message()
+        keys = pubsub.channels.keys()
+        self.assertEqual(message, expected_message)
+        self.assertEqual(len(keys), 0)
+
+    @attr('slow')
+    def test_pubsub_punsubscribe(self):
+        pubsub = self.redis.pubsub()
+        pubsub.psubscribe('channel-1.*', 'channel-2.*', 'channel-3.*')
+        sleep(1)
+        expected_message = {'type': 'punsubscribe', 'pattern': None,
+                            'channel': 'channel-1.*', 'data': long(2)}
+        pubsub.get_message()
+        pubsub.get_message()
+        pubsub.get_message()
+
+        # unsubscribe from one
+        pubsub.punsubscribe('channel-1.*')
+        sleep(1)
+        message = pubsub.get_message()
+        keys = pubsub.patterns.keys()
+        self.assertEqual(message, expected_message)
+        self.assertEqual(len(keys), 2)
+
+        # unsubscribe from multiple
+        pubsub.punsubscribe()
+        sleep(1)
+        pubsub.get_message()
+        pubsub.get_message()
+        keys = pubsub.patterns.keys()
+        self.assertEqual(len(keys), 0)
 
     @attr('slow')
     def test_pubsub_listen(self):
         def _listen(pubsub, q):
+            count = 0
             for message in pubsub.listen():
                 q.put(message)
-                pubsub.close()
+                count += 1
+                if count == 4:
+                    pubsub.close()
 
-        channel = 'test-channel'
+        channel = 'ch1'
         pubsub = self.redis.pubsub()
         pubsub.subscribe(channel)
+        pubsub.psubscribe('ch1*', 'ch[1]', 'ch?')
         sleep(1)
+        pubsub.get_message()
+        pubsub.get_message()
+        pubsub.get_message()
         pubsub.get_message()
 
         q = Queue()
@@ -1807,8 +1862,23 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.publish(channel, msg)
         sleep(1)
 
-        message = q.get()
-        assert message['data'] == msg
+        msg1 = q.get()
+        msg2 = q.get()
+        msg3 = q.get()
+        msg4 = q.get()
+        expected_msg1 = {'pattern': None, 'type': 'message',
+                         'channel': 'ch1', 'data': 'hello world'}
+        expected_msg2 = {'pattern': 'ch1*', 'type': 'pmessage',
+                         'channel': 'ch1', 'data': 'hello world'}
+        expected_msg3 = {'pattern': 'ch[1]', 'type': 'pmessage',
+                         'channel': 'ch1', 'data': 'hello world'}
+        expected_msg4 = {'pattern': 'ch?', 'type': 'pmessage',
+                         'channel': 'ch1', 'data': 'hello world'}
+
+        self.assertEqual(msg1, expected_msg1)
+        self.assertEqual(msg2, expected_msg2)
+        self.assertEqual(msg3, expected_msg3)
+        self.assertEqual(msg4, expected_msg4)
 
 
 class TestFakeRedis(unittest.TestCase):

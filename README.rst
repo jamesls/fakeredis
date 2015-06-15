@@ -182,13 +182,6 @@ string
  * bitpos
 
 
-pubsub
-------
-
- * punsubscribe
- * psubscribe
-
-
 Contributing
 ============
 
