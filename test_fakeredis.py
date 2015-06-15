@@ -13,7 +13,13 @@ import redis.client
 
 import fakeredis
 from datetime import datetime, timedelta
-from Queue import Queue
+
+try:
+    # Python 2.6, 2.7
+    from Queue import Queue
+except:
+    # Python 3
+    from queue import Queue
 
 PY2 = sys.version_info[0] == 2
 
