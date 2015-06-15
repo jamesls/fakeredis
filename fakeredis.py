@@ -4,7 +4,7 @@ import copy
 from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
 import fnmatch
-from collections import MutableMapping, OrderedDict
+from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
 import sys
@@ -1423,8 +1423,8 @@ class FakePubSub(object):
     PATTERN_MESSAGE_TYPES = ['psubscribe', 'punsubscribe']
 
     def __init__(self, *args, **kwargs):
-        self.channels = OrderedDict()
-        self.patterns = OrderedDict()
+        self.channels = {}
+        self.patterns = {}
         self._q = Queue()
         self.subscribed = False
 
@@ -1521,7 +1521,7 @@ class FakePubSub(object):
     def _subscribe(self, subscribed_dict, message_type, total_subscriptions,
                    subscriber, *args, **kwargs):
 
-        new_channels = OrderedDict()
+        new_channels = {}
         if args:
             for arg in args:
                 new_channels[arg] = subscriber(arg, None)

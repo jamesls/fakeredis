@@ -4,7 +4,7 @@ from redis.exceptions import ResponseError
 import inspect
 from functools import wraps
 import sys
-import thread
+import threading
 
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
@@ -1836,7 +1836,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         keys = pubsub.patterns.keys()
         self.assertEqual(len(keys), 0)
 
-    @attr('slow')
+    @attr('pubsub')
     def test_pubsub_listen(self):
         def _listen(pubsub, q):
             count = 0
@@ -1857,10 +1857,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub.get_message()
 
         q = Queue()
-        t = thread.start_new_thread(_listen, (pubsub, q))
+        t = threading.Thread(target=_listen, args=(pubsub, q))
+        t.start()
         msg = 'hello world'
         self.redis.publish(channel, msg)
-        sleep(1)
+        t.join()
 
         msg1 = q.get()
         msg2 = q.get()
