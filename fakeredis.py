@@ -8,13 +8,19 @@ from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
 import sys
-from Queue import Queue, Empty
 import time
 import re
 
 import redis
 from redis.exceptions import ResponseError
 import redis.client
+
+try:
+    # Python 2.6, 2.7
+    from Queue import Queue, Empty
+except:
+    # Python 3
+    from queue import Queue, Empty
 
 
 __version__ = '0.6.1'
