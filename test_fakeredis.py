@@ -1968,7 +1968,6 @@ class TestFakeRedis(unittest.TestCase):
                            long_long_c_max * 1000 - d,
                            long_long_c_max * 1000)
 
-
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
     def create_redis(self, db=0):
@@ -2012,6 +2011,215 @@ class TestInitArgs(unittest.TestCase):
         db = fakeredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/a')
         self.assertEqual(db._db_num, 0)
+
+
+@redis_must_be_running
+class TestDecodeResponses(unittest.TestCase):
+
+    def setUp(self):
+        self.create_redis()
+        self.clear_redis()
+
+    def create_redis(self):
+        self.fake_redis = fakeredis.FakeStrictRedis(decode_responses=True)
+        self.real_redis = redis.StrictRedis(decode_responses=True)
+
+    def clear_redis(self):
+        self.fake_redis.flushall()
+        self.real_redis.flushall()
+
+    def tearDown(self):
+        self.fake_redis.flushall()
+        self.real_redis.flushall()
+        del self.fake_redis
+        del self.real_redis
+
+    def execute_fake_and_real(self, method, *vargs, **kwargs):
+        real_response = getattr(self.real_redis, method)(*vargs, **kwargs)
+        fake_response = getattr(self.fake_redis, method)(*vargs, **kwargs)
+
+        return real_response, fake_response
+
+    def compare_fake_and_real(self, method, *vargs, **kwargs):
+        real_response, fake_response = self.execute_fake_and_real(method, *vargs, **kwargs)
+        self.assertEqual(real_response, fake_response)
+
+
+    def test_echo(self):
+        self.compare_fake_and_real('echo', 'hello')
+
+    def test_hash(self):
+        self.compare_fake_and_real('hmset', 'hash', {
+            'the night': 'is dark',
+            'and full': 'of terrors'
+        })
+        self.compare_fake_and_real('hgetall', 'hash')
+        self.compare_fake_and_real('hget', 'hash', 'the night')
+        self.compare_fake_and_real('hmget', 'hash', ['the night', 'and full'])
+        self.compare_fake_and_real('hset', 'hash', 'and full', 'of rainbows')
+
+        real_vals, fake_vals = self.execute_fake_and_real('hvals', 'hash')
+
+        self.assertEqual(set(real_vals), set(fake_vals))
+
+    def test_set(self):
+        self.compare_fake_and_real('set', 'hello', 'world')
+
+    def test_set_and_get(self):
+        self.execute_fake_and_real('set', 'hello', 'world')
+        self.compare_fake_and_real('get', 'hello')
+
+    def test_mset_and_get(self):
+        self.compare_fake_and_real('mset', {
+            'first': 1,
+            'second': 2
+        })
+        self.compare_fake_and_real('mget', [ 'first', 'second' ])
+
+    def test_incr(self):
+        self.compare_fake_and_real('incr', 'somekey')
+
+    def test_incr_twice(self):
+        self.compare_fake_and_real('incr', 'somekey')
+        self.compare_fake_and_real('incr', 'somekey')
+
+    def test_incr_by(self):
+        self.compare_fake_and_real('incrby', 'anotherkey', 3)
+
+    def test_incr_by_float(self):
+        self.compare_fake_and_real('incrbyfloat', 'anotherkey', 26.13)
+
+    def test_decr(self):
+        self.compare_fake_and_real('decr', 'somekey')
+
+    def test_scan_single(self):
+        self.execute_fake_and_real('mset', {
+            'foo1': 'bar1',
+            'foo2': 'bar2',
+            'foo3': 'bar3'
+        })
+        real_response, fake_response = self.execute_fake_and_real('scan', match='foo*')
+        self.assertEqual(real_response[0], fake_response[0])
+
+        real_list = real_response[1].sort()
+        fake_list = fake_response[1].sort()
+
+        self.assertEqual(real_list, fake_list)
+
+    def test_scan_iter_single_page(self):
+        self.execute_fake_and_real('mset', {
+            'foo1': 'bar1',
+            'foo2': 'bar2',
+            'foo3': 'bar3'
+        })
+
+        real_iter, fake_iter = self.execute_fake_and_real('scan_iter', match="foo*")
+        self.assertEqual(set(real_iter), set(fake_iter))
+
+    def test_scan_iter_multiple_pages(self):
+        all_keys = key_val_dict(size=100)
+
+        self.assertTrue(
+            all(self.execute_fake_and_real('set', k, v) for k, v in all_keys.items()))
+        real_iter, fake_iter = self.execute_fake_and_real('scan_iter')
+        self.assertEqual(set(real_iter), set(fake_iter))
+
+    def test_list(self):
+        self.compare_fake_and_real('lpush', 'somelist', 1)
+        self.compare_fake_and_real('lpush', 'somelist', '2')
+        self.compare_fake_and_real('lpush', 'somelist', 3)
+        self.compare_fake_and_real('lrange', 'somelist', 0, -1)
+
+    def test_keys(self):
+        self.compare_fake_and_real('set', 'somekey', 1)
+        self.compare_fake_and_real('lpush', 'somelist', 2)
+        real_response, fake_response = self.execute_fake_and_real('keys', 'some*')
+
+        # sort lists
+        real_response.sort()
+        fake_response.sort()
+
+        self.assertEqual(real_response, fake_response)
+
+    def test_type(self):
+        self.execute_fake_and_real('set', 'foo', 'bar')
+        self.compare_fake_and_real('type', 'foo')
+
+    def test_basic_sort(self):
+        self.compare_fake_and_real('rpush', 'foo', '2')
+        self.compare_fake_and_real('rpush', 'foo', '1')
+        self.compare_fake_and_real('rpush', 'foo', '3')
+
+        self.compare_fake_and_real('sort', 'foo')
+
+    def test_sdiff(self):
+        self.compare_fake_and_real('sadd', 'set1', 1)
+        self.compare_fake_and_real('sadd', 'set1', 2)
+        self.compare_fake_and_real('sadd', 'set2', 2)
+        self.compare_fake_and_real('sadd', 'set2', 3)
+
+        self.compare_fake_and_real('sdiff', 'set1', 'set2')
+
+    def test_sinter(self):
+        self.compare_fake_and_real('sadd', 'set1', 1)
+        self.compare_fake_and_real('sadd', 'set1', 2)
+        self.compare_fake_and_real('sadd', 'set2', 2)
+        self.compare_fake_and_real('sadd', 'set2', 3)
+
+        self.compare_fake_and_real('sinter', 'set1', 'set2')
+
+    def test_sunion(self):
+        self.compare_fake_and_real('sadd', 'set1', 1)
+        self.compare_fake_and_real('sadd', 'set1', 2)
+        self.compare_fake_and_real('sadd', 'set2', 2)
+        self.compare_fake_and_real('sadd', 'set2', 3)
+
+        self.compare_fake_and_real('sunion', 'set1', 'set2')
+
+    def test_sismember(self):
+        self.compare_fake_and_real('sadd', 'set1', 1)
+        self.compare_fake_and_real('sadd', 'set1', 2)
+        self.compare_fake_and_real('sadd', 'set1', 'three')
+
+        self.compare_fake_and_real('sismember', 'set1', 3)
+        self.compare_fake_and_real('sismember', 'set1', 'three')
+
+    def test_smembers(self):
+        self.compare_fake_and_real('sadd', 'set1', 1)
+        self.compare_fake_and_real('sadd', 'set1', 2)
+        self.compare_fake_and_real('sadd', 'set1', 'three')
+
+        self.compare_fake_and_real('smembers', 'set1')
+
+    def test_srandmember(self):
+        self.compare_fake_and_real('sadd', 'set1', 1)
+
+        self.compare_fake_and_real('srandmember', 'set1')
+
+    def test_zadd(self):
+        self.compare_fake_and_real('zadd', 'foo', four=4)
+        self.compare_fake_and_real('zadd', 'foo', three=3)
+        self.compare_fake_and_real('zadd', 'foo', 2, 'two', 1, 'one', zero=0)
+        self.compare_fake_and_real('zrange', 'foo', 0, -1)
+
+    def test_zrangebyscore(self):
+        self.compare_fake_and_real('zadd', 'foo', zero=0)
+        self.compare_fake_and_real('zadd', 'foo', two=2)
+        self.compare_fake_and_real('zadd', 'foo', two_a_also=2)
+        self.compare_fake_and_real('zadd', 'foo', two_b_also=2)
+        self.compare_fake_and_real('zadd', 'foo', four=4)
+
+        self.compare_fake_and_real('zrangebyscore', 'foo', 1, 3)
+
+    def test_zrank(self):
+        self.compare_fake_and_real('zadd', 'foo', 2, 'two', 1, 'one', zero=0)
+
+        self.compare_fake_and_real('zrank', 'foo', 'two')
+
+    def test_zscore(self):
+        self.compare_fake_and_real('zadd', 'foo', 2, 'two', 1, 'one', zero=0)
+
+        self.compare_fake_and_real('zscore', 'foo', 'two')
 
 
 if __name__ == '__main__':
