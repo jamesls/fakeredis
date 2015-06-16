@@ -1767,11 +1767,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub.subscribe("channel")
         sleep(1)
         expected_message = {'type': 'subscribe', 'pattern': None,
-                            'channel': 'channel', 'data': long(1)}
+                            'channel': b'channel', 'data': 1}
         message = pubsub.get_message()
-        keys = pubsub.channels.keys()
+        keys = list(pubsub.channels.keys())
+        key = keys[0] if type(keys[0]) == bytes\
+            else bytes(keys[0], encoding='utf-8')
         self.assertEqual(len(keys), 1)
-        self.assertEqual(keys[0], 'channel')
+        self.assertEqual(key, b'channel')
         self.assertEqual(message, expected_message)
 
     @attr('slow')
@@ -1780,10 +1782,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub.psubscribe("channel.*")
         sleep(1)
         expected_message = {'type': 'psubscribe', 'pattern': None,
-                            'channel': 'channel.*', 'data': long(1)}
+                            'channel': b'channel.*', 'data': 1}
 
         message = pubsub.get_message()
-        keys = pubsub.patterns.keys()
+        keys = list(pubsub.patterns.keys())
         self.assertEqual(len(keys), 1)
         self.assertEqual(message, expected_message)
 
@@ -1793,7 +1795,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub.subscribe('channel-1', 'channel-2', 'channel-3')
         sleep(1)
         expected_message = {'type': 'unsubscribe', 'pattern': None,
-                            'channel': 'channel-1', 'data': long(2)}
+                            'channel': b'channel-1', 'data': 2}
         pubsub.get_message()
         pubsub.get_message()
         pubsub.get_message()
@@ -1802,7 +1804,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub.unsubscribe('channel-1')
         sleep(1)
         message = pubsub.get_message()
-        keys = pubsub.channels.keys()
+        keys = list(pubsub.channels.keys())
         self.assertEqual(message, expected_message)
         self.assertEqual(len(keys), 2)
 
@@ -1811,7 +1813,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         sleep(1)
         pubsub.get_message()
         pubsub.get_message()
-        keys = pubsub.channels.keys()
+        keys = list(pubsub.channels.keys())
         self.assertEqual(message, expected_message)
         self.assertEqual(len(keys), 0)
 
@@ -1821,7 +1823,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub.psubscribe('channel-1.*', 'channel-2.*', 'channel-3.*')
         sleep(1)
         expected_message = {'type': 'punsubscribe', 'pattern': None,
-                            'channel': 'channel-1.*', 'data': long(2)}
+                            'channel': b'channel-1.*', 'data': 2}
         pubsub.get_message()
         pubsub.get_message()
         pubsub.get_message()
@@ -1830,7 +1832,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub.punsubscribe('channel-1.*')
         sleep(1)
         message = pubsub.get_message()
-        keys = pubsub.patterns.keys()
+        keys = list(pubsub.patterns.keys())
         self.assertEqual(message, expected_message)
         self.assertEqual(len(keys), 2)
 
@@ -1839,10 +1841,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         sleep(1)
         pubsub.get_message()
         pubsub.get_message()
-        keys = pubsub.patterns.keys()
+        keys = list(pubsub.patterns.keys())
         self.assertEqual(len(keys), 0)
 
-    @attr('pubsub')
+    @attr('slow')
     def test_pubsub_listen(self):
         def _listen(pubsub, q):
             count = 0
@@ -1853,9 +1855,10 @@ class TestFakeStrictRedis(unittest.TestCase):
                     pubsub.close()
 
         channel = 'ch1'
+        patterns = ['ch1*', 'ch[1]', 'ch?']
         pubsub = self.redis.pubsub()
         pubsub.subscribe(channel)
-        pubsub.psubscribe('ch1*', 'ch[1]', 'ch?')
+        pubsub.psubscribe(*patterns)
         sleep(1)
         pubsub.get_message()
         pubsub.get_message()
@@ -1873,19 +1876,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         msg2 = q.get()
         msg3 = q.get()
         msg4 = q.get()
-        expected_msg1 = {'pattern': None, 'type': 'message',
-                         'channel': 'ch1', 'data': 'hello world'}
-        expected_msg2 = {'pattern': 'ch1*', 'type': 'pmessage',
-                         'channel': 'ch1', 'data': 'hello world'}
-        expected_msg3 = {'pattern': 'ch[1]', 'type': 'pmessage',
-                         'channel': 'ch1', 'data': 'hello world'}
-        expected_msg4 = {'pattern': 'ch?', 'type': 'pmessage',
-                         'channel': 'ch1', 'data': 'hello world'}
 
-        self.assertEqual(msg1, expected_msg1)
-        self.assertEqual(msg2, expected_msg2)
-        self.assertEqual(msg3, expected_msg3)
-        self.assertEqual(msg4, expected_msg4)
+        bpatterns = [pattern.encode() for pattern in patterns]
+        bpatterns.append(channel.encode())
+        msg = msg.encode()
+        self.assertEqual(msg1['data'], msg)
+        self.assertIn(msg1['channel'], bpatterns)
+        self.assertEqual(msg2['data'], msg)
+        self.assertIn(msg2['channel'], bpatterns)
+        self.assertEqual(msg3['data'], msg)
+        self.assertIn(msg3['channel'], bpatterns)
+        self.assertEqual(msg4['data'], msg)
+        self.assertIn(msg4['channel'], bpatterns)
 
 
 class TestFakeRedis(unittest.TestCase):

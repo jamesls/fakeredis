@@ -22,6 +22,11 @@ except:
     # Python 3
     from queue import Queue, Empty
 
+PY2 = sys.version_info[0] == 2
+
+if not PY2:
+    long = int
+
 
 __version__ = '0.6.1'
 
@@ -1464,8 +1469,8 @@ class FakePubSub(object):
         msg = {
             'type': message_type,
             'pattern': pattern,
-            'channel': channel,
-            'data': data
+            'channel': channel.encode(),
+            'data': data.encode() if type(data) == str else data
         }
 
         self._q.put(msg)
@@ -1613,7 +1618,8 @@ class FakePubSub(object):
                 subscribed_dict = self.channels
 
             try:
-                del subscribed_dict[message['channel']]
+                channel = message['channel'].decode('utf-8')
+                del subscribed_dict[channel]
             except:
                 pass
 
