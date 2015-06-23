@@ -1825,7 +1825,8 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrem('foo', 'one'), 0)
 
     def test_zadd_deprecated(self):
-        self.redis.zadd('foo', 'one', 1)
+        result = self.redis.zadd('foo', 'one', 1)
+        self.assertEqual(result, 1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'one'])
 
     def test_zadd_missing_required_params(self):
@@ -1837,8 +1838,14 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.zadd('foo', None, score=1)
 
     def test_zadd_with_single_keypair(self):
-        self.redis.zadd('foo', bar=1)
+        result = self.redis.zadd('foo', bar=1)
+        self.assertEqual(result, 1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'bar'])
+
+    def test_zadd_with_multiple_keypairs(self):
+        result = self.redis.zadd('foo', bar=1, baz=9)
+        self.assertEqual(result, 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'bar', b'baz'])
 
     def test_set_nx_doesnt_set_value_twice(self):
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), True)

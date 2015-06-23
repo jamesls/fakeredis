@@ -1296,10 +1296,10 @@ class FakeRedis(FakeStrictRedis):
             warnings.warn(DeprecationWarning(
                 "Passing 'value' and 'score' has been deprecated. "
                 "Please pass via kwargs instead."))
-        else:
-            value = list(pairs)[0]
-            score = list(pairs.values())[0]
-        self._db.setdefault(name, _ZSet())[value] = score
+            pairs = {value: score}
+        elif not pairs:
+            raise redis.RedisError("ZADD is missing kwargs param")
+        return super(FakeRedis, self).zadd(name, **pairs)
 
 
 class FakePipeline(object):
