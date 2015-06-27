@@ -1836,6 +1836,8 @@ class TestFakeRedis(unittest.TestCase):
         with self.assertRaises(redis.RedisError):
             # Missing the 'value' param.
             self.redis.zadd('foo', None, score=1)
+        with self.assertRaises(redis.RedisError):
+            self.redis.zadd('foo')
 
     def test_zadd_with_single_keypair(self):
         result = self.redis.zadd('foo', bar=1)
