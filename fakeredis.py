@@ -148,10 +148,8 @@ class _ZSet(_StrKeyDict):
     redis_type = b'zset'
 
 
-
 class _Hash(_StrKeyDict):
     redis_type = b'hash'
-
 
 
 class FakeStrictRedis(object):
@@ -361,7 +359,7 @@ class FakeStrictRedis(object):
             key for key in self._db if not match or
             fnmatch.fnmatch(to_native(key), to_native(match))
         ]
-        keys = match_keys[cursor:cursor+count]
+        keys = match_keys[cursor:cursor + count]
         if cursor + count >= len(match_keys):
             return 0, keys
         else:
@@ -1296,7 +1294,7 @@ class FakeRedis(FakeStrictRedis):
             warnings.warn(DeprecationWarning(
                 "Passing 'value' and 'score' has been deprecated. "
                 "Please pass via kwargs instead."))
-            pairs = {value: score}
+            super(FakeRedis, self).zadd(name, value, score)
         elif not pairs:
             raise redis.RedisError("ZADD is missing kwargs param")
         return super(FakeRedis, self).zadd(name, **pairs)
