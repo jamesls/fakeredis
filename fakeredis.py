@@ -1287,6 +1287,7 @@ class FakeRedis(FakeStrictRedis):
 
         The ``value`` and ``score`` arguments are deprecated.
         """
+        print pairs
         if value is not None or score is not None:
             if value is None or score is None:
                 raise redis.RedisError(
@@ -1294,7 +1295,7 @@ class FakeRedis(FakeStrictRedis):
             warnings.warn(DeprecationWarning(
                 "Passing 'value' and 'score' has been deprecated. "
                 "Please pass via kwargs instead."))
-            super(FakeRedis, self).zadd(name, value, score)
+            pairs = {str(value): score}
         elif not pairs:
             raise redis.RedisError("ZADD is missing kwargs param")
         return super(FakeRedis, self).zadd(name, **pairs)
