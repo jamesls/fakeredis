@@ -1287,7 +1287,6 @@ class FakeRedis(FakeStrictRedis):
 
         The ``value`` and ``score`` arguments are deprecated.
         """
-        print pairs
         if value is not None or score is not None:
             if value is None or score is None:
                 raise redis.RedisError(
