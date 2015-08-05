@@ -183,6 +183,7 @@ class FakeStrictRedis(object):
 
     # Basic key commands
     def append(self, key, value):
+        self._db.setdefault(key, b'')
         self._db[key] += to_bytes(value)
         return len(self._db[key])
 
