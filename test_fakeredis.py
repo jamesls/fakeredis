@@ -191,6 +191,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.append('foo', 'baz'), 6)
         self.assertEqual(self.redis.get('foo'), b'barbaz')
 
+    def test_append_with_no_preexisting_key(self):
+        self.assertEqual(self.redis.append('foo', 'bar'), 3)
+        self.assertEqual(self.redis.get('foo'), b'bar')
+
     def test_incr_with_no_preexisting_key(self):
         self.assertEqual(self.redis.incr('foo'), 1)
         self.assertEqual(self.redis.incr('bar', 2), 2)
