@@ -1849,6 +1849,11 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(result, 2)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'bar', b'baz'])
 
+    def test_zadd_with_name_is_non_string(self):
+        result = self.redis.zadd('foo', 1, 9)
+        self.assertEqual(result, 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'1'])
+
     def test_set_nx_doesnt_set_value_twice(self):
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), True)
         self.assertEqual(self.redis.set('foo', 'bar', nx=True), None)
