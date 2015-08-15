@@ -1,13 +1,13 @@
-import random
-import warnings
+from collections import Iterable, MutableMapping
 import copy
 from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
-import fnmatch
-from collections import MutableMapping
 from datetime import datetime, timedelta
+import fnmatch
 import operator
+import random
 import sys
+import warnings
 
 import redis
 from redis.exceptions import ResponseError
@@ -163,7 +163,7 @@ class FakeStrictRedis(object):
                 db = int(url.path.replace('/', ''))
             except (AttributeError, ValueError):
                 db = 0
-        return cls(db=db)
+        return cls(db=db, **kwargs)
 
     def __init__(self, db=0, charset='utf-8', errors='strict', **kwargs):
         if db not in DATABASES:
@@ -172,6 +172,44 @@ class FakeStrictRedis(object):
         self._db_num = db
         self._encoding = charset
         self._encoding_errors = errors
+        self._decode_responses = kwargs.get('decode_responses', False)
+
+    def _decode_response(self, response):
+        """
+        If decode_responses is True, returns the decoded version of the response.
+        Otherwise, simply returns response, unmodified.
+        """
+
+        if self._decode_responses:
+            encoding = self._encoding
+
+            def dec_bytes(string):
+                return string.decode(encoding)
+
+            def dec_iter(val):
+                return val.__class__((dec(v) for v in val))
+
+            def dec_items(val):
+                return val.__class__(((dec(k), dec(v)) for k, v in val.items()))
+
+            def dec(val):
+
+                # Decode bytes,
+                if isinstance(val, bytes):
+                    return dec_bytes(val)
+
+                if hasattr(val, 'items'):
+                    return dec_items(val)
+
+                if not isinstance(val, str) and isinstance(val, Iterable):
+                    return dec_iter(val)
+
+                # No decoding for int, float, str
+                return val
+
+            return dec(response)
+
+        return response
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
@@ -204,7 +242,7 @@ class FakeStrictRedis(object):
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
-        return self._db[name]
+        return self._decode_response(self._db[name])
 
     def exists(self, name):
         return name in self._db
@@ -230,8 +268,8 @@ class FakeStrictRedis(object):
 
     def echo(self, value):
         if isinstance(value, text_type):
-            return value.encode('utf-8')
-        return value
+            value = value.encode('utf-8')
+        return self._decode_response(value)
 
     def get(self, name):
         value = self._db.get(name)
@@ -239,7 +277,7 @@ class FakeStrictRedis(object):
             raise redis.ResponseError("WRONGTYPE Operation against a key "
                                       "holding the wrong kind of value")
         if value is not None:
-            return to_bytes(value)
+            return self._decode_response(to_bytes(value))
 
     def __getitem__(self, name):
         return self._db[name]
@@ -276,7 +314,7 @@ class FakeStrictRedis(object):
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
-        return self._db[name]
+        return self._decode_response(self._db[name])
 
     def incrby(self, name, amount=1):
         """
@@ -289,12 +327,14 @@ class FakeStrictRedis(object):
             self._db[name] = float(self._db.get(name, '0')) + amount
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not a valid float.")
-        return self._db[name]
+        return self._decode_response(self._db[name])
 
     def keys(self, pattern=None):
-        return [key for key in self._db
+        key_list = [key for key in self._db
                 if not key or not pattern or
                 fnmatch.fnmatch(to_native(key), to_native(pattern))]
+
+        return self._decode_response(key_list)
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
@@ -304,7 +344,7 @@ class FakeStrictRedis(object):
                 "wrong number of arguments for 'mget' command")
         for key in all_keys:
             found.append(self._db.get(key))
-        return found
+        return self._decode_response(found)
 
     def mset(self, *args, **kwargs):
         if args:
@@ -362,7 +402,8 @@ class FakeStrictRedis(object):
             key for key in self._db if not match or
             fnmatch.fnmatch(to_native(key), to_native(match))
         ]
-        keys = match_keys[cursor:cursor+count]
+        keys = self._decode_response(match_keys[cursor:cursor+count])
+
         if cursor + count >= len(match_keys):
             return 0, keys
         else:
@@ -443,9 +484,12 @@ class FakeStrictRedis(object):
         else:
             end += 1
         try:
-            return self._db[name][start:end]
+            result = self._db[name][start:end]
         except KeyError:
-            return b''
+            result = b''
+
+        return self._decode_response(result)
+
     # Redis >= 2.0.0 this command is called getrange
     # according to the docs.
     getrange = substr
@@ -474,14 +518,18 @@ class FakeStrictRedis(object):
 
     def type(self, name):
         key = self._db.get(name)
+
+
         if hasattr(key.__class__, 'redis_type'):
-            return key.redis_type
+            response = key.redis_type
         if isinstance(key, redis_string_types):
-            return b'string'
+            response = b'string'
         elif isinstance(key, list):
-            return b'list'
+            response = b'list'
         elif isinstance(key, set):
-            return b'set'
+            response = b'set'
+
+        return self._decode_response(response)
 
     def watch(self, *names):
         pass
@@ -544,7 +592,7 @@ class FakeStrictRedis(object):
                 self._db[store] = data
                 return len(data)
             else:
-                return self._retrive_data_from_sort(data, get)
+                return self._decode_response(self._retrive_data_from_sort(data, get))
         except KeyError:
             return []
 
@@ -611,7 +659,7 @@ class FakeStrictRedis(object):
             end = None
         else:
             end += 1
-        return self._db.get(name, [])[start:end]
+        return self._decode_response(self._db.get(name, [])[start:end])
 
     def llen(self, name):
         return len(self._db.get(name, []))
@@ -641,7 +689,7 @@ class FakeStrictRedis(object):
 
     def lpop(self, name):
         try:
-            return self._db.get(name, []).pop(0)
+            return self._decode_response(self._db.get(name, []).pop(0))
         except IndexError:
             return None
 
@@ -671,7 +719,7 @@ class FakeStrictRedis(object):
 
     def lindex(self, name, index):
         try:
-            return self._db.get(name, [])[index]
+            return self._decode_response(self._db.get(name, [])[index])
         except IndexError:
             return None
 
@@ -683,7 +731,7 @@ class FakeStrictRedis(object):
 
     def rpop(self, name):
         try:
-            return self._db.get(name, []).pop()
+            return self._decode_response(self._db.get(name, []).pop())
         except IndexError:
             return None
 
@@ -698,7 +746,7 @@ class FakeStrictRedis(object):
                 self._db[dst].insert(0, el)
             except KeyError:
                 self._db[dst] = [el]
-        return el
+        return self._decode_response(el)
 
     def blpop(self, keys, timeout=0):
         # This has to be a best effort approximation which follows
@@ -713,7 +761,7 @@ class FakeStrictRedis(object):
             keys = [to_bytes(k) for k in keys]
         for key in keys:
             if self._db.get(key, []):
-                return (key, self._db[key].pop(0))
+                return self._decode_response((key, self._db[key].pop(0)))
 
     def brpop(self, keys, timeout=0):
         if isinstance(keys, string_types):
@@ -722,7 +770,7 @@ class FakeStrictRedis(object):
             keys = [to_bytes(k) for k in keys]
         for key in keys:
             if self._db.get(key, []):
-                return (key, self._db[key].pop())
+                return self._decode_response((key, self._db[key].pop()))
 
     def brpoplpush(self, src, dst, timeout=0):
         el = self.rpop(src)
@@ -731,7 +779,7 @@ class FakeStrictRedis(object):
                 self._db[dst].insert(0, el)
             except KeyError:
                 self._db[dst] = [el]
-        return el
+        return self._decode_response(el)
 
     def hdel(self, name, *keys):
         h = self._db.get(name, {})
@@ -751,14 +799,14 @@ class FakeStrictRedis(object):
 
     def hget(self, name, key):
         "Return the value of ``key`` within the hash ``name``"
-        return self._db.get(name, {}).get(key)
+        return self._decode_response(self._db.get(name, {}).get(key))
 
     def hgetall(self, name):
         "Return a Python dict of the hash's name/value pairs"
         all_items = self._db.get(name, {})
         if hasattr(all_items, 'to_bare_dict'):
             all_items = all_items.to_bare_dict()
-        return all_items
+        return self._decode_response(all_items)
 
     def hincrby(self, name, key, amount=1):
         "Increment the value of ``key`` in hash ``name`` by ``amount``"
@@ -782,7 +830,7 @@ class FakeStrictRedis(object):
 
     def hkeys(self, name):
         "Return the list of keys within hash ``name``"
-        return list(self._db.get(name, {}))
+        return self._decode_response(list(self._db.get(name, {})))
 
     def hlen(self, name):
         "Return the number of elements in hash ``name``"
@@ -824,11 +872,11 @@ class FakeStrictRedis(object):
         "Returns a list of values ordered identically to ``keys``"
         h = self._db.get(name, {})
         all_keys = self._list_or_args(keys, args)
-        return [h.get(k) for k in all_keys]
+        return self._decode_response([h.get(k) for k in all_keys])
 
     def hvals(self, name):
         "Return the list of values within hash ``name``"
-        return self._db.get(name, {}).values()
+        return self._decode_response([v for v in self._db.get(name, {}).values()])
 
     def sadd(self, name, *values):
         "Add ``value`` to set ``name``"
@@ -847,7 +895,7 @@ class FakeStrictRedis(object):
         diff = self._db.get(next(all_keys), set()).copy()
         for key in all_keys:
             diff -= self._db.get(key, set())
-        return diff
+        return self._decode_response(diff)
 
     def sdiffstore(self, dest, keys, *args):
         """
@@ -864,7 +912,7 @@ class FakeStrictRedis(object):
         intersect = self._db.get(next(all_keys), set()).copy()
         for key in all_keys:
             intersect.intersection_update(self._db.get(key, set()))
-        return intersect
+        return self._decode_response(intersect)
 
     def sinterstore(self, dest, keys, *args):
         """
@@ -881,7 +929,7 @@ class FakeStrictRedis(object):
 
     def smembers(self, name):
         "Return all members of the set ``name``"
-        return self._db.get(name, set())
+        return self._decode_response(self._db.get(name, set()))
 
     def smove(self, src, dst, value):
         value = to_bytes(value)
@@ -895,7 +943,7 @@ class FakeStrictRedis(object):
     def spop(self, name):
         "Remove and return a random member of set ``name``"
         try:
-            return self._db.get(name, set()).pop()
+            return self._decode_response(self._db.get(name, set()).pop())
         except KeyError:
             return None
 
@@ -904,7 +952,7 @@ class FakeStrictRedis(object):
         members = self._db.get(name, set())
         if members:
             index = random.randint(0, len(members) - 1)
-            return list(members)[index]
+            return self._decode_response(list(members)[index])
 
     def srem(self, name, *values):
         "Remove ``value`` from set ``name``"
@@ -919,7 +967,7 @@ class FakeStrictRedis(object):
         union = self._db.get(next(all_keys), set()).copy()
         for key in all_keys:
             union.update(self._db.get(key, set()))
-        return union
+        return self._decode_response(union)
 
     def sunionstore(self, dest, keys, *args):
         """
@@ -1058,9 +1106,11 @@ class FakeStrictRedis(object):
         in_order = self._get_zelements_in_order(all_items, reverse)
         items = in_order[start:end]
         if not withscores:
-            return items
+            response = items
         else:
-            return [(k, all_items[k]) for k in items]
+            response = [(k, all_items[k]) for k in items]
+
+        return self._decode_response(response)
 
     def _get_zelements_in_order(self, all_items, reverse=False):
         by_keyname = sorted(
@@ -1080,8 +1130,9 @@ class FakeStrictRedis(object):
         ``withscores`` indicates to return the scores along with the values.
         The return type is a list of (value, score) pairs
         """
-        return self._zrangebyscore(name, min, max, start, num, withscores,
+        response = self._zrangebyscore(name, min, max, start, num, withscores,
                                    reverse=False)
+        return self._decode_response(response)
 
     def _zrangebyscore(self, name, min, max, start, num, withscores, reverse):
         if (start is not None and num is None) or \
@@ -1109,7 +1160,7 @@ class FakeStrictRedis(object):
         all_items = self._db.get(name, {})
         in_order = sorted(all_items, key=lambda x: all_items[x])
         try:
-            return in_order.index(to_bytes(value))
+            return self._decode_response(in_order.index(to_bytes(value)))
         except ValueError:
             return None
 
@@ -1196,7 +1247,7 @@ class FakeStrictRedis(object):
     def zscore(self, name, value):
         "Return the score of element ``value`` in sorted set ``name``"
         try:
-            return self._db[name][value]
+            return self._decode_response(self._db[name][value])
         except KeyError:
             return None
 
