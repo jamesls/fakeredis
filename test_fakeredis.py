@@ -1781,7 +1781,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(0, self.redis.pfadd(key1, "foo", "bar"))
         self.assertEqual(3, self.redis.pfcount(key1))
         self.assertEqual(1, self.redis.pfadd(key2, "1", "2", "3"))
-        self.assertEqual(6, self.redis.pfcount(key1, key2))
+        self.assertEqual(3, self.redis.pfcount(key2))
+
+        # This will be a valid usage/test after upgrading to a
+        # post-2.10.3 release of `redis-py`
+        # self.assertEqual(6, self.redis.pfcount(key1, key2))
 
     def test_pfmerge(self):
         key1 = "hll-pfmerge01"

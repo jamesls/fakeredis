@@ -1292,15 +1292,25 @@ class FakeStrictRedis(object):
         # - 1 if at least 1 HyperLogLog internal register was altered. 0 otherwise.
         return 1 if result > 0 else 0
 
-    def pfcount(self, *sources):
+    def pfcount(self, name):
         """
         Return the approximated cardinality of
         the set observed by the HyperLogLog at key(s).
         """
-        total = 0
-        for src in sources:
-            total += self.scard(src)
-        return total
+        return self.scard(name)
+
+        # This will be the proper implementation, once `fakeredis` uses a
+        # post-2.10.3 release of `redis-py`.
+        # https://github.com/andymccurdy/redis-py/commit/6935a30c680a81659b2e02b9f9220517cdfd637b
+        # def pfcount(self, *sources):
+        #     """
+        #     Return the approximated cardinality of
+        #     the set observed by the HyperLogLog at key(s).
+        #     """
+        #     total = 0
+        #     for src in sources:
+        #         total += self.scard(src)
+        #     return total
 
     def pfmerge(self, dest, *sources):
         "Merge N different HyperLogLogs into a single one."
