@@ -13,9 +13,7 @@ import redis
 from redis.exceptions import ResponseError
 import redis.client
 
-
 __version__ = '0.6.2'
-
 
 if sys.version_info[0] == 2:
     text_type = unicode
@@ -46,7 +44,7 @@ if sys.version_info[0] == 2:
     from urlparse import urlparse
 else:
     text_type = str
-    string_types = (str,)
+    string_types = (str, )
     redis_string_types = (bytes, str)
 
     def byte_to_int(b):
@@ -76,7 +74,6 @@ else:
     itervalues = lambda d: iter(d.values())
     iteritems = lambda d: iter(d.items())
     from urllib.parse import urlparse
-
 
 DATABASES = {}
 
@@ -206,6 +203,7 @@ class FakeStrictRedis(object):
 
     def exists(self, name):
         return name in self._db
+
     __contains__ = exists
 
     def expire(self, name, time):
@@ -290,8 +288,7 @@ class FakeStrictRedis(object):
         return self._db[name]
 
     def keys(self, pattern=None):
-        return [key for key in self._db
-                if not key or not pattern or
+        return [key for key in self._db if not key or not pattern or
                 fnmatch.fnmatch(to_native(key), to_native(pattern))]
 
     def mget(self, keys, *args):
@@ -357,8 +354,8 @@ class FakeStrictRedis(object):
         if count is None:
             count = 10
         match_keys = [
-            key for key in self._db if not match or
-            fnmatch.fnmatch(to_native(key), to_native(match))
+            key for key in self._db
+            if not match or fnmatch.fnmatch(to_native(key), to_native(match))
         ]
         keys = match_keys[cursor:cursor + count]
         if cursor + count >= len(match_keys):
@@ -380,8 +377,8 @@ class FakeStrictRedis(object):
             if ex is not None and ex > 0:
                 self._db.expire(name, datetime.now() + timedelta(seconds=ex))
             elif px is not None and px > 0:
-                self._db.expire(name, datetime.now() +
-                                timedelta(milliseconds=px))
+                self._db.expire(name,
+                                datetime.now() + timedelta(milliseconds=px))
             self._db[name] = to_bytes(value)
             return True
         else:
@@ -466,9 +463,9 @@ class FakeStrictRedis(object):
         if now > exp_time:
             return None
         else:
-            return round(((exp_time - now).days * 3600 * 24
-                          + (exp_time - now).seconds
-                          + (exp_time - now).microseconds / 1E6) * multiplier)
+            return round(((exp_time - now).days * 3600 * 24 +
+                          (exp_time - now).seconds +
+                          (exp_time - now).microseconds / 1E6) * multiplier)
 
     def type(self, name):
         key = self._db.get(name)
@@ -499,8 +496,14 @@ class FakeStrictRedis(object):
                 continue
         return deleted
 
-    def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
-             alpha=False, store=None):
+    def sort(self, name,
+             start=None,
+             num=None,
+             by=None,
+             get=None,
+             desc=False,
+             alpha=False,
+             store=None):
         """Sort and return the list, set or sorted set at ``name``.
 
         ``start`` and ``num`` allow for paging through the sorted data
@@ -600,8 +603,8 @@ class FakeStrictRedis(object):
         data.sort(key=_by_key)
 
     def lpush(self, name, *values):
-        self._db.setdefault(name, [])[0:0] = list(reversed(
-            [to_bytes(x) for x in values]))
+        self._db.setdefault(name, [])[0:0] = list(reversed([to_bytes(x)
+                                                            for x in values]))
         return len(self._db[name])
 
     def lrange(self, name, start, end):
@@ -948,6 +951,7 @@ class FakeStrictRedis(object):
         def _matches(x):
             return (left_comparator(actual_min, x) and
                     right_comparator(x, actual_max))
+
         return _matches
 
     def _get_comparator_and_val(self, value):
@@ -1029,8 +1033,7 @@ class FakeStrictRedis(object):
         for key in list_keys[1:]:
             valid_keys.intersection_update(self._db.get(key, {}))
         return self._zaggregate(dest, keys, aggregate,
-                                lambda x: x in
-                                valid_keys)
+                                lambda x: x in valid_keys)
 
     def zrange(self, name, start, end, desc=False, withscores=False):
         """
@@ -1061,13 +1064,16 @@ class FakeStrictRedis(object):
             return [(k, all_items[k]) for k in items]
 
     def _get_zelements_in_order(self, all_items, reverse=False):
-        by_keyname = sorted(
-            all_items.items(), key=lambda x: x[0], reverse=reverse)
+        by_keyname = sorted(all_items.items(),
+                            key=lambda x: x[0],
+                            reverse=reverse)
         in_order = sorted(by_keyname, key=lambda x: x[1], reverse=reverse)
         return [el[0] for el in in_order]
 
     def zrangebyscore(self, name, min, max,
-                      start=None, num=None, withscores=False):
+                      start=None,
+                      num=None,
+                      withscores=False):
         """
         Return a range of values from the sorted set ``name`` with scores
         between ``min`` and ``max``.
@@ -1167,7 +1173,9 @@ class FakeStrictRedis(object):
         return self.zrange(name, start, num, True, withscores)
 
     def zrevrangebyscore(self, name, max, min,
-                         start=None, num=None, withscores=False):
+                         start=None,
+                         num=None,
+                         withscores=False):
         """
         Return a range of values from the sorted set ``name`` with scores
         between ``min`` and ``max`` in descending order.
@@ -1232,11 +1240,11 @@ class FakeStrictRedis(object):
                 elif aggregate == 'SUM':
                     new_zset[el] += current_zset[el] * weight
                 elif aggregate == 'MAX':
-                    new_zset[el] = max([new_zset[el],
-                                        current_zset[el] * weight])
+                    new_zset[el] = max([new_zset[el], current_zset[el] *
+                                        weight])
                 elif aggregate == 'MIN':
-                    new_zset[el] = min([new_zset[el],
-                                        current_zset[el] * weight])
+                    new_zset[el] = min([new_zset[el], current_zset[el] *
+                                        weight])
         self._db[dest] = new_zset
 
     def _list_or_args(self, keys, args):
@@ -1272,6 +1280,32 @@ class FakeStrictRedis(object):
                 except redis.WatchError:
                     continue
         raise redis.WatchError('Could not run transaction after 5 tries')
+
+    # HYPERLOGLOG COMMANDS
+    def pfadd(self, name, *values):
+        "Adds the specified elements to the specified HyperLogLog."
+        # Simulate the behavior of HyperLogLog by using SETs underneath to
+        # approximate the behavior.
+        result = self.sadd(name, *values)
+
+        # Per the documentation:
+        # - 1 if at least 1 HyperLogLog internal register was altered. 0 otherwise.
+        return 1 if result > 0 else 0
+
+    def pfcount(self, *sources):
+        """
+        Return the approximated cardinality of
+        the set observed by the HyperLogLog at key(s).
+        """
+        total = 0
+        for src in sources:
+            total += self.scard(src)
+        return total
+
+    def pfmerge(self, dest, *sources):
+        "Merge N different HyperLogLogs into a single one."
+        self.sunionstore(dest, sources)
+        return True
 
 
 class FakeRedis(FakeStrictRedis):
@@ -1310,6 +1344,7 @@ class FakePipeline(object):
     of their return values is returned.
 
     """
+
     def __init__(self, owner, transaction=True):
         """Create a pipeline for the specified FakeStrictRedis instance.
 
@@ -1353,18 +1388,17 @@ class FakePipeline(object):
     def execute(self):
         """Run all the commands in the pipeline and return the results."""
         if self.watching:
-            mismatches = [
-                (k, v, u) for (k, v, u) in
-                [(k, v, self.owner._db.get(k))
-                    for (k, v) in self.watching.items()]
-                if v != u]
+            mismatches = [(k, v, u)
+                          for (k, v, u) in [(k, v, self.owner._db.get(k)) for
+                                            (k, v) in self.watching.items()]
+                          if v != u]
             if mismatches:
                 self.commands = []
                 self.watching = {}
-                raise redis.WatchError(
-                    'Watched key%s %s changed' % (
-                        '' if len(mismatches) == 1 else
-                        's', ', '.join(k for (k, _, _) in mismatches)))
+                raise redis.WatchError('Watched key%s %s changed' %
+                                       ('' if len(mismatches) == 1 else 's',
+                                        ', '.join(
+                                            k for (k, _, _) in mismatches)))
         ret = [getattr(self.owner, name)(*args, **kwargs)
                for name, args, kwargs in self.commands]
         self.commands = []
