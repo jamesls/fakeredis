@@ -1350,26 +1350,37 @@ class FakePipeline(object):
     def __exit__(self, exc_type, exc_value, traceback):
         self.reset()
 
-    def execute(self):
+    def execute(self, raise_on_error=True):
         """Run all the commands in the pipeline and return the results."""
-        if self.watching:
-            mismatches = [
-                (k, v, u) for (k, v, u) in
-                [(k, v, self.owner._db.get(k))
-                    for (k, v) in self.watching.items()]
-                if v != u]
-            if mismatches:
-                self.commands = []
-                self.watching = {}
-                raise redis.WatchError(
-                    'Watched key%s %s changed' % (
-                        '' if len(mismatches) == 1 else
-                        's', ', '.join(k for (k, _, _) in mismatches)))
-        ret = [getattr(self.owner, name)(*args, **kwargs)
-               for name, args, kwargs in self.commands]
-        self.commands = []
-        self.watching = {}
-        return ret
+        try:
+            if self.watching:
+                mismatches = [
+                    (k, v, u) for (k, v, u) in
+                    [(k, v, self.owner._db.get(k))
+                        for (k, v) in self.watching.items()]
+                    if v != u]
+                if mismatches:
+                    self.commands = []
+                    self.watching = {}
+                    raise redis.WatchError(
+                        'Watched key%s %s changed' % (
+                            '' if len(mismatches) == 1 else
+                            's', ', '.join(k for (k, _, _) in mismatches)))
+            if raise_on_error:
+                ret = [getattr(self.owner, name)(*args, **kwargs)
+                       for name, args, kwargs in self.commands]
+            else:
+                ret = []
+                for name, args, kwargs in self.commands:
+                    try:
+                        ret.append(getattr(self.owner, name)(*args, **kwargs))
+                    except Exception as exc:
+                        ret.append(exc)
+            return ret
+        finally:
+            # Redis-py will reset in all cases, so do that.
+            self.commands = []
+            self.watching = {}
 
     def watch(self, *keys):
         self.watching.update((key, copy.deepcopy(self.owner._db.get(key)))
