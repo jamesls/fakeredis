@@ -66,11 +66,23 @@ data:
   >>> r2.get('bar')
   'baz'
 
+Because fakeredis stores state at the module level, if you
+want to ensure that you have a clean slate for every unit
+test you run, be sure to call `r.flushall()` in your
+``tearDown`` method.  For example::
+
+    def setUp(self):
+        # Setup fake redis for testing.
+        self.r = fakeredis.FakeStrictRedis()
+
+    def tearDown(self):
+        # Clear data in fakeredis.
+        self.r.flushall()
+
 
 Fakeredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
 of redis 2.6.
-
 
 Unimplemented Commands
 ======================
