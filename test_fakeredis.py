@@ -1583,6 +1583,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         # Check that the command buffer has been emptied.
         self.assertEqual([], p.execute())
 
+    def test_pipeline_ignore_errors(self):
+        """Test the pipeline ignoring errors when asked."""
+        with self.redis.pipeline() as p:
+            p.set('foo', 'bar')
+            p.rename('baz', 'bats')
+            with self.assertRaises(redis.exceptions.ResponseError):
+                p.execute()
+            self.assertEqual([], p.execute())
+        with self.redis.pipeline() as p:
+            p.set('foo', 'bar')
+            p.rename('baz', 'bats')
+            res = p.execute(raise_on_error=False)
+
+            self.assertEqual([], p.execute())
+
+            self.assertEqual(len(res), 2)
+            self.assertIsInstance(res[1], redis.exceptions.ResponseError)
+
     def test_multiple_successful_watch_calls(self):
         p = self.redis.pipeline()
         p.watch('bam')
