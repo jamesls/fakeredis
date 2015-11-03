@@ -4,6 +4,7 @@ from redis.exceptions import ResponseError
 import inspect
 from functools import wraps
 import sys
+import threading
 
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
@@ -12,6 +13,13 @@ import redis.client
 
 import fakeredis
 from datetime import datetime, timedelta
+
+try:
+    # Python 2.6, 2.7
+    from Queue import Queue
+except:
+    # Python 3
+    from queue import Queue
 
 PY2 = sys.version_info[0] == 2
 
@@ -1583,6 +1591,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         # Check that the command buffer has been emptied.
         self.assertEqual([], p.execute())
 
+    def test_pipeline_ignore_errors(self):
+        """Test the pipeline ignoring errors when asked."""
+        with self.redis.pipeline() as p:
+            p.set('foo', 'bar')
+            p.rename('baz', 'bats')
+            with self.assertRaises(redis.exceptions.ResponseError):
+                p.execute()
+            self.assertEqual([], p.execute())
+        with self.redis.pipeline() as p:
+            p.set('foo', 'bar')
+            p.rename('baz', 'bats')
+            res = p.execute(raise_on_error=False)
+
+            self.assertEqual([], p.execute())
+
+            self.assertEqual(len(res), 2)
+            self.assertIsInstance(res[1], redis.exceptions.ResponseError)
+
     def test_multiple_successful_watch_calls(self):
         p = self.redis.pipeline()
         p.watch('bam')
@@ -1756,6 +1782,134 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.type('set_key'), b'set')
         self.assertEqual(self.redis.type('zset_key'), b'zset')
         self.assertEqual(self.redis.type('hset_key'), b'hash')
+
+    @attr('slow')
+    def test_pubsub_subscribe(self):
+        pubsub = self.redis.pubsub()
+        pubsub.subscribe("channel")
+        sleep(1)
+        expected_message = {'type': 'subscribe', 'pattern': None,
+                            'channel': b'channel', 'data': 1}
+        message = pubsub.get_message()
+        keys = list(pubsub.channels.keys())
+        key = keys[0] if type(keys[0]) == bytes\
+            else bytes(keys[0], encoding='utf-8')
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(key, b'channel')
+        self.assertEqual(message, expected_message)
+
+    @attr('slow')
+    def test_pubsub_psubscribe(self):
+        pubsub = self.redis.pubsub()
+        pubsub.psubscribe("channel.*")
+        sleep(1)
+        expected_message = {'type': 'psubscribe', 'pattern': None,
+                            'channel': b'channel.*', 'data': 1}
+
+        message = pubsub.get_message()
+        keys = list(pubsub.patterns.keys())
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(message, expected_message)
+
+    @attr('slow')
+    def test_pubsub_unsubscribe(self):
+        pubsub = self.redis.pubsub()
+        pubsub.subscribe('channel-1', 'channel-2', 'channel-3')
+        sleep(1)
+        expected_message = {'type': 'unsubscribe', 'pattern': None,
+                            'channel': b'channel-1', 'data': 2}
+        pubsub.get_message()
+        pubsub.get_message()
+        pubsub.get_message()
+
+        # unsubscribe from one
+        pubsub.unsubscribe('channel-1')
+        sleep(1)
+        message = pubsub.get_message()
+        keys = list(pubsub.channels.keys())
+        self.assertEqual(message, expected_message)
+        self.assertEqual(len(keys), 2)
+
+        # unsubscribe from multiple
+        pubsub.unsubscribe()
+        sleep(1)
+        pubsub.get_message()
+        pubsub.get_message()
+        keys = list(pubsub.channels.keys())
+        self.assertEqual(message, expected_message)
+        self.assertEqual(len(keys), 0)
+
+    @attr('slow')
+    def test_pubsub_punsubscribe(self):
+        pubsub = self.redis.pubsub()
+        pubsub.psubscribe('channel-1.*', 'channel-2.*', 'channel-3.*')
+        sleep(1)
+        expected_message = {'type': 'punsubscribe', 'pattern': None,
+                            'channel': b'channel-1.*', 'data': 2}
+        pubsub.get_message()
+        pubsub.get_message()
+        pubsub.get_message()
+
+        # unsubscribe from one
+        pubsub.punsubscribe('channel-1.*')
+        sleep(1)
+        message = pubsub.get_message()
+        keys = list(pubsub.patterns.keys())
+        self.assertEqual(message, expected_message)
+        self.assertEqual(len(keys), 2)
+
+        # unsubscribe from multiple
+        pubsub.punsubscribe()
+        sleep(1)
+        pubsub.get_message()
+        pubsub.get_message()
+        keys = list(pubsub.patterns.keys())
+        self.assertEqual(len(keys), 0)
+
+    @attr('slow')
+    def test_pubsub_listen(self):
+        def _listen(pubsub, q):
+            count = 0
+            for message in pubsub.listen():
+                q.put(message)
+                count += 1
+                if count == 4:
+                    pubsub.close()
+
+        channel = 'ch1'
+        patterns = ['ch1*', 'ch[1]', 'ch?']
+        pubsub = self.redis.pubsub()
+        pubsub.subscribe(channel)
+        pubsub.psubscribe(*patterns)
+        sleep(1)
+        pubsub.get_message()
+        pubsub.get_message()
+        pubsub.get_message()
+        pubsub.get_message()
+
+        q = Queue()
+        t = threading.Thread(target=_listen, args=(pubsub, q))
+        t.start()
+        msg = 'hello world'
+        self.redis.publish(channel, msg)
+        t.join()
+
+        msg1 = q.get()
+        msg2 = q.get()
+        msg3 = q.get()
+        msg4 = q.get()
+
+        bpatterns = [pattern.encode() for pattern in patterns]
+        bpatterns.append(channel.encode())
+        msg = msg.encode()
+        self.assertEqual(msg1['data'], msg)
+        self.assertIn(msg1['channel'], bpatterns)
+        self.assertEqual(msg2['data'], msg)
+        self.assertIn(msg2['channel'], bpatterns)
+        self.assertEqual(msg3['data'], msg)
+        self.assertIn(msg3['channel'], bpatterns)
+        self.assertEqual(msg4['data'], msg)
+        self.assertIn(msg4['channel'], bpatterns)
 
     def test_pfadd(self):
         key = "hll-pfadd"
