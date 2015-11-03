@@ -1920,6 +1920,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_pfcount(self):
         key1 = "hll-pfcount01"
         key2 = "hll-pfcount02"
+        key3 = "hll-pfcount03"
         self.assertEqual(1, self.redis.pfadd(key1, "foo", "bar", "zap"))
         self.assertEqual(0, self.redis.pfadd(key1, "zap", "zap", "zap"))
         self.assertEqual(0, self.redis.pfadd(key1, "foo", "bar"))
@@ -1927,6 +1928,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(1, self.redis.pfadd(key2, "1", "2", "3"))
         self.assertEqual(3, self.redis.pfcount(key2))
         self.assertEqual(6, self.redis.pfcount(key1, key2))
+        self.assertEqual(1, self.redis.pfadd(key3, "foo", "bar", "zip"))
+        self.assertEqual(3, self.redis.pfcount(key3))
+        self.assertEqual(4, self.redis.pfcount(key1, key3))
+        self.assertEqual(7, self.redis.pfcount(key1, key2, key3))
 
     def test_pfmerge(self):
         key1 = "hll-pfmerge01"

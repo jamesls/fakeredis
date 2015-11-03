@@ -1330,10 +1330,7 @@ class FakeStrictRedis(object):
         Return the approximated cardinality of
         the set observed by the HyperLogLog at key(s).
         """
-        total = 0
-        for src in sources:
-            total += self.scard(src)
-        return total
+        return len(self.sunion(*sources))
 
     def pfmerge(self, dest, *sources):
         "Merge N different HyperLogLogs into a single one."
