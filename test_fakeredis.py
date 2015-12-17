@@ -5,6 +5,7 @@ import inspect
 from functools import wraps
 import sys
 import threading
+from future.utils import viewitems
 
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
@@ -2027,8 +2028,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         cursor = '0'
         while cursor != 0:
             cursor, data = self.redis.hscan(name, cursor, count=6)
-            for k, v in data.iteritems():
-                results[k] = v
+            results.update(data)
         self.assertDictEqual(expected, results)
 
         # Test the iterator version
@@ -2042,8 +2042,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         cursor = '0'
         while cursor != 0:
             cursor, data = self.redis.hscan(name, cursor, match='*7', count=100)
-            for k, v in data.iteritems():
-                results[k] = v
+            results.update(data)
         self.assertIn('key:7', results)
         self.assertIn('key:17', results)
         self.assertEqual(2, len(results))
