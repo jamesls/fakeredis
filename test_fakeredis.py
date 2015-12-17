@@ -1965,14 +1965,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         while cursor != 0:
             cursor, data = self.redis.scan(cursor, match='*7', count=100)
             results.extend(data)
-        self.assertIn('scan-test:7', results)
-        self.assertIn('scan-test:17', results)
+        self.assertIn(b'scan-test:7', results)
+        self.assertIn(b'scan-test:17', results)
         self.assertEqual(2, len(results))
 
         # Test the match on iterator
         results = [r for r in self.redis.scan_iter(match='*7')]
-        self.assertIn('scan-test:7', results)
-        self.assertIn('scan-test:17', results)
+        self.assertIn(b'scan-test:7', results)
+        self.assertIn(b'scan-test:17', results)
         self.assertEqual(2, len(results))
 
     def test_sscan(self):
@@ -2002,14 +2002,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         while cursor != 0:
             cursor, data = self.redis.sscan(name, cursor, match='*7', count=100)
             results.extend(data)
-        self.assertIn('sscan-test:7', results)
-        self.assertIn('sscan-test:17', results)
+        self.assertIn(b'sscan-test:7', results)
+        self.assertIn(b'sscan-test:17', results)
         self.assertEqual(2, len(results))
 
         # Test the match on iterator
         results = [r for r in self.redis.sscan_iter(name, match='*7')]
-        self.assertIn('sscan-test:7', results)
-        self.assertIn('sscan-test:17', results)
+        self.assertIn(b'sscan-test:7', results)
+        self.assertIn(b'sscan-test:17', results)
         self.assertEqual(2, len(results))
 
     def test_hscan(self):
@@ -2042,16 +2042,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         while cursor != 0:
             cursor, data = self.redis.hscan(name, cursor, match='*7', count=100)
             results.update(data)
-        self.assertIn('key:7', results)
-        self.assertIn('key:17', results)
+        self.assertIn(b'key:7', results)
+        self.assertIn(b'key:17', results)
         self.assertEqual(2, len(results))
 
         # Test the match on iterator
         results = {}
         for key, val in self.redis.hscan_iter(name, match='*7'):
             results[key] = val
-        self.assertIn('key:7', results)
-        self.assertIn('key:17', results)
+        self.assertIn(b'key:7', results)
+        self.assertIn(b'key:17', results)
         self.assertEqual(2, len(results))
 
 
