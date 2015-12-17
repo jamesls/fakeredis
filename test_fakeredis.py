@@ -1911,6 +1911,37 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(msg4['data'], msg)
         self.assertIn(msg4['channel'], bpatterns)
 
+    def test_pfadd(self):
+        key = "hll-pfadd"
+        self.assertEqual(
+            1, self.redis.pfadd(key, "a", "b", "c", "d", "e", "f", "g"))
+        self.assertEqual(7, self.redis.pfcount(key))
+
+    def test_pfcount(self):
+        key1 = "hll-pfcount01"
+        key2 = "hll-pfcount02"
+        key3 = "hll-pfcount03"
+        self.assertEqual(1, self.redis.pfadd(key1, "foo", "bar", "zap"))
+        self.assertEqual(0, self.redis.pfadd(key1, "zap", "zap", "zap"))
+        self.assertEqual(0, self.redis.pfadd(key1, "foo", "bar"))
+        self.assertEqual(3, self.redis.pfcount(key1))
+        self.assertEqual(1, self.redis.pfadd(key2, "1", "2", "3"))
+        self.assertEqual(3, self.redis.pfcount(key2))
+        self.assertEqual(6, self.redis.pfcount(key1, key2))
+        self.assertEqual(1, self.redis.pfadd(key3, "foo", "bar", "zip"))
+        self.assertEqual(3, self.redis.pfcount(key3))
+        self.assertEqual(4, self.redis.pfcount(key1, key3))
+        self.assertEqual(7, self.redis.pfcount(key1, key2, key3))
+
+    def test_pfmerge(self):
+        key1 = "hll-pfmerge01"
+        key2 = "hll-pfmerge02"
+        key3 = "hll-pfmerge03"
+        self.assertEqual(1, self.redis.pfadd(key1, "foo", "bar", "zap", "a"))
+        self.assertEqual(1, self.redis.pfadd(key2, "a", "b", "c", "foo"))
+        self.assertTrue(self.redis.pfmerge(key3, key1, key2))
+        self.assertEqual(6, self.redis.pfcount(key3))
+
 
 class TestFakeRedis(unittest.TestCase):
     def setUp(self):

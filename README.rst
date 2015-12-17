@@ -103,14 +103,6 @@ hash
  * hscan
 
 
-hyperloglog
------------
-
- * pfcount
- * pfadd
- * pfmerge
-
-
 generic
 -------
 

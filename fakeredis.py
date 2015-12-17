@@ -1314,6 +1314,29 @@ class FakeStrictRedis(object):
 
         return count
 
+    # HYPERLOGLOG COMMANDS
+    def pfadd(self, name, *values):
+        "Adds the specified elements to the specified HyperLogLog."
+        # Simulate the behavior of HyperLogLog by using SETs underneath to
+        # approximate the behavior.
+        result = self.sadd(name, *values)
+
+        # Per the documentation:
+        # - 1 if at least 1 HyperLogLog internal register was altered. 0 otherwise.
+        return 1 if result > 0 else 0
+
+    def pfcount(self, *sources):
+        """
+        Return the approximated cardinality of
+        the set observed by the HyperLogLog at key(s).
+        """
+        return len(self.sunion(*sources))
+
+    def pfmerge(self, dest, *sources):
+        "Merge N different HyperLogLogs into a single one."
+        self.sunionstore(dest, sources)
+        return True
+
 
 class FakeRedis(FakeStrictRedis):
     def setex(self, name, value, time):
