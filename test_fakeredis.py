@@ -5,7 +5,6 @@ import inspect
 from functools import wraps
 import sys
 import threading
-from future.utils import viewitems
 
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
