@@ -91,18 +91,6 @@ All of the redis commands are implemented in fakeredis with
 these exceptions:
 
 
-set
----
-
- * sscan
-
-
-hash
-----
-
- * hscan
-
-
 generic
 -------
 

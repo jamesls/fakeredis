@@ -369,28 +369,6 @@ class FakeStrictRedis(object):
         else:
             return self.rename(src, dst)
 
-    def scan(self, cursor=0, match=None, count=None):
-        cursor = int(cursor)
-        if count is None:
-            count = 10
-        match_keys = [
-            key for key in self._db if not match or
-            fnmatch.fnmatch(to_native(key), to_native(match))
-        ]
-        keys = match_keys[cursor:cursor + count]
-        if cursor + count >= len(match_keys):
-            return 0, keys
-        else:
-            return cursor + count, keys
-
-    def scan_iter(self, match=None, count=None):
-        # This is from redis-py
-        cursor = '0'
-        while cursor != 0:
-            cursor, data = self.scan(cursor=cursor, match=match, count=count)
-            for item in data:
-                yield item
-
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) or (nx and self._db.get(name, None) is None) \
                 or (xx and not self._db.get(name, None) is None):
@@ -1336,6 +1314,66 @@ class FakeStrictRedis(object):
         "Merge N different HyperLogLogs into a single one."
         self.sunionstore(dest, sources)
         return True
+
+    # SCAN commands
+    def _scan(self, keys, cursor, match, count):
+        """
+        This is the basis of most of the ``scan`` methods.
+
+        This implementation is KNOWN to be un-performant, as it requires
+        grabbing the full set of keys over which we are investigating subsets.
+        """
+        if cursor >= len(keys):
+            return 0, []
+        data = sorted(keys)
+        result_cursor = cursor + count
+        result_data = []
+        # subset =
+        for val in data[cursor:result_cursor]:
+            if not match or fnmatch.fnmatch(to_native(val), to_native(match)):
+                result_data.append(val)
+        if result_cursor >= len(data):
+            result_cursor = 0
+        return result_cursor, result_data
+
+    def scan(self, cursor=0, match=None, count=None):
+        return self._scan(self.keys(), int(cursor), match, count or 10)
+
+    def sscan(self, name, cursor=0, match=None, count=None):
+        return self._scan(self.smembers(name), int(cursor), match, count or 10)
+
+    def hscan(self, name, cursor=0, match=None, count=None):
+        cursor, keys = self._scan(self.hkeys(name), int(cursor), match, count or 10)
+        results = {}
+        for k in keys:
+            results[k] = self.hget(name, k)
+        return cursor, results
+
+    def scan_iter(self, match=None, count=None):
+        # This is from redis-py
+        cursor = '0'
+        while cursor != 0:
+            cursor, data = self.scan(cursor=cursor, match=match, count=count)
+            for item in data:
+                yield item
+
+    def sscan_iter(self, name, match=None, count=None):
+        # This is from redis-py
+        cursor = '0'
+        while cursor != 0:
+            cursor, data = self.sscan(name, cursor=cursor,
+                                      match=match, count=count)
+            for item in data:
+                yield item
+
+    def hscan_iter(self, name, match=None, count=None):
+        # This is from redis-py
+        cursor = '0'
+        while cursor != 0:
+            cursor, data = self.hscan(name, cursor=cursor,
+                                      match=match, count=count)
+            for item in data.items():
+                yield item
 
 
 class FakeRedis(FakeStrictRedis):
