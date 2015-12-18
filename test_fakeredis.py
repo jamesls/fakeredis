@@ -237,7 +237,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_incr_followed_by_mget_returns_strings(self):
         self.redis.incr('foo', 1)
-        self.assertEqual(self.redis.mget(['foo']), ['1'])
+        self.assertEqual(self.redis.mget(['foo']), [b'1'])
 
     def test_incrbyfloat(self):
         self.redis.set('foo', 0)
