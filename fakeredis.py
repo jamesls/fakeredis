@@ -287,6 +287,9 @@ class FakeStrictRedis(object):
         the value will be initialized as ``amount``
         """
         try:
+            if not isinstance(amount, int):
+                raise redis.ResponseError("value is not an integer or out "
+                                          "of range.")
             self._db[name] = int(self._db.get(name, '0')) + amount
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "

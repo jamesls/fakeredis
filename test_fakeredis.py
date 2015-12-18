@@ -221,6 +221,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.incr('foo', 15)
 
+    def test_incr_with_float(self):
+        with self.assertRaises(redis.ResponseError):
+            self.redis.incr('foo', 2.0)
+
     def test_incrbyfloat(self):
         self.redis.set('foo', 0)
         self.assertEqual(self.redis.incrbyfloat('foo', 1.0), 1.0)
