@@ -287,11 +287,14 @@ class FakeStrictRedis(object):
         the value will be initialized as ``amount``
         """
         try:
-            self._db[name] = int(self._db.get(name, '0')) + amount
+            if not isinstance(amount, int):
+                raise redis.ResponseError("value is not an integer or out "
+                                          "of range.")
+            self._db[name] = to_bytes(int(self._db.get(name, '0')) + amount)
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
-        return self._db[name]
+        return int(self._db[name])
 
     def incrby(self, name, amount=1):
         """
