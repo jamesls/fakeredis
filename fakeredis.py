@@ -277,8 +277,7 @@ class FakeStrictRedis(object):
         Return the value at key ``name`` atomically
         """
         val = self._db.get(name)
-        if val is None:
-            self._db[name] = value
+        self._db[name] = value
         return val
 
     def incr(self, name, amount=1):
