@@ -1275,7 +1275,7 @@ class FakeStrictRedis(object):
         """
         Returns a new FakePubSub instance
         """
-        ps = FakePubSub(ignore_subscribe_messages)
+        ps = FakePubSub(ignore_subscribe_messages=ignore_subscribe_messages)
         self._pubsubs.append(ps)
 
         return ps
