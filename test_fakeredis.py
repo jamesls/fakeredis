@@ -168,8 +168,10 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_getset_exists(self):
         self.redis.set('foo', 'bar')
-        val = self.redis.getset('foo', 'baz')
+        val = self.redis.getset('foo', b'baz')
         self.assertEqual(val, b'bar')
+        val = self.redis.getset('foo', b'baz2')
+        self.assertEqual(val, b'baz')
 
     def test_setitem_getitem(self):
         self.assertEqual(self.redis.keys(), [])
