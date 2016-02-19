@@ -31,6 +31,11 @@ if sys.version_info[:2] == (2, 6):
 else:
     import unittest
 
+try:
+    from importlib import reload
+except:
+    pass  # Use builtin on old Python versions
+
 
 def redis_must_be_running(cls):
     # This can probably be improved.  This will determines
@@ -2347,6 +2352,33 @@ class TestInitArgs(unittest.TestCase):
         db = fakeredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/a')
         self.assertEqual(db._db_num, 0)
+
+
+class TestImportation(unittest.TestCase):
+    def test_searches_for_c_stdlib_and_raises_if_missing(self):
+        """
+        Verifies that fakeredis checks for both libc and msvcrt when looking for a strtod implementation and that it
+        fails fast when neither is found.
+        """
+
+        import ctypes.util
+
+        # Patch manually since unittest.mock.patch is not available in old Python versions
+        old_find_library = ctypes.util.find_library
+
+        searched_libraries = set()
+
+        try:
+            ctypes.util.find_library = lambda library: searched_libraries.add(library)
+
+            with self.assertRaises(ImportError):
+                reload(fakeredis)
+
+            self.assertEqual({'c', 'msvcrt'}, searched_libraries)
+        finally:
+            ctypes.util.find_library = old_find_library
+
+            reload(fakeredis)
 
 
 if __name__ == '__main__':

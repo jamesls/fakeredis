@@ -94,7 +94,12 @@ else:
 
 DATABASES = {}
 
-_libc = CDLL(find_library('c'))
+_libc_library = find_library('c') or find_library('msvcrt')
+
+if not _libc_library:
+    raise ImportError('fakeredis: unable to find libc or equivalent')
+
+_libc = CDLL(_libc_library)
 _libc.strtod.restype = c_double
 _libc.strtod.argtypes = [c_char_p, POINTER(c_char_p)]
 _strtod = _libc.strtod
