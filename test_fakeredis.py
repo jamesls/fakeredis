@@ -31,10 +31,14 @@ if sys.version_info[:2] == (2, 6):
 else:
     import unittest
 
+# Try importlib, then imp, then the old builtin `reload`
 try:
     from importlib import reload
 except:
-    pass  # Use builtin on old Python versions
+    try:
+        from imp import reload
+    except:
+        pass
 
 
 def redis_must_be_running(cls):
@@ -2374,7 +2378,7 @@ class TestImportation(unittest.TestCase):
             with self.assertRaises(ImportError):
                 reload(fakeredis)
 
-            self.assertEqual({'c', 'msvcrt'}, searched_libraries)
+            self.assertEqual(set(['c', 'msvcrt']), searched_libraries)
         finally:
             ctypes.util.find_library = old_find_library
 
