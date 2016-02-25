@@ -959,6 +959,55 @@ class FakeStrictRedis(object):
             raise redis.ResponseError('min or max is not a float')
         return comparator, actual_value
 
+    def _get_zelement_lexrange_filter_func(self, min_str, max_str):
+        # This will return a filter function based on the
+        # min_str and max_str values.  It takes a single argument
+        # and return True if it matches the range filter
+        # criteria, and False otherwise.
+
+        # This will handles inclusive '[' and exclusive '('
+        # boundaries, as well as '-' and '+' which are
+        # considered 'negative infinitiy string' and
+        # maximum infinity string, which are handled by comparing
+        # against empty string.
+        #     a        < or <=    x     < or <=       b
+        #     ^          ^                ^           ^
+        # actual_min   left_comp     right_comp  actual_max
+        min_str = to_bytes(min_str)
+        max_str = to_bytes(max_str)
+
+        left_comparator, actual_min = self._get_lexcomp_and_str(min_str)
+        right_comparator, actual_max = self._get_lexcomp_and_str(max_str)
+
+        def _matches(x):
+            return (left_comparator(actual_min, x) and
+                    right_comparator(x, actual_max))
+        return _matches
+
+    def _get_lexcomp_and_str(self, value):
+        if value.startswith(b'('):
+            comparator = operator.lt
+            actual_value = value[1:]
+        elif value.startswith(b'['):
+            comparator = operator.le
+            actual_value = value[1:]
+        elif value == b'-':
+            # negative infinity string -- all strings greater than
+            # compares: '' < X
+            comparator = operator.le
+            actual_value = b''
+        elif value == b'+':
+            # positive infinity string -- all strings less than
+            # compares: '' > X
+            comparator = operator.ge
+            actual_value = b''
+        else:
+            msg = ('min and max must start with ( or [, ' +
+                   ' or min may be - and max may be +')
+            raise redis.ResponseError(msg)
+
+        return comparator, actual_value
+
     def zadd(self, name, *args, **kwargs):
         """
         Set any number of score, element-name pairs to the key ``name``. Pairs
@@ -1096,6 +1145,43 @@ class FakeStrictRedis(object):
             return [(k, all_items[k]) for k in matches]
         return matches
 
+    def zrangebylex(self, name, min, max,
+                    start=None, num=None):
+        """
+        Returns lexicographically ordered values
+        from sorted set ``name`` between values ``min`` and ``max``.
+
+        The ``min`` and ``max`` params must:
+            - start with ``(`` for exclusive boundary
+            - start with ``[`` (inclusive boundary)
+            - equal ``-`` for negative infinite string (start)
+            - equal ``+`` for positive infinite string (stop)
+
+        If ``start`` and ``num`` are specified, then a slice
+        of the range is returned.
+
+        """
+        return self._zrangebylex(name, min, max, start, num,
+                                 reverse=False)
+
+    def _zrangebylex(self, name, min, max, start, num, reverse):
+        if (start is not None and num is None) or \
+                (num is not None and start is None):
+            raise redis.RedisError("``start`` and ``num`` must both "
+                                   "be specified")
+        all_items = self._db.get(name, {})
+        in_order = self._get_zelements_in_order(all_items, reverse=reverse)
+        filter_func = self._get_zelement_lexrange_filter_func(min, max)
+        matches = []
+        for item in in_order:
+            if filter_func(item):
+                matches.append(item)
+        if start is not None:
+            if num < 0:
+                num = len(matches)
+            matches = matches[start:start + num]
+        return matches
+
     def zrank(self, name, value):
         """
         Returns a 0-based value indicating the rank of ``value`` in sorted set
@@ -1151,6 +1237,45 @@ class FakeStrictRedis(object):
                 removed += 1
         return removed
 
+    def zremrangebylex(self, name, min, max):
+        """
+        Remove all elements in the sorted set ``name``
+        that are in lexicograpically between ``min`` and ``max``
+
+        The ``min`` and ``max`` params must:
+            - start with ``(`` for exclusive boundary
+            - start with ``[`` (inclusive boundary)
+            - equal ``-`` for negative infinite string (start)
+            - equal ``+`` for positive infinite string (stop)
+        """
+        all_items = self._db.get(name, {})
+        filter_func = self._get_zelement_lexrange_filter_func(min, max)
+        removed = 0
+        for key in all_items.copy():
+            if filter_func(key):
+                del all_items[key]
+                removed += 1
+        return removed
+
+    def zlexcount(self, name, min, max):
+        """
+        Returns a count of elements in the sorted set ``name``
+        that are in lexicograpically between ``min`` and ``max``
+
+        The ``min`` and ``max`` params must:
+            - start with ``(`` for exclusive boundary
+            - start with ``[`` (inclusive boundary)
+            - equal ``-`` for negative infinite string (start)
+            - equal ``+`` for positive infinite string (stop)
+        """
+        all_items = self._db.get(name, {})
+        filter_func = self._get_zelement_lexrange_filter_func(min, max)
+        found = 0
+        for key in all_items.copy():
+            if filter_func(key):
+                found += 1
+        return found
+
     def zrevrange(self, name, start, num, withscores=False):
         """
         Return a range of values from sorted set ``name`` between
@@ -1177,6 +1302,25 @@ class FakeStrictRedis(object):
         """
         return self._zrangebyscore(name, min, max, start, num, withscores,
                                    reverse=True)
+
+    def zrevrangebylex(self, name, max, min,
+                       start=None, num=None):
+        """
+        Returns reverse lexicographically ordered values
+        from sorted set ``name`` between values ``min`` and ``max``.
+
+        The ``min`` and ``max`` params must:
+            - start with ``(`` for exclusive boundary
+            - start with ``[`` (inclusive boundary)
+            - equal ``-`` for negative infinite string (start)
+            - equal ``+`` for positive infinite string (stop)
+
+        If ``start`` and ``num`` are specified, then a slice
+        of the range is returned.
+
+        """
+        return self._zrangebylex(name, min, max, start, num,
+                                 reverse=True)
 
     def zrevrank(self, name, value):
         """

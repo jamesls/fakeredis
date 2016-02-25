@@ -1267,6 +1267,186 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.zrevrangebyscore('foo', '((3', '1)')
 
+    def test_zrangebylex(self):
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', three_a=0)
+        self.assertEqual(self.redis.zrangebylex('foo', b'(t', b'+'),
+                         [b'three_a', b'two_a', b'two_b'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'(t', b'[two_b'),
+                         [b'three_a', b'two_a', b'two_b'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'(t', b'(two_b'),
+                         [b'three_a', b'two_a'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'[three_a', b'[two_b'),
+                         [b'three_a', b'two_a', b'two_b'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'(three_a', b'[two_b'),
+                         [b'two_a', b'two_b'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'-', b'(two_b'),
+                         [b'one_a', b'three_a', b'two_a'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'[two_b', b'(two_b'),
+                         [])
+        # reversed max + and min - boundaries
+        # these will be always empty, but allowed by redis
+        self.assertEqual(self.redis.zrangebylex('foo', b'+', b'-'),
+                         [])
+        self.assertEqual(self.redis.zrangebylex('foo', b'+', b'[three_a'),
+                         [])
+        self.assertEqual(self.redis.zrangebylex('foo', b'[o', b'-'),
+                         [])
+
+    def test_zlexcount(self):
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', three_a=0)
+        self.assertEqual(self.redis.zlexcount('foo', b'(t', b'+'),
+                         3)
+
+        self.assertEqual(self.redis.zlexcount('foo', b'(t', b'[two_b'),
+                         3)
+
+        self.assertEqual(self.redis.zlexcount('foo', b'(t', b'(two_b'),
+                         2)
+
+        self.assertEqual(self.redis.zlexcount('foo', b'[three_a', b'[two_b'),
+                         3)
+        self.assertEqual(self.redis.zlexcount('foo', b'(three_a', b'[two_b'),
+                         2)
+
+        self.assertEqual(self.redis.zlexcount('foo', b'-', b'(two_b'),
+                         3)
+
+        self.assertEqual(self.redis.zlexcount('foo', b'[two_b', b'(two_b'),
+                         0)
+        # reversed max + and min - boundaries
+        # these will be always empty, but allowed by redis
+        self.assertEqual(self.redis.zlexcount('foo', b'+', b'-'),
+                         0)
+        self.assertEqual(self.redis.zlexcount('foo', b'+', b'[three_a'),
+                         0)
+        self.assertEqual(self.redis.zlexcount('foo', b'[o', b'-'),
+                         0)
+
+    def test_zrangebylex_with_limit(self):
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', three_a=0)
+        self.assertEqual(self.redis.zrangebylex('foo', b'-', b'+', 1, 2),
+                         [b'three_a', b'two_a'])
+
+        # negative offset no results
+        self.assertEqual(self.redis.zrangebylex('foo', b'-', b'+', -1, 3),
+                         [])
+
+        # negative limit ignored
+        self.assertEqual(self.redis.zrangebylex('foo', b'-', b'+', 0, -2),
+                         [b'one_a', b'three_a', b'two_a', b'two_b'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'-', b'+', 1, -2),
+                         [b'three_a', b'two_a', b'two_b'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'+', b'-', 1, 1),
+                         [])
+
+    def test_zrangebylex_raises_error(self):
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', three_a=0)
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebylex('foo', b'', b'[two_b')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebylex('foo', b'-', b'two_b')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebylex('foo', b'(t', b'two_b')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebylex('foo', b't', b'+')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebylex('foo', b'[two_a', b'')
+
+        with self.assertRaises(redis.RedisError):
+            self.redis.zrangebylex('foo', b'(two_a', b'[two_b', 1)
+
+    def test_zrevrangebylex(self):
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', three_a=0)
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'+', b'(t'),
+                         [b'two_b', b'two_a', b'three_a'])
+
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'[two_b', b'(t'),
+                         [b'two_b', b'two_a', b'three_a'])
+
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'(two_b', b'(t'),
+                         [b'two_a', b'three_a'])
+
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'[two_b', b'[three_a'),
+                         [b'two_b', b'two_a', b'three_a'])
+
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'[two_b', b'(three_a'),
+                         [b'two_b', b'two_a'])
+
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'(two_b', b'-'),
+                         [b'two_a', b'three_a', b'one_a'])
+
+        self.assertEqual(self.redis.zrangebylex('foo', b'(two_b', b'[two_b'),
+                         [])
+        # reversed max + and min - boundaries
+        # these will be always empty, but allowed by redis
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'-', b'+'),
+                         [])
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'[three_a', b'+'),
+                         [])
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'-', b'[o'),
+                         [])
+
+
+    def test_zrevrangebylex_with_limit(self):
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', three_a=0)
+        self.assertEqual(self.redis.zrevrangebylex('foo', b'+', b'-', 1, 2),
+                         [b'two_a', b'three_a'])
+
+    def test_zrevrangebylex_raises_error(self):
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', three_a=0)
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebylex('foo', b'[two_b', b'')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebylex('foo', b'two_b', b'-')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebylex('foo', b'two_b', b'(t')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebylex('foo', b'+', b't')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebylex('foo', b'', b'[two_a')
+
+        with self.assertRaises(redis.RedisError):
+            self.redis.zrevrangebylex('foo', b'[two_a', b'(two_b', 1)
+
     def test_zremrangebyrank(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -1333,6 +1513,36 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_zremrangebyscore_badkey(self):
         self.assertEqual(self.redis.zremrangebyscore('foo', 0, 2), 0)
+
+    def test_zremrangebylex(self):
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', three_a=0)
+        self.assertEqual(self.redis.zremrangebylex('foo', b'(three_a', b'[two_b'), 2)
+        self.assertEqual(self.redis.zremrangebylex('foo', b'(three_a', b'[two_b'), 0)
+        self.assertEqual(self.redis.zremrangebylex('foo', b'-', b'(o'), 0)
+        self.assertEqual(self.redis.zremrangebylex('foo', b'-', b'[one_a'), 1)
+        self.assertEqual(self.redis.zremrangebylex('foo', b'[tw', b'+'), 0)
+        self.assertEqual(self.redis.zremrangebylex('foo', b'[t', b'+'), 1)
+        self.assertEqual(self.redis.zremrangebylex('foo', b'[t', b'+'), 0)
+
+    def test_zremrangebylex_error(self):
+        self.redis.zadd('foo', two_a=0)
+        self.redis.zadd('foo', two_b=0)
+        self.redis.zadd('foo', one_a=0)
+        self.redis.zadd('foo', three_a=0)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebylex('foo', b'(t', b'two_b')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebylex('foo', b't', b'+')
+
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebylex('foo', b'[two_a', b'')
+
+    def test_zremrangebylex_badkey(self):
+        self.assertEqual(self.redis.zremrangebylex('foo', b'(three_a', b'[two_b'), 0)
 
     def test_zunionstore(self):
         self.redis.zadd('foo', one=1)

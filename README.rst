@@ -139,11 +139,7 @@ server
 sorted_set
 ----------
 
- * zrangebylex
  * zscan
- * zrevrangebylex
- * zremrangebylex
- * zlexcount
 
 
 connection
