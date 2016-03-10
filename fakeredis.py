@@ -1,3 +1,4 @@
+
 import random
 import warnings
 import copy
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 import operator
 import sys
 import time
+import threading
 import re
 
 import redis
@@ -1377,6 +1379,9 @@ class FakeStrictRedis(object):
                                       match=match, count=count)
             for item in data.items():
                 yield item
+
+    def lock(self, *args, **kwargs):
+        return threading.Lock()
 
 
 class FakeRedis(FakeStrictRedis):
