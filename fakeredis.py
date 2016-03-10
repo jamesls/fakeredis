@@ -1380,8 +1380,26 @@ class FakeStrictRedis(object):
             for item in data.items():
                 yield item
 
-    def lock(self, *args, **kwargs):
-        return threading.Lock()
+    def lock(self, name, *args, **kwargs):
+        return FakeLock(*args, **kwargs)
+
+
+class FakeLock():
+    def __init__(self, *args, **kwargs):
+        self._lock = threading.Lock()
+
+    def acquire(self, blocking=False, blocking_timeout=None):
+        return self._lock.acquire(blocking)
+
+    def release(self):
+        return self._lock.release()
+
+    def __enter__(self):
+        self.acquire(blocking=True)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.release()
 
 
 class FakeRedis(FakeStrictRedis):
