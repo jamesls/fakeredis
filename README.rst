@@ -91,6 +91,36 @@ All of the redis commands are implemented in fakeredis with
 these exceptions:
 
 
+sorted_set
+----------
+
+ * zscan
+
+
+hash
+----
+
+ * hstrlen
+
+
+string
+------
+
+ * bitop
+ * bitpos
+
+
+geo
+---
+
+ * geoadd
+ * geopos
+ * georadius
+ * geohash
+ * georadiusbymember
+ * geodist
+
+
 generic
 -------
 
@@ -100,6 +130,7 @@ generic
  * pexpire
  * migrate
  * object
+ * wait
 
 
 server
@@ -136,10 +167,30 @@ server
  * command info
 
 
-sorted_set
-----------
 
- * zscan
+cluster
+-------
+
+ * cluster getkeysinslot
+ * cluster info
+ * readwrite
+ * cluster slots
+ * cluster keyslot
+ * cluster addslots
+ * readonly
+ * cluster saveconfig
+ * cluster forget
+ * cluster meet
+ * cluster slaves
+ * cluster nodes
+ * cluster countkeysinslot
+ * cluster setslot
+ * cluster count-failure-reports
+ * cluster reset
+ * cluster failover
+ * cluster set-config-epoch
+ * cluster delslots
+ * cluster replicate
 
 
 connection
@@ -160,14 +211,6 @@ scripting
  * evalsha
  * eval
  * script exists
-
-
-string
-------
-
- * incrbyfloat
- * bitop
- * bitpos
 
 
 Contributing
