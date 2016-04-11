@@ -379,6 +379,22 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.set('foo', 'bar', px=timedelta(milliseconds=100)), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
+    def test_set_raises_wrong_ex(self):
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', ex=-100)
+
+    def test_set_using_timedelta_raises_wrong_ex(self):
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', ex=timedelta(seconds=-100))
+
+    def test_set_raises_wrong_px(self):
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', px=-100)
+
+    def test_set_using_timedelta_raises_wrong_px(self):
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', px=timedelta(milliseconds=-100))
+
     def test_setex_raises_wrong_ex(self):
         with self.assertRaises(ResponseError):
             self.redis.setex('foo', -100, 'bar')
