@@ -361,6 +361,14 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.setex('foo', timedelta(seconds=100), 'bar'), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
+    def test_setex_raises_wrong_ex(self):
+        with self.assertRaises(ResponseError):
+            self.redis.setex('foo', -100, 'bar')
+
+    def test_setex_using_timedelta_raises_wrong_ex(self):
+        with self.assertRaises(ResponseError):
+            self.redis.setex('foo', timedelta(seconds=-100), 'bar')
+
     def test_setnx(self):
         self.assertEqual(self.redis.setnx('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'),  b'bar')
