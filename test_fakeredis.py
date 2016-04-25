@@ -361,6 +361,48 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.setex('foo', timedelta(seconds=100), 'bar'), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
+    def test_set_ex(self):
+        self.assertEqual(self.redis.set('foo', 'bar', ex=100), True)
+        self.assertEqual(self.redis.get('foo'), b'bar')
+
+    def test_set_ex_using_timedelta(self):
+        self.assertEqual(
+            self.redis.set('foo', 'bar', ex=timedelta(seconds=100)), True)
+        self.assertEqual(self.redis.get('foo'), b'bar')
+
+    def test_set_px(self):
+        self.assertEqual(self.redis.set('foo', 'bar', px=100), True)
+        self.assertEqual(self.redis.get('foo'), b'bar')
+
+    def test_set_px_using_timedelta(self):
+        self.assertEqual(
+            self.redis.set('foo', 'bar', px=timedelta(milliseconds=100)), True)
+        self.assertEqual(self.redis.get('foo'), b'bar')
+
+    def test_set_raises_wrong_ex(self):
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', ex=-100)
+
+    def test_set_using_timedelta_raises_wrong_ex(self):
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', ex=timedelta(seconds=-100))
+
+    def test_set_raises_wrong_px(self):
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', px=-100)
+
+    def test_set_using_timedelta_raises_wrong_px(self):
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', px=timedelta(milliseconds=-100))
+
+    def test_setex_raises_wrong_ex(self):
+        with self.assertRaises(ResponseError):
+            self.redis.setex('foo', -100, 'bar')
+
+    def test_setex_using_timedelta_raises_wrong_ex(self):
+        with self.assertRaises(ResponseError):
+            self.redis.setex('foo', timedelta(seconds=-100), 'bar')
+
     def test_setnx(self):
         self.assertEqual(self.redis.setnx('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'),  b'bar')
