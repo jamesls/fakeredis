@@ -148,7 +148,7 @@ class _StrKeyDict(MutableMapping):
         for key in deleted:
             if key in self._ex_keys:
                 del self._ex_keys[key]
-            if key in sel:
+            if key in self:
                 del self[key]
 
     def copy(self):
