@@ -146,8 +146,10 @@ class _StrKeyDict(MutableMapping):
                 deleted.append(key)
 
         for key in deleted:
-            del self._ex_keys[key]
-            del self[key]
+            if key in self._ex_keys:
+                del self._ex_keys[key]
+            if key in self:
+                del self[key]
 
     def copy(self):
         new_copy = _StrKeyDict()
