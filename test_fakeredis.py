@@ -2505,14 +2505,14 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.pexpire('bar', 1), False)
 
-    def test_pexpire_should_return_true_for_existing_key(self):
+    def test_pexpire_should_return_truthy_for_existing_key(self):
         self.redis.set('foo', 'bar')
         rv = self.redis.pexpire('foo', 1)
-        self.assertIs(rv, True)
+        self.assertIs(bool(rv), True)
 
-    def test_pexpire_should_return_false_for_missing_key(self):
+    def test_pexpire_should_return_falsey_for_missing_key(self):
         rv = self.redis.pexpire('missing', 1)
-        self.assertIs(rv, False)
+        self.assertIs(bool(rv), False)
 
     @attr('slow')
     def test_pexpire_should_expire_key_using_timedelta(self):
