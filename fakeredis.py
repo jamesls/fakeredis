@@ -231,10 +231,17 @@ class FakeStrictRedis(object):
     __contains__ = exists
 
     def expire(self, name, time):
+        return self._expire(name, time)
+
+    def pexpire(self, name, millis):
+        return self._expire(name, millis, 1000)
+
+    def _expire(self, name, time, multiplier=1):
         if isinstance(time, timedelta):
-            time = int(timedelta_total_seconds(time))
+            time = int(timedelta_total_seconds(time) * multiplier)
         if self.exists(name):
-            self._db.expire(name, datetime.now() + timedelta(seconds=time))
+            self._db.expire(name, datetime.now() +
+                            timedelta(seconds=time / multiplier))
             return True
         else:
             return False
