@@ -2585,6 +2585,19 @@ class TestFakeRedis(unittest.TestCase):
                            long_long_c_max * 1000 - d,
                            long_long_c_max * 1000)
 
+    def test_ttls_should_always_be_long(self):
+        self.redis.set('foo', 'bar')
+        self.redis.expire('foo', 1)
+        self.assertTrue(type(self.redis.ttl('foo')) is long)
+        self.assertTrue(type(self.redis.pttl('foo')) is long)
+
+    def test_expire_should_not_handle_floating_point_values(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaisesRegexp(
+                redis.ResponseError, 'value is not an integer or out of range'):
+            self.redis.expire('something_new', 1.2)
+            self.redis.expire('some_unused_key', 1.2)
+
 
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
