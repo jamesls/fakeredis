@@ -2596,7 +2596,9 @@ class TestFakeRedis(unittest.TestCase):
         with self.assertRaisesRegexp(
                 redis.ResponseError, 'value is not an integer or out of range'):
             self.redis.expire('something_new', 1.2)
+            self.redis.pexpire('something_new', 1000.2)
             self.redis.expire('some_unused_key', 1.2)
+            self.redis.pexpire('some_unused_key', 1000.2)
 
 
 @redis_must_be_running
