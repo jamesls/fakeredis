@@ -1431,11 +1431,11 @@ class FakeStrictRedis(object):
                     continue
         raise redis.WatchError('Could not run transaction after 5 tries')
 
-    def pubsub(self):
+    def pubsub(self, ignore_subscribe_messages=False):
         """
         Returns a new FakePubSub instance
         """
-        ps = FakePubSub()
+        ps = FakePubSub(ignore_subscribe_messages=ignore_subscribe_messages)
         self._pubsubs.append(ps)
 
         return ps
@@ -1673,8 +1673,7 @@ class FakePubSub(object):
         self._q = Queue()
         self.subscribed = False
 
-        self.ignore_subscribe_messages = kwargs['ignore_subscribe_messages']\
-            if 'ignore_subscribe_messages' in kwargs else False
+        self.ignore_subscribe_messages = kwargs.get('ignore_subscribe_messages', False)
 
     def put(self, channel, message, message_type, pattern=None):
         """
