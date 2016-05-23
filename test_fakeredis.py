@@ -235,16 +235,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_incr_with_float(self):
         with self.assertRaises(redis.ResponseError):
             self.redis.incr('foo', 2.0)
-    
+
     def test_incr_followed_by_mget(self):
         self.redis.set('foo', 15)
         self.assertEqual(self.redis.incr('foo', 5), 20)
         self.assertEqual(self.redis.get('foo'), b'20')
-
-    def test_incr_bad_type(self):
-        self.redis.set('foo', 'bar')
-        with self.assertRaises(redis.ResponseError):
-            self.redis.incr('foo', 15)
 
     def test_incr_followed_by_mget_returns_strings(self):
         self.redis.incr('foo', 1)
@@ -405,9 +400,9 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_setnx(self):
         self.assertEqual(self.redis.setnx('foo', 'bar'), True)
-        self.assertEqual(self.redis.get('foo'),  b'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
         self.assertEqual(self.redis.setnx('foo', 'baz'), False)
-        self.assertEqual(self.redis.get('foo'),  b'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
 
     def test_delete(self):
         self.redis['foo'] = 'bar'
@@ -1173,7 +1168,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_zrem_numeric_member(self):
         self.redis.zadd('foo', **{'128': 13.0, '129': 12.0})
-        self.assertEqual(self.redis.zrem('foo',  128), True)
+        self.assertEqual(self.redis.zrem('foo', 128), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'129'])
 
     def test_zscore(self):
@@ -1464,7 +1459,6 @@ class TestFakeStrictRedis(unittest.TestCase):
                          [])
         self.assertEqual(self.redis.zrevrangebylex('foo', b'-', b'[o'),
                          [])
-
 
     def test_zrevrangebylex_with_limit(self):
         self.redis.zadd('foo', one_a=0)
@@ -2503,6 +2497,33 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.expire('bar', 1), False)
 
     @attr('slow')
+    def test_pexpire_should_expire_key(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.redis.pexpire('foo', 150)
+        sleep(0.2)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.pexpire('bar', 1), False)
+
+    def test_pexpire_should_return_truthy_for_existing_key(self):
+        self.redis.set('foo', 'bar')
+        rv = self.redis.pexpire('foo', 1)
+        self.assertIs(bool(rv), True)
+
+    def test_pexpire_should_return_falsey_for_missing_key(self):
+        rv = self.redis.pexpire('missing', 1)
+        self.assertIs(bool(rv), False)
+
+    @attr('slow')
+    def test_pexpire_should_expire_key_using_timedelta(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.redis.pexpire('foo', timedelta(milliseconds=150))
+        sleep(0.2)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.pexpire('bar', 1), False)
+
+    @attr('slow')
     def test_expireat_should_expire_key_by_datetime(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -2563,6 +2584,21 @@ class TestFakeRedis(unittest.TestCase):
         self.assertInRange(self.redis.pttl('foo'),
                            long_long_c_max * 1000 - d,
                            long_long_c_max * 1000)
+
+    def test_ttls_should_always_be_long(self):
+        self.redis.set('foo', 'bar')
+        self.redis.expire('foo', 1)
+        self.assertTrue(type(self.redis.ttl('foo')) is long)
+        self.assertTrue(type(self.redis.pttl('foo')) is long)
+
+    def test_expire_should_not_handle_floating_point_values(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaisesRegexp(
+                redis.ResponseError, 'value is not an integer or out of range'):
+            self.redis.expire('something_new', 1.2)
+            self.redis.pexpire('something_new', 1000.2)
+            self.redis.expire('some_unused_key', 1.2)
+            self.redis.pexpire('some_unused_key', 1000.2)
 
 
 @redis_must_be_running

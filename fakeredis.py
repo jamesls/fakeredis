@@ -231,10 +231,20 @@ class FakeStrictRedis(object):
     __contains__ = exists
 
     def expire(self, name, time):
+        return self._expire(name, time)
+
+    def pexpire(self, name, millis):
+        return self._expire(name, millis, 1000)
+
+    def _expire(self, name, time, multiplier=1):
         if isinstance(time, timedelta):
-            time = int(timedelta_total_seconds(time))
+            time = int(timedelta_total_seconds(time) * multiplier)
+        if not isinstance(time, int):
+            raise redis.ResponseError("value is not an integer or out of "
+                                      "range.")
         if self.exists(name):
-            self._db.expire(name, datetime.now() + timedelta(seconds=time))
+            self._db.expire(name, datetime.now() +
+                            timedelta(seconds=time / multiplier))
             return True
         else:
             return False
@@ -480,9 +490,9 @@ class FakeStrictRedis(object):
         if now > exp_time:
             return None
         else:
-            return round(((exp_time - now).days * 3600 * 24
-                          + (exp_time - now).seconds
-                          + (exp_time - now).microseconds / 1E6) * multiplier)
+            return long(round(((exp_time - now).days * 3600 * 24 +
+                        (exp_time - now).seconds +
+                        (exp_time - now).microseconds / 1E6) * multiplier))
 
     def type(self, name):
         key = self._db.get(name)
