@@ -126,8 +126,6 @@ generic
 
  * restore
  * dump
- * pexpireat
- * pexpire
  * migrate
  * object
  * wait
