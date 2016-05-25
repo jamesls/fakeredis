@@ -244,7 +244,7 @@ class FakeStrictRedis(object):
                                       "range.")
         if self.exists(name):
             self._db.expire(name, datetime.now() +
-                            timedelta(seconds=time / multiplier))
+                            timedelta(seconds=time / float(multiplier)))
             return True
         else:
             return False

@@ -2497,6 +2497,14 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.expire('bar', 1), False)
 
     @attr('slow')
+    def test_expire_should_expire_immediately_with_millisecond_timedelta(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.redis.expire('foo', timedelta(milliseconds=750))
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expire('bar', 1), False)
+
+    @attr('slow')
     def test_pexpire_should_expire_key(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -2518,8 +2526,10 @@ class TestFakeRedis(unittest.TestCase):
     def test_pexpire_should_expire_key_using_timedelta(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
-        self.redis.pexpire('foo', timedelta(milliseconds=150))
-        sleep(0.2)
+        self.redis.pexpire('foo', timedelta(milliseconds=750))
+        sleep(0.5)
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        sleep(0.5)
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.pexpire('bar', 1), False)
 
