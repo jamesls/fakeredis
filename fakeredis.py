@@ -244,14 +244,20 @@ class FakeStrictRedis(object):
                                       "range.")
         if self.exists(name):
             self._db.expire(name, datetime.now() +
-                            timedelta(seconds=time / multiplier))
+                            timedelta(seconds=time / float(multiplier)))
             return True
         else:
             return False
 
     def expireat(self, name, when):
+        return self._expireat(name, when)
+
+    def pexpireat(self, name, when):
+        return self._expireat(name, when, 1000)
+
+    def _expireat(self, name, when, multiplier=1):
         if not isinstance(when, datetime):
-            when = datetime.fromtimestamp(when)
+            when = datetime.fromtimestamp(when / float(multiplier))
         if self.exists(name):
             self._db.expire(name, when)
             return True

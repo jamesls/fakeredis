@@ -2497,6 +2497,14 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.expire('bar', 1), False)
 
     @attr('slow')
+    def test_expire_should_expire_immediately_with_millisecond_timedelta(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.redis.expire('foo', timedelta(milliseconds=750))
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expire('bar', 1), False)
+
+    @attr('slow')
     def test_pexpire_should_expire_key(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -2518,8 +2526,10 @@ class TestFakeRedis(unittest.TestCase):
     def test_pexpire_should_expire_key_using_timedelta(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
-        self.redis.pexpire('foo', timedelta(milliseconds=150))
-        sleep(0.2)
+        self.redis.pexpire('foo', timedelta(milliseconds=750))
+        sleep(0.5)
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        sleep(0.5)
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.pexpire('bar', 1), False)
 
@@ -2549,6 +2559,33 @@ class TestFakeRedis(unittest.TestCase):
     def test_expireat_should_return_false_for_missing_key(self):
         rv = self.redis.expireat('missing', int(time() + 1))
         self.assertIs(rv, False)
+
+    @attr('slow')
+    def test_pexpireat_should_expire_key_by_datetime(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.redis.pexpireat('foo', datetime.now() + timedelta(milliseconds=150))
+        sleep(0.2)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.pexpireat('bar', datetime.now()), False)
+
+    @attr('slow')
+    def test_pexpireat_should_expire_key_by_timestamp(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.redis.pexpireat('foo', int(time() * 1000 + 150))
+        sleep(0.2)
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.expire('bar', 1), False)
+
+    def test_pexpireat_should_return_true_for_existing_key(self):
+        self.redis.set('foo', 'bar')
+        rv = self.redis.pexpireat('foo', int(time() * 1000 + 150))
+        self.assertIs(bool(rv), True)
+
+    def test_pexpireat_should_return_false_for_missing_key(self):
+        rv = self.redis.pexpireat('missing', int(time() * 1000 + 150))
+        self.assertIs(bool(rv), False)
 
     def test_ttl_should_return_none_for_non_expiring_key(self):
         self.redis.set('foo', 'bar')
