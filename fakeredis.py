@@ -1,3 +1,4 @@
+
 import random
 import warnings
 import copy
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 import operator
 import sys
 import time
+import threading
 import re
 
 import redis
@@ -1447,11 +1449,11 @@ class FakeStrictRedis(object):
                     continue
         raise redis.WatchError('Could not run transaction after 5 tries')
 
-    def pubsub(self):
+    def pubsub(self, ignore_subscribe_messages=False):
         """
         Returns a new FakePubSub instance
         """
-        ps = FakePubSub()
+        ps = FakePubSub(ignore_subscribe_messages=ignore_subscribe_messages)
         self._pubsubs.append(ps)
 
         return ps
@@ -1553,6 +1555,27 @@ class FakeStrictRedis(object):
                                       match=match, count=count)
             for item in data.items():
                 yield item
+
+    def lock(self, name, *args, **kwargs):
+        return FakeLock(*args, **kwargs)
+
+
+class FakeLock():
+    def __init__(self, *args, **kwargs):
+        self._lock = threading.Lock()
+
+    def acquire(self, blocking=False, blocking_timeout=None):
+        return self._lock.acquire(blocking)
+
+    def release(self):
+        return self._lock.release()
+
+    def __enter__(self):
+        self.acquire(blocking=True)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.release()
 
 
 class FakeRedis(FakeStrictRedis):
