@@ -905,7 +905,11 @@ class FakeStrictRedis(object):
 
     def sismember(self, name, value):
         "Return a boolean indicating if ``value`` is a member of set ``name``"
-        return to_bytes(value) in self._db.get(name, set())
+        members = self._db.get(name, set())
+        if not isinstance(members, set):
+            raise redis.ResponseError("WRONGTYPE Operation against a key "
+                                      "holding the wrong kind of value")
+        return to_bytes(value) in members
 
     def smembers(self, name):
         "Return all members of the set ``name``"
