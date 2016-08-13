@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import operator
 import sys
 import time
+import types
 import re
 
 import redis
@@ -171,6 +172,39 @@ class _Hash(_StrKeyDict):
     redis_type = b'hash'
 
 
+def DecodeGenerator(gen):
+    for item in gen:
+        yield _decode(item)
+
+
+def _decode(value):
+    if isinstance(value, bytes):
+        value = value.decode()
+    elif isinstance(value, dict):
+        value = dict((_decode(k), _decode(v)) for k, v in value.items())
+    elif isinstance(value, (list, set, tuple)):
+        value = value.__class__(_decode(x) for x in value)
+    elif isinstance(value, types.GeneratorType):
+        value = DecodeGenerator(value)
+    return value
+
+
+def _make_decode_func(func):
+    def decode_response(*args, **kwargs):
+        val = _decode(func(*args, **kwargs))
+        return val
+    return decode_response
+
+
+def _patch_responses(obj):
+    for attr_name in dir(obj):
+        attr = getattr(obj, attr_name)
+        if not callable(attr) or attr_name.startswith('_'):
+            continue
+        func = _make_decode_func(attr)
+        setattr(obj, attr_name, func)
+
+
 class FakeStrictRedis(object):
     @classmethod
     def from_url(cls, url, db=None, **kwargs):
@@ -182,7 +216,8 @@ class FakeStrictRedis(object):
                 db = 0
         return cls(db=db)
 
-    def __init__(self, db=0, charset='utf-8', errors='strict', **kwargs):
+    def __init__(self, db=0, charset='utf-8', errors='strict',
+                 decode_responses=False, **kwargs):
         if db not in DATABASES:
             DATABASES[db] = _StrKeyDict()
         self._db = DATABASES[db]
@@ -190,6 +225,9 @@ class FakeStrictRedis(object):
         self._encoding = charset
         self._encoding_errors = errors
         self._pubsubs = []
+        self._decode_responses = decode_responses
+        if decode_responses:
+            _patch_responses(self)
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
@@ -278,7 +316,7 @@ class FakeStrictRedis(object):
             return to_bytes(value)
 
     def __getitem__(self, name):
-        return self._db[name]
+        return self.get(name)
 
     def getbit(self, name, offset):
         """Returns a boolean indicating the value of ``offset`` in ``name``"""
@@ -856,7 +894,7 @@ class FakeStrictRedis(object):
 
     def hvals(self, name):
         "Return the list of values within hash ``name``"
-        return self._db.get(name, {}).values()
+        return list(self._db.get(name, {}).values())
 
     def sadd(self, name, *values):
         "Add ``value`` to set ``name``"
@@ -1451,7 +1489,7 @@ class FakeStrictRedis(object):
         """
         Returns a new FakePubSub instance
         """
-        ps = FakePubSub()
+        ps = FakePubSub(decode_responses=self._decode_responses)
         self._pubsubs.append(ps)
 
         return ps
@@ -1683,7 +1721,7 @@ class FakePubSub(object):
     UNSUBSCRIBE_MESSAGE_TYPES = ['unsubscribe', 'punsubscribe']
     PATTERN_MESSAGE_TYPES = ['psubscribe', 'punsubscribe']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, decode_responses=False, *args, **kwargs):
         self.channels = {}
         self.patterns = {}
         self._q = Queue()
@@ -1691,6 +1729,8 @@ class FakePubSub(object):
 
         self.ignore_subscribe_messages = kwargs['ignore_subscribe_messages']\
             if 'ignore_subscribe_messages' in kwargs else False
+        if decode_responses:
+            _patch_responses(self)
 
     def put(self, channel, message, message_type, pattern=None):
         """

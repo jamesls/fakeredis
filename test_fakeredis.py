@@ -70,6 +70,7 @@ def key_val_dict(size=100):
 
 
 class TestFakeStrictRedis(unittest.TestCase):
+    decode_responses = False
     def setUp(self):
         self.redis = self.create_redis()
 
@@ -1858,13 +1859,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         res = p.execute()
 
         # Check return values returned as list.
-        self.assertEqual([True, b'bar', 1, 2, [b'quux2', b'quux']], res)
+        self.assertEqual(res, [True, b'bar', 1, 2, [b'quux2', b'quux']])
 
         # Check side effects happened as expected.
-        self.assertEqual([b'quux2', b'quux'], self.redis.lrange('baz', 0, -1))
+        self.assertEqual(self.redis.lrange('baz', 0, -1), [b'quux2', b'quux'])
 
         # Check that the command buffer has been emptied.
-        self.assertEqual([], p.execute())
+        self.assertEqual(p.execute(), [])
 
     def test_pipeline_ignore_errors(self):
         """Test the pipeline ignoring errors when asked."""
@@ -1906,7 +1907,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         p = self.redis.pipeline(transaction=False)
         res = p.set('baz', 'quux').get('baz').execute()
 
-        self.assertEqual([True, b'quux'], res)
+        self.assertEqual(res, [True, b'quux'])
 
     def test_pipeline_raises_when_watched_key_changed(self):
         self.redis.set('foo', 'bar')
@@ -1915,7 +1916,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.addCleanup(p.reset)
 
         p.watch('greet', 'foo')
-        nextf = p.get('foo') + b'baz'
+        nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
         # Simulate change happening on another thread.
         self.redis.rpush('greet', 'world')
         # Begin pipelining.
@@ -1933,7 +1934,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             # Only watch one of the 2 keys.
             p.watch('foo')
-            nextf = p.get('foo') + b'baz'
+            nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
             # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
             p.multi()
@@ -1941,7 +1942,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             p.execute()
 
             # Check the commands were executed.
-            self.assertEqual(b'barbaz', self.redis.get('foo'))
+            self.assertEqual(self.redis.get('foo'), b'barbaz')
         finally:
             p.reset()
 
@@ -1952,7 +1953,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             # Also watch a nonexistent key.
             p.watch('foo', 'bam')
-            nextf = p.get('foo') + b'baz'
+            nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
             # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
             p.multi()
@@ -1960,7 +1961,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             p.execute()
 
             # Check the commands were executed.
-            self.assertEqual(b'barbaz', self.redis.get('foo'))
+            self.assertEqual(self.redis.get('foo'), b'barbaz')
         finally:
             p.reset()
 
@@ -2067,8 +2068,12 @@ class TestFakeStrictRedis(unittest.TestCase):
                             'channel': b'channel', 'data': 1}
         message = pubsub.get_message()
         keys = list(pubsub.channels.keys())
-        key = keys[0] if type(keys[0]) == bytes\
-            else bytes(keys[0], encoding='utf-8')
+
+        key = keys[0]
+        if not self.decode_responses:
+            key = (key if type(key) == bytes
+                   else bytes(key, encoding='utf-8'))
+
         self.assertEqual(len(keys), 1)
         self.assertEqual(key, b'channel')
         self.assertEqual(message, expected_message)
@@ -2174,8 +2179,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         msg3 = q.get()
         msg4 = q.get()
 
-        bpatterns = [pattern.encode() for pattern in patterns]
-        bpatterns.append(channel.encode())
+        if self.decode_responses:
+            bpatterns = patterns + [channel]
+        else:
+            bpatterns = [pattern.encode() for pattern in patterns]
+            bpatterns.append(channel.encode())
         msg = msg.encode()
         self.assertEqual(msg1['data'], msg)
         self.assertIn(msg1['channel'], bpatterns)
@@ -2331,6 +2339,8 @@ class TestFakeStrictRedis(unittest.TestCase):
 
 
 class TestFakeRedis(unittest.TestCase):
+    decode_responses = False
+
     def setUp(self):
         self.redis = self.create_redis()
 
@@ -2638,6 +2648,29 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.pexpire('some_unused_key', 1000.2)
 
 
+class DecodeMixin(object):
+    decode_responses = True
+
+    def assertEqual(self, a, b, msg=None):
+        super(DecodeMixin, self).assertEqual(a, fakeredis._decode(b), msg)
+
+    def assertIn(self, member, container, msg=None):
+        super(DecodeMixin, self).assertIn(fakeredis._decode(member), container)
+
+    def assertItemsEqual(self, a, b):
+        super(DecodeMixin, self).assertItemsEqual(a, fakeredis._decode(b))
+
+
+class TestFakeStrictRedisDecodeResponses(DecodeMixin, TestFakeStrictRedis):
+    def create_redis(self, db=0):
+        return fakeredis.FakeStrictRedis(db=db, decode_responses=True)
+
+
+class TestFakeRedisDecodeResponses(DecodeMixin, TestFakeRedis):
+    def create_redis(self, db=0):
+        return fakeredis.FakeRedis(db=db, decode_responses=True)
+
+
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
     def create_redis(self, db=0):
@@ -2648,6 +2681,18 @@ class TestRealRedis(TestFakeRedis):
 class TestRealStrictRedis(TestFakeStrictRedis):
     def create_redis(self, db=0):
         return redis.StrictRedis('localhost', port=6379, db=db)
+
+
+@redis_must_be_running
+class TestRealRedisDecodeResponses(TestFakeRedisDecodeResponses):
+    def create_redis(self, db=0):
+        return redis.Redis('localhost', port=6379, db=db, decode_responses=True)
+
+
+@redis_must_be_running
+class TestRealStrictRedisDecodeResponses(TestFakeStrictRedisDecodeResponses):
+    def create_redis(self, db=0):
+        return redis.StrictRedis('localhost', port=6379, db=db, decode_responses=True)
 
 
 class TestInitArgs(unittest.TestCase):
