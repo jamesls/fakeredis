@@ -181,7 +181,7 @@ def _decode(value):
     if isinstance(value, bytes):
         value = value.decode()
     elif isinstance(value, dict):
-        value = {_decode(k): _decode(v) for k, v in value.items()}
+        value = dict((_decode(k), _decode(v)) for k, v in value.items())
     elif isinstance(value, (list, set, tuple)):
         value = value.__class__(_decode(x) for x in value)
     elif isinstance(value, types.GeneratorType):
@@ -1721,7 +1721,7 @@ class FakePubSub(object):
     UNSUBSCRIBE_MESSAGE_TYPES = ['unsubscribe', 'punsubscribe']
     PATTERN_MESSAGE_TYPES = ['psubscribe', 'punsubscribe']
 
-    def __init__(self, *args, decode_responses=False, **kwargs):
+    def __init__(self, decode_responses=False, *args, **kwargs):
         self.channels = {}
         self.patterns = {}
         self._q = Queue()

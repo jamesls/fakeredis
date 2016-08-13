@@ -2648,17 +2648,17 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.pexpire('some_unused_key', 1000.2)
 
 
-class DecodeMixin:
+class DecodeMixin(object):
     decode_responses = True
 
     def assertEqual(self, a, b, msg=None):
-        super().assertEqual(a, fakeredis._decode(b), msg)
+        super(DecodeMixin, self).assertEqual(a, fakeredis._decode(b), msg)
 
     def assertIn(self, member, container, msg=None):
-        super().assertIn(fakeredis._decode(member), container)
+        super(DecodeMixin, self).assertIn(fakeredis._decode(member), container)
 
     def assertItemsEqual(self, a, b):
-        super().assertItemsEqual(a, fakeredis._decode(b))
+        super(DecodeMixin, self).assertItemsEqual(a, fakeredis._decode(b))
 
 
 class TestFakeStrictRedisDecodeResponses(DecodeMixin, TestFakeStrictRedis):
