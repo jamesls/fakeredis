@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 import operator
 import sys
 import time
+import types
 import re
 
 import redis
@@ -171,6 +172,39 @@ class _Hash(_StrKeyDict):
     redis_type = b'hash'
 
 
+def DecodeGenerator(gen):
+    for item in gen:
+        yield _decode(item)
+
+
+def _decode(value):
+    if isinstance(value, bytes):
+        value = value.decode()
+    elif isinstance(value, dict):
+        value = {_decode(k): _decode(v) for k, v in value.items()}
+    elif isinstance(value, (list, set, tuple)):
+        value = value.__class__(_decode(x) for x in value)
+    elif isinstance(value, types.GeneratorType):
+        value = DecodeGenerator(value)
+    return value
+
+
+def _make_decode_func(func):
+    def decode_response(*args, **kwargs):
+        val = _decode(func(*args, **kwargs))
+        return val
+    return decode_response
+
+
+def _patch_responses(obj):
+    for attr_name in dir(obj):
+        attr = getattr(obj, attr_name)
+        if not callable(attr) or attr_name.startswith('_'):
+            continue
+        func = _make_decode_func(attr)
+        setattr(obj, attr_name, func)
+
+
 class FakeStrictRedis(object):
     @classmethod
     def from_url(cls, url, db=None, **kwargs):
@@ -182,7 +216,8 @@ class FakeStrictRedis(object):
                 db = 0
         return cls(db=db)
 
-    def __init__(self, db=0, charset='utf-8', errors='strict', **kwargs):
+    def __init__(self, db=0, charset='utf-8', errors='strict',
+                 decode_responses=False, **kwargs):
         if db not in DATABASES:
             DATABASES[db] = _StrKeyDict()
         self._db = DATABASES[db]
@@ -190,6 +225,9 @@ class FakeStrictRedis(object):
         self._encoding = charset
         self._encoding_errors = errors
         self._pubsubs = []
+        self._decode_responses = decode_responses
+        if decode_responses:
+            _patch_responses(self)
 
     def flushdb(self):
         DATABASES[self._db_num].clear()
