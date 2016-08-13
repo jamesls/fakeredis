@@ -1859,13 +1859,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         res = p.execute()
 
         # Check return values returned as list.
-        self.assertEqual([True, b'bar', 1, 2, [b'quux2', b'quux']], res)
+        self.assertEqual(res, [True, b'bar', 1, 2, [b'quux2', b'quux']])
 
         # Check side effects happened as expected.
-        self.assertEqual([b'quux2', b'quux'], self.redis.lrange('baz', 0, -1))
+        self.assertEqual(self.redis.lrange('baz', 0, -1), [b'quux2', b'quux'])
 
         # Check that the command buffer has been emptied.
-        self.assertEqual([], p.execute())
+        self.assertEqual(p.execute(), [])
 
     def test_pipeline_ignore_errors(self):
         """Test the pipeline ignoring errors when asked."""
@@ -1907,7 +1907,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         p = self.redis.pipeline(transaction=False)
         res = p.set('baz', 'quux').get('baz').execute()
 
-        self.assertEqual([True, b'quux'], res)
+        self.assertEqual(res, [True, b'quux'])
 
     def test_pipeline_raises_when_watched_key_changed(self):
         self.redis.set('foo', 'bar')
@@ -1942,7 +1942,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             p.execute()
 
             # Check the commands were executed.
-            self.assertEqual(b'barbaz', self.redis.get('foo'))
+            self.assertEqual(self.redis.get('foo'), b'barbaz')
         finally:
             p.reset()
 
@@ -1961,7 +1961,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             p.execute()
 
             # Check the commands were executed.
-            self.assertEqual(b'barbaz', self.redis.get('foo'))
+            self.assertEqual(self.redis.get('foo'), b'barbaz')
         finally:
             p.reset()
 
