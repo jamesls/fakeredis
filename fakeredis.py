@@ -316,7 +316,7 @@ class FakeStrictRedis(object):
             return to_bytes(value)
 
     def __getitem__(self, name):
-        return self._db[name]
+        return self.get(name)
 
     def getbit(self, name, offset):
         """Returns a boolean indicating the value of ``offset`` in ``name``"""
@@ -894,7 +894,7 @@ class FakeStrictRedis(object):
 
     def hvals(self, name):
         "Return the list of values within hash ``name``"
-        return self._db.get(name, {}).values()
+        return list(self._db.get(name, {}).values())
 
     def sadd(self, name, *values):
         "Add ``value`` to set ``name``"
