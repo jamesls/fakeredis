@@ -1916,7 +1916,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.addCleanup(p.reset)
 
         p.watch('greet', 'foo')
-        nextf = p.get('foo') + b'baz'
+        nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
         # Simulate change happening on another thread.
         self.redis.rpush('greet', 'world')
         # Begin pipelining.
@@ -1934,7 +1934,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             # Only watch one of the 2 keys.
             p.watch('foo')
-            nextf = p.get('foo') + b'baz'
+            nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
             # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
             p.multi()
@@ -1953,7 +1953,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             # Also watch a nonexistent key.
             p.watch('foo', 'bam')
-            nextf = p.get('foo') + b'baz'
+            nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
             # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
             p.multi()
@@ -2068,8 +2068,12 @@ class TestFakeStrictRedis(unittest.TestCase):
                             'channel': b'channel', 'data': 1}
         message = pubsub.get_message()
         keys = list(pubsub.channels.keys())
-        key = keys[0] if type(keys[0]) == bytes\
-            else bytes(keys[0], encoding='utf-8')
+
+        key = keys[0]
+        if not self.decode_responses:
+            key = (key if type(key) == bytes
+                   else bytes(key, encoding='utf-8'))
+
         self.assertEqual(len(keys), 1)
         self.assertEqual(key, b'channel')
         self.assertEqual(message, expected_message)
@@ -2175,8 +2179,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         msg3 = q.get()
         msg4 = q.get()
 
-        bpatterns = [pattern.encode() for pattern in patterns]
-        bpatterns.append(channel.encode())
+        if self.decode_responses:
+            bpatterns = patterns + [channel]
+        else:
+            bpatterns = [pattern.encode() for pattern in patterns]
+            bpatterns.append(channel.encode())
         msg = msg.encode()
         self.assertEqual(msg1['data'], msg)
         self.assertIn(msg1['channel'], bpatterns)
