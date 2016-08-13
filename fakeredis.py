@@ -1489,7 +1489,7 @@ class FakeStrictRedis(object):
         """
         Returns a new FakePubSub instance
         """
-        ps = FakePubSub()
+        ps = FakePubSub(decode_responses=self._decode_responses)
         self._pubsubs.append(ps)
 
         return ps
@@ -1721,7 +1721,7 @@ class FakePubSub(object):
     UNSUBSCRIBE_MESSAGE_TYPES = ['unsubscribe', 'punsubscribe']
     PATTERN_MESSAGE_TYPES = ['psubscribe', 'punsubscribe']
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, decode_responses=False, **kwargs):
         self.channels = {}
         self.patterns = {}
         self._q = Queue()
@@ -1729,6 +1729,8 @@ class FakePubSub(object):
 
         self.ignore_subscribe_messages = kwargs['ignore_subscribe_messages']\
             if 'ignore_subscribe_messages' in kwargs else False
+        if decode_responses:
+            _patch_responses(self)
 
     def put(self, channel, message, message_type, pattern=None):
         """
