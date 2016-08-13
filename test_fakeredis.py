@@ -70,6 +70,7 @@ def key_val_dict(size=100):
 
 
 class TestFakeStrictRedis(unittest.TestCase):
+    decode_responses = False
     def setUp(self):
         self.redis = self.create_redis()
 
@@ -2331,6 +2332,8 @@ class TestFakeStrictRedis(unittest.TestCase):
 
 
 class TestFakeRedis(unittest.TestCase):
+    decode_responses = False
+
     def setUp(self):
         self.redis = self.create_redis()
 
@@ -2638,6 +2641,29 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.pexpire('some_unused_key', 1000.2)
 
 
+class DecodeMixin:
+    decode_responses = True
+
+    def assertEqual(self, a, b, msg=None):
+        super().assertEqual(a, fakeredis._decode(b), msg)
+
+    def assertIn(self, member, container, msg=None):
+        super().assertIn(fakeredis._decode(member), container)
+
+    def assertItemsEqual(self, a, b):
+        super().assertItemsEqual(a, fakeredis._decode(b))
+
+
+class TestFakeStrictRedisDecodeResponses(DecodeMixin, TestFakeStrictRedis):
+    def create_redis(self, db=0):
+        return fakeredis.FakeStrictRedis(db=db, decode_responses=True)
+
+
+class TestFakeRedisDecodeResponses(DecodeMixin, TestFakeRedis):
+    def create_redis(self, db=0):
+        return fakeredis.FakeRedis(db=db, decode_responses=True)
+
+
 @redis_must_be_running
 class TestRealRedis(TestFakeRedis):
     def create_redis(self, db=0):
@@ -2648,6 +2674,18 @@ class TestRealRedis(TestFakeRedis):
 class TestRealStrictRedis(TestFakeStrictRedis):
     def create_redis(self, db=0):
         return redis.StrictRedis('localhost', port=6379, db=db)
+
+
+@redis_must_be_running
+class TestRealRedisDecodeResponses(TestFakeRedisDecodeResponses):
+    def create_redis(self, db=0):
+        return redis.Redis('localhost', port=6379, db=db, decode_responses=True)
+
+
+@redis_must_be_running
+class TestRealStrictRedisDecodeResponses(TestFakeStrictRedisDecodeResponses):
+    def create_redis(self, db=0):
+        return redis.StrictRedis('localhost', port=6379, db=db, decode_responses=True)
 
 
 class TestInitArgs(unittest.TestCase):
