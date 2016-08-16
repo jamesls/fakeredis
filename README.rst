@@ -217,6 +217,9 @@ Contributing
 Contributions are welcome.  Please see the `contributing guide`_ for
 more details.
 
+If you'd like to help out, you can start with any of the issues
+labeled with `HelpWanted`_.
+
 
 Running the Tests
 =================
@@ -266,3 +269,4 @@ they have all been tagged as 'slow' so you can skip them by running::
 
 .. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
 .. _contributing guide: https://github.com/jamesls/fakeredis/blob/master/CONTRIBUTING.rst
+.. _HelpWanted: https://github.com/jamesls/fakeredis/issues?q=is%3Aissue+is%3Aopen+label%3AHelpWanted
