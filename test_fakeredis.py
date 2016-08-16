@@ -2162,10 +2162,55 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub.subscribe(channel)
         pubsub.psubscribe(*patterns)
         sleep(1)
-        pubsub.get_message()
-        pubsub.get_message()
-        pubsub.get_message()
-        pubsub.get_message()
+        msg1 = pubsub.get_message()
+        msg2 = pubsub.get_message()
+        msg3 = pubsub.get_message()
+        msg4 = pubsub.get_message()
+        self.assertEqual(msg1['type'], 'subscribe')
+        self.assertEqual(msg2['type'], 'psubscribe')
+        self.assertEqual(msg3['type'], 'psubscribe')
+        self.assertEqual(msg4['type'], 'psubscribe')
+
+        q = Queue()
+        t = threading.Thread(target=_listen, args=(pubsub, q))
+        t.start()
+        msg = 'hello world'
+        self.redis.publish(channel, msg)
+        t.join()
+
+        msg1 = q.get()
+        msg2 = q.get()
+        msg3 = q.get()
+        msg4 = q.get()
+
+        bpatterns = [pattern.encode() for pattern in patterns]
+        bpatterns.append(channel.encode())
+        msg = msg.encode()
+        self.assertEqual(msg1['data'], msg)
+        self.assertIn(msg1['channel'], bpatterns)
+        self.assertEqual(msg2['data'], msg)
+        self.assertIn(msg2['channel'], bpatterns)
+        self.assertEqual(msg3['data'], msg)
+        self.assertIn(msg3['channel'], bpatterns)
+        self.assertEqual(msg4['data'], msg)
+        self.assertIn(msg4['channel'], bpatterns)
+
+    @attr('slow')
+    def test_pubsub_ignore_sub_messages_listen(self):
+        def _listen(pubsub, q):
+            count = 0
+            for message in pubsub.listen():
+                q.put(message)
+                count += 1
+                if count == 4:
+                    pubsub.close()
+
+        channel = 'ch1'
+        patterns = ['ch1*', 'ch[1]', 'ch?']
+        pubsub = self.redis.pubsub(ignore_subscribe_messages=True)
+        pubsub.subscribe(channel)
+        pubsub.psubscribe(*patterns)
+        sleep(1)
 
         q = Queue()
         t = threading.Thread(target=_listen, args=(pubsub, q))
