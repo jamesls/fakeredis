@@ -2700,7 +2700,7 @@ class DecodeMixin(object):
         super(DecodeMixin, self).assertEqual(a, fakeredis._decode(b), msg)
 
     def assertIn(self, member, container, msg=None):
-        super(DecodeMixin, self).assertIn(fakeredis._decode(member), container)
+        super(DecodeMixin, self).assertIn(fakeredis._decode(member), fakeredis._decode(container))
 
     def assertItemsEqual(self, a, b):
         super(DecodeMixin, self).assertItemsEqual(a, fakeredis._decode(b))
