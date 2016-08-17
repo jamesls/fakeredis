@@ -2183,8 +2183,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         msg3 = q.get()
         msg4 = q.get()
 
-        bpatterns = [pattern.encode() for pattern in patterns]
-        bpatterns.append(channel.encode())
+        if self.decode_responses:
+            bpatterns = patterns + [channel]
+        else:
+            bpatterns = [pattern.encode() for pattern in patterns]
+            bpatterns.append(channel.encode())
         msg = msg.encode()
         self.assertEqual(msg1['data'], msg)
         self.assertIn(msg1['channel'], bpatterns)
@@ -2700,7 +2703,7 @@ class DecodeMixin(object):
         super(DecodeMixin, self).assertEqual(a, fakeredis._decode(b), msg)
 
     def assertIn(self, member, container, msg=None):
-        super(DecodeMixin, self).assertIn(fakeredis._decode(member), fakeredis._decode(container))
+        super(DecodeMixin, self).assertIn(fakeredis._decode(member), container)
 
     def assertItemsEqual(self, a, b):
         super(DecodeMixin, self).assertItemsEqual(a, fakeredis._decode(b))
