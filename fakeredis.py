@@ -40,8 +40,6 @@ if sys.version_info[0] == 2:
     int_to_byte = chr
 
     def to_bytes(x, charset=sys.getdefaultencoding(), errors='strict'):
-        if x is None:
-            return None
         if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
             return bytes(x)
         if isinstance(x, unicode):
@@ -72,8 +70,6 @@ else:
     int_to_byte = operator.methodcaller('to_bytes', 1, 'big')
 
     def to_bytes(x, charset=sys.getdefaultencoding(), errors='strict'):
-        if x is None:
-            return None
         if isinstance(x, (bytes, bytearray, memoryview)):
             return bytes(x)
         if isinstance(x, str):
