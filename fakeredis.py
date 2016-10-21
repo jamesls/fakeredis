@@ -756,6 +756,7 @@ class FakeStrictRedis(object):
     def rpoplpush(self, src, dst):
         el = self.rpop(src)
         if el is not None:
+            el = to_bytes(el)
             try:
                 self._db[dst].insert(0, el)
             except KeyError:
@@ -789,6 +790,7 @@ class FakeStrictRedis(object):
     def brpoplpush(self, src, dst, timeout=0):
         el = self.rpop(src)
         if el is not None:
+            el = to_bytes(el)
             try:
                 self._db[dst].insert(0, el)
             except KeyError:
@@ -917,7 +919,7 @@ class FakeStrictRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         diff = self.sdiff(keys, *args)
-        self._db[dest] = diff
+        self._db[dest] = set(to_bytes(x) for x in diff)
         return len(diff)
 
     def sinter(self, keys, *args):
@@ -934,7 +936,7 @@ class FakeStrictRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         intersect = self.sinter(keys, *args)
-        self._db[dest] = intersect
+        self._db[dest] = set(to_bytes(x) for x in intersect)
         return len(intersect)
 
     def sismember(self, name, value):
@@ -989,7 +991,7 @@ class FakeStrictRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         union = self.sunion(keys, *args)
-        self._db[dest] = union
+        self._db[dest] = set(to_bytes(x) for x in union)
         return len(union)
 
     def _get_zelement_range_filter_func(self, min_val, max_val):

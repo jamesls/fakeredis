@@ -655,6 +655,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrange('foo', 0, -1), [b'one'])
         self.assertEqual(self.redis.lrange('bar', 0, -1), [b'two', b'one'])
 
+        # Catch instances where we store bytes and strings inconsistently
+        # and thus bar = ['two', b'one']
+        self.assertEqual(self.redis.lrem('bar', -1, 'two'), 1)
+
     def test_rpoplpush_to_nonexistent_destination(self):
         self.redis.rpush('foo', 'one')
         self.assertEqual(self.redis.rpoplpush('foo', 'bar'), b'one')
@@ -714,6 +718,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.brpoplpush('foo', 'bar', timeout=1),
                          b'two')
         self.assertEqual(self.redis.lrange('bar', 0, -1), [b'two'])
+
+        # Catch instances where we store bytes and strings inconsistently
+        # and thus bar = ['two']
+        self.assertEqual(self.redis.lrem('bar', -1, 'two'), 1)
 
     @attr('slow')
     def test_blocking_operations_when_empty(self):
@@ -966,6 +974,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sdiffstore('baz', 'foo', 'bar'), 1)
 
+        # Catch instances where we store bytes and strings inconsistently
+        # and thus baz = {'member1', b'member1'}
+        self.redis.sadd('baz', 'member1')
+        self.assertEqual(self.redis.scard('baz'), 1)
+
     def test_sinter(self):
         self.redis.sadd('foo', 'member1')
         self.redis.sadd('foo', 'member2')
@@ -981,6 +994,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sinterstore('baz', 'foo', 'bar'), 1)
+
+        # Catch instances where we store bytes and strings inconsistently
+        # and thus baz = {'member2', b'member2'}
+        self.redis.sadd('baz', 'member2')
+        self.assertEqual(self.redis.scard('baz'), 1)
 
     def test_sismember(self):
         self.assertEqual(self.redis.sismember('foo', 'member1'), False)
@@ -1042,6 +1060,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.sunionstore('baz', 'foo', 'bar'), 3)
         self.assertEqual(self.redis.smembers('baz'),
                          set([b'member1', b'member2', b'member3']))
+
+        # Catch instances where we store bytes and strings inconsistently
+        # and thus baz = {b'member1', b'member2', b'member3', 'member3'}
+        self.redis.sadd('baz', 'member3')
+        self.assertEqual(self.redis.scard('baz'), 3)
 
     def test_zadd(self):
         self.redis.zadd('foo', four=4)
