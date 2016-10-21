@@ -95,6 +95,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.set('foo', 'bar'), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
+    def test_set_None_value(self):
+        self.assertEqual(self.redis.set('foo', None), True)
+        self.assertEqual(self.redis.get('foo'), b'None')
+
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
