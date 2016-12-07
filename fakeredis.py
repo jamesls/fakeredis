@@ -29,7 +29,7 @@ if not PY2:
     long = int
 
 
-__version__ = '0.8.1'
+__version__ = '0.8.2'
 
 
 if sys.version_info[0] == 2:
