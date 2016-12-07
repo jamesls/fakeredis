@@ -2412,6 +2412,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertIn(b'key:17', results)
         self.assertEqual(2, len(results))
 
+    def test_ttl_should_return_minus_one_for_non_expiring_key(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.assertEqual(self.redis.ttl('foo'), -1)
+
+    def test_ttl_should_return_minus_two_for_non_existent_key(self):
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.ttl('foo'), -2)
+
+    def test_pttl_should_return_minus_one_for_non_expiring_key(self):
+        self.redis.set('foo', 'bar')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.assertEqual(self.redis.pttl('foo'), -1)
+
+    def test_pttl_should_return_minus_two_for_non_existent_key(self):
+        self.assertEqual(self.redis.get('foo'), None)
+        self.assertEqual(self.redis.pttl('foo'), -2)
+
 
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False

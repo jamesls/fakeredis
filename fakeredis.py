@@ -520,11 +520,11 @@ class FakeStrictRedis(object):
 
     def _ttl(self, name, multiplier=1):
         if name not in self._db:
-            return None
+            return -2
 
         exp_time = self._db.expiring(name)
         if not exp_time:
-            return None
+            return -1
 
         now = datetime.now()
         if now > exp_time:
@@ -1617,6 +1617,14 @@ class FakeRedis(FakeStrictRedis):
         elif not pairs:
             raise redis.RedisError("ZADD is missing kwargs param")
         return super(FakeRedis, self).zadd(name, **pairs)
+
+    def ttl(self, name):
+        r = super(FakeRedis, self).ttl(name)
+        return r if r >= 0 else None
+
+    def pttl(self, name):
+        r = super(FakeRedis, self).pttl(name)
+        return r if r >= 0 else None
 
 
 class FakePipeline(object):
