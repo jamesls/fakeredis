@@ -2802,6 +2802,13 @@ class TestInitArgs(unittest.TestCase):
             'redis://username:password@localhost:6379/a')
         self.assertEqual(db._db_num, 0)
 
+    def test_can_pass_through_extra_args(self):
+        db = fakeredis.FakeStrictRedis.from_url(
+            'redis://username:password@localhost:6379/0',
+            decode_responses=True)
+        db.set('foo', 'bar')
+        self.assertEqual(db.get('foo'), b'bar')
+
 
 class TestImportation(unittest.TestCase):
     def test_searches_for_c_stdlib_and_raises_if_missing(self):
