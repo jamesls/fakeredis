@@ -210,7 +210,7 @@ class FakeStrictRedis(object):
                 db = int(url.path.replace('/', ''))
             except (AttributeError, ValueError):
                 db = 0
-        return cls(db=db)
+        return cls(db=db, **kwargs)
 
     def __init__(self, db=0, charset='utf-8', errors='strict',
                  decode_responses=False, **kwargs):
