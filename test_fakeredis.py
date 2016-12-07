@@ -2825,7 +2825,7 @@ class TestInitArgs(unittest.TestCase):
             'redis://username:password@localhost:6379/0',
             decode_responses=True)
         db.set('foo', 'bar')
-        self.assertEqual(db.get('foo'), b'bar')
+        self.assertEqual(db.get('foo'), 'bar')
 
 
 class TestImportation(unittest.TestCase):
