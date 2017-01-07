@@ -305,6 +305,9 @@ class FakeStrictRedis(object):
 
     def get(self, name):
         value = self._db.get(name)
+        if isinstance(value, list) or isinstance(value, set):
+            raise redis.ResponseError("WRONGTYPE Operation against a key "
+                                      "holding the wrong kind of value") 
         if isinstance(value, _StrKeyDict):
             raise redis.ResponseError("WRONGTYPE Operation against a key "
                                       "holding the wrong kind of value")
