@@ -16,8 +16,6 @@ import redis
 from redis.exceptions import ResponseError
 import redis.client
 
-import pdb
-
 try:
     # Python 2.6, 2.7
     from Queue import Queue, Empty
@@ -307,10 +305,6 @@ class FakeStrictRedis(object):
 
     def get(self, name):
         value = self._db.get(name)
-        #pdb.set_trace()
-        if isinstance(value, list) or isinstance(value, set):
-            raise redis.ResponseError("WRONGTYPE Operation against a key "
-                                      "holding the wrong kind of value") 
         if isinstance(value, _StrKeyDict):
             raise redis.ResponseError("WRONGTYPE Operation against a key "
                                       "holding the wrong kind of value")
