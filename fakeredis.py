@@ -175,7 +175,7 @@ def DecodeGenerator(gen):
 
 def _decode(value):
     if isinstance(value, bytes):
-        value = value.decode()
+        value = value.decode('utf-8')
     elif isinstance(value, dict):
         value = dict((_decode(k), _decode(v)) for k, v in value.items())
     elif isinstance(value, (list, set, tuple)):
@@ -446,7 +446,10 @@ class FakeStrictRedis(object):
                 if px > 0:
                     self._db.expire(name, datetime.now() +
                                     timedelta(milliseconds=px))
-            self._db[name] = to_bytes(value)
+            if value and not(isinstance(value, int)):
+                self._db[name] = to_bytes(value.encode('utf-8'))
+            else:
+                self._db[name] = to_bytes(value)
             return True
         else:
             return None
