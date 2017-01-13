@@ -39,13 +39,13 @@ if sys.version_info[0] == 2:
     byte_to_int = ord
     int_to_byte = chr
 
-    def to_bytes(x, charset=sys.getdefaultencoding(), errors='strict'):
-        if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
-            return bytes(x)
+    def to_bytes(x, charset='utf-8', errors='strict'):
         if isinstance(x, unicode):
             return x.encode(charset, errors)
         if hasattr(x, '__unicode__'):
             return unicode(x).encode(charset, errors)
+        if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
+            return bytes(x)
         raise TypeError('expected bytes or unicode, not ' + type(x).__name__)
 
     def to_native(x, charset=sys.getdefaultencoding(), errors='strict'):
@@ -175,7 +175,7 @@ def DecodeGenerator(gen):
 
 def _decode(value):
     if isinstance(value, bytes):
-        value = value.decode('utf-8')
+        value = value.decode()
     elif isinstance(value, dict):
         value = dict((_decode(k), _decode(v)) for k, v in value.items())
     elif isinstance(value, (list, set, tuple)):
@@ -446,10 +446,10 @@ class FakeStrictRedis(object):
                 if px > 0:
                     self._db.expire(name, datetime.now() +
                                     timedelta(milliseconds=px))
-            if value and not(isinstance(value, int)):
-                self._db[name] = to_bytes(value.encode('utf-8'))
-            else:
-                self._db[name] = to_bytes(value)
+            #if value and not(isinstance(value, int)):
+            #    self._db[name] = to_bytes(value.encode('utf-8'))
+            #else:
+            self._db[name] = to_bytes(value)
             return True
         else:
             return None
