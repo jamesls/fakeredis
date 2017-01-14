@@ -16,6 +16,8 @@ import redis
 from redis.exceptions import ResponseError
 import redis.client
 
+import pdb
+
 try:
     # Python 2.6, 2.7
     from Queue import Queue, Empty
@@ -175,7 +177,7 @@ def DecodeGenerator(gen):
 
 def _decode(value):
     if isinstance(value, bytes):
-        value = value.decode()
+        value = value.decode('utf-8')
     elif isinstance(value, dict):
         value = dict((_decode(k), _decode(v)) for k, v in value.items())
     elif isinstance(value, (list, set, tuple)):
