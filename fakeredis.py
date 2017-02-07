@@ -33,6 +33,7 @@ if not PY2:
 
 __version__ = '0.8.1'
 
+encoding = 'utf-8'
 
 if sys.version_info[0] == 2:
     text_type = unicode
@@ -41,7 +42,7 @@ if sys.version_info[0] == 2:
     byte_to_int = ord
     int_to_byte = chr
 
-    def to_bytes(x, charset='utf-8', errors='strict'):
+    def to_bytes(x, charset=encoding, errors='strict'):
         if isinstance(x, unicode):
             return x.encode(charset, errors)
         if hasattr(x, '__unicode__'):
@@ -177,7 +178,7 @@ def DecodeGenerator(gen):
 
 def _decode(value):
     if isinstance(value, bytes):
-        value = value.decode('utf-8')
+        value = value.decode(encoding)
     elif isinstance(value, dict):
         value = dict((_decode(k), _decode(v)) for k, v in value.items())
     elif isinstance(value, (list, set, tuple)):
