@@ -16,6 +16,13 @@ many times you want to write unittests that do not talk to an external server
 (such as redis).  This module now allows tests to simply use this
 module as a reasonable substitute for redis.
 
+Install
+=======
+
+.. code-block:: bash
+
+  $ pip install fakeredis
+
 
 How to Use
 ==========
