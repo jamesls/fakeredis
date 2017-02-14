@@ -476,7 +476,7 @@ class FakeStrictRedis(object):
             time = int(timedelta_total_seconds(time))
         if not isinstance(time, int):
             raise ResponseError(
-                'invalid expire time type {!r}'.format(type(time)))
+                'value is not an integer or out of range')
         return self.set(name, value, ex=time)
 
     def psetex(self, name, time_ms, value):
