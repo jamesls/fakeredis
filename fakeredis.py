@@ -474,6 +474,9 @@ class FakeStrictRedis(object):
     def setex(self, name, time, value):
         if isinstance(time, timedelta):
             time = int(timedelta_total_seconds(time))
+        if not isinstance(time, int):
+            raise ResponseError(
+                'invalid expire time type {!r}'.format(type(time)))
         return self.set(name, value, ex=time)
 
     def psetex(self, name, time_ms, value):

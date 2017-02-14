@@ -361,6 +361,10 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.setex('foo', timedelta(seconds=100), 'bar'), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
+    def test_setex_using_float(self):
+        self.assertRaisesRegexp(
+            redis.ResponseError, 'type', self.redis.setex, 'foo', 1.2, 'bar')
+
     def test_set_ex(self):
         self.assertEqual(self.redis.set('foo', 'bar', ex=100), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
