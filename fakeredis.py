@@ -1727,6 +1727,7 @@ class FakePubSub(object):
     SUBSCRIBE_MESSAGE_TYPES = ['subscribe', 'psubscribe']
     UNSUBSCRIBE_MESSAGE_TYPES = ['unsubscribe', 'punsubscribe']
     PATTERN_MESSAGE_TYPES = ['psubscribe', 'punsubscribe']
+    LISTEN_DELAY = 0.1          # delay between listen loops (seconds)
 
     def __init__(self, decode_responses=False, *args, **kwargs):
         self.channels = {}
@@ -1877,8 +1878,9 @@ class FakePubSub(object):
             message = self.get_message()
             if message:
                 yield message
+                continue
 
-            time.sleep(1)
+            time.sleep(self.LISTEN_DELAY)
 
     def close(self):
         """
