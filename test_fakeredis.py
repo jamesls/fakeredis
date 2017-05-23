@@ -3,6 +3,7 @@ from time import sleep, time
 from redis.exceptions import ResponseError
 import inspect
 from functools import wraps
+import os
 import sys
 import threading
 
@@ -992,6 +993,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.sinter('foo', 'bar'), set([b'member2']))
         self.assertEqual(self.redis.sinter('foo'),
                          set([b'member1', b'member2']))
+
+    def test_sinter_bytes_keys(self):
+        foo = os.urandom(10)
+        bar = os.urandom(10)
+        self.redis.sadd(foo, 'member1')
+        self.redis.sadd(foo, 'member2')
+        self.redis.sadd(bar, 'member2')
+        self.redis.sadd(bar, 'member3')
+        self.assertEqual(self.redis.sinter(foo, bar), set([b'member2']))
+        self.assertEqual(self.redis.sinter(foo), set([b'member1', b'member2']))
 
     def test_sinterstore(self):
         self.redis.sadd('foo', 'member1')
