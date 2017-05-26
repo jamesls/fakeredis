@@ -58,6 +58,7 @@ if sys.version_info[0] == 2:
     iteritems = lambda d: d.iteritems()
     from urlparse import urlparse
 else:
+    basestring = str
     text_type = str
     string_types = (str,)
     redis_string_types = (bytes, str)
@@ -1453,11 +1454,15 @@ class FakeStrictRedis(object):
         self._db[dest] = new_zset
 
     def _list_or_args(self, keys, args):
-        # Based off of list_or_args from redis-py.
         # Returns a single list combining keys and args.
-        # A string can be iterated, but indicates
-        # keys wasn't passed as a list.
-        if isinstance(keys, string_types):
+        # Copy of list_or_args from redis-py.
+        try:
+            iter(keys)
+            # a string or bytes instance can be iterated, but indicates
+            # keys wasn't passed as a list
+            if isinstance(keys, (basestring, bytes)):
+                keys = [keys]
+        except TypeError:
             keys = [keys]
         if args:
             keys.extend(args)
