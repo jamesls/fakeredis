@@ -548,6 +548,9 @@ class FakeStrictRedis(object):
             return b'list'
         elif isinstance(key, set):
             return b'set'
+        else:
+            assert key is None
+            return b'none'
 
     def watch(self, *names):
         pass

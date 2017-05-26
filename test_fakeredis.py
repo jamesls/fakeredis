@@ -2101,6 +2101,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.type('set_key'), b'set')
         self.assertEqual(self.redis.type('zset_key'), b'zset')
         self.assertEqual(self.redis.type('hset_key'), b'hash')
+        self.assertEqual(self.redis.type('none_key'), b'none')
 
     @attr('slow')
     def test_pubsub_subscribe(self):
