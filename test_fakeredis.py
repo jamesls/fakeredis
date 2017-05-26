@@ -2447,6 +2447,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.pttl('foo'), -2)
 
+    def test_persist(self):
+        self.redis.set('foo', 'bar', ex=20)
+        self.redis.persist('foo')
+        self.assertEqual(self.redis.ttl('foo'), -1)
+
+    def test_set_existing_key_persists(self):
+        self.redis.set('foo', 'bar', ex=20)
+        self.redis.set('foo', 'foo')
+        self.assertEqual(self.redis.ttl('foo'), -1)
+
 
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False
