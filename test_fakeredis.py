@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 from time import sleep, time
 from redis.exceptions import ResponseError
 import inspect
@@ -2766,6 +2767,14 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.pexpire('something_new', 1000.2)
             self.redis.expire('some_unused_key', 1.2)
             self.redis.pexpire('some_unused_key', 1000.2)
+
+    def test_set_utf_encoding_value(self):
+        self.assertEqual(self.redis.set('bar', u'üöäß'), True)
+        self.assertEqual(self.redis.get('bar'), 'üöäß')
+
+    def test_set_utf_encoding_key(self):
+        self.assertEqual(self.redis.set(u'üöäß', 'bar'), True)
+        self.assertEqual(self.redis.get(u'üöäß'), 'bar')
 
 
 class DecodeMixin(object):

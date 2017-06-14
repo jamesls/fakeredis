@@ -39,13 +39,13 @@ if sys.version_info[0] == 2:
     byte_to_int = ord
     int_to_byte = chr
 
-    def to_bytes(x, charset=sys.getdefaultencoding(), errors='strict'):
+    def to_bytes(x, errors='strict'):
+        if isinstance(x, unicode):
+            return x.encode('utf-8', errors)
         if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
             return bytes(x)
-        if isinstance(x, unicode):
-            return x.encode(charset, errors)
         if hasattr(x, '__unicode__'):
-            return unicode(x).encode(charset, errors)
+            return unicode(x).encode('utf-8', errors)
         raise TypeError('expected bytes or unicode, not ' + type(x).__name__)
 
     def to_native(x, charset=sys.getdefaultencoding(), errors='strict'):
