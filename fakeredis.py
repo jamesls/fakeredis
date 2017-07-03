@@ -323,7 +323,7 @@ class FakeStrictRedis(object):
 
     def getbit(self, name, offset):
         """Returns a boolean indicating the value of ``offset`` in ``name``"""
-        val = self._db.get(name, '\x00')
+        val = self._db.get(name, b'\x00')
         byte = offset // 8
         remaining = offset % 8
         actual_bitoffset = 7 - remaining
