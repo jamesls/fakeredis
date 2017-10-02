@@ -25,21 +25,19 @@ except:
 
 PY2 = sys.version_info[0] == 2
 
-if not PY2:
-    long = int
-
 
 __version__ = '0.8.2'
 
 
-if sys.version_info[0] == 2:
+if PY2:
+    DEFAULT_ENCODING = 'utf-8'
     text_type = unicode
     string_types = (str, unicode)
     redis_string_types = (str, unicode, bytes)
     byte_to_int = ord
     int_to_byte = chr
 
-    def to_bytes(x, charset=sys.getdefaultencoding(), errors='strict'):
+    def to_bytes(x, charset=DEFAULT_ENCODING, errors='strict'):
         if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
             return bytes(x)
         if isinstance(x, unicode):
@@ -58,6 +56,7 @@ if sys.version_info[0] == 2:
     iteritems = lambda d: d.iteritems()
     from urlparse import urlparse
 else:
+    long = int
     basestring = str
     text_type = str
     string_types = (str,)
@@ -182,7 +181,10 @@ def DecodeGenerator(gen):
 
 def _decode(value):
     if isinstance(value, bytes):
-        value = value.decode()
+        if PY2:
+            value = value.decode(DEFAULT_ENCODING)
+        else:
+            value = value.decode()
     elif isinstance(value, dict):
         value = dict((_decode(k), _decode(v)) for k, v in value.items())
     elif isinstance(value, (list, set, tuple)):
