@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 from time import sleep, time
 from redis.exceptions import ResponseError
 import inspect
@@ -99,6 +100,15 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_set_None_value(self):
         self.assertEqual(self.redis.set('foo', None), True)
         self.assertEqual(self.redis.get('foo'), b'None')
+
+    if PY2:
+        def test_saving_non_ascii_chars_as_value(self):
+            self.assertEqual(self.redis.set('foo', 'Ñandu'), True)
+            self.assertEqual(self.redis.get('foo'), 'Ñandu')
+
+        def test_saving_non_ascii_chars_as_key(self):
+            self.assertEqual(self.redis.set('Ñandu', 'foo'), True)
+            self.assertEqual(self.redis.get('Ñandu'), b'foo')
 
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
