@@ -40,7 +40,7 @@ if PY2:
 
     def to_bytes(x, charset=DEFAULT_ENCODING, errors='strict'):
         if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
-            return bytes(x)
+            return bytes(x.encode(charset, errors))
         if isinstance(x, unicode):
             return x.encode(charset, errors)
         if hasattr(x, '__unicode__'):
