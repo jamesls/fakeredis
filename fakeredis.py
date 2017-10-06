@@ -40,9 +40,9 @@ if PY2:
 
     def to_bytes(x, charset=DEFAULT_ENCODING, errors='strict'):
         if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
-	    try:
+            try:
                 return bytes(x)
-	    except Exception:
+            except Exception:
                 return bytes(x.encode(charset, errors))
         if isinstance(x, unicode):
             return x.encode(charset, errors)
