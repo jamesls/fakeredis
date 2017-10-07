@@ -503,7 +503,12 @@ class FakeStrictRedis(object):
         return result
 
     def setrange(self, name, offset, value):
-        pass
+        val = self._db.get(name, b"")
+        if len(val) < offset:
+            val += b'\x00' * (offset - len(val))
+        val = val[0:offset] + to_bytes(value) + val[offset+len(value):]
+        self.set(name, val)
+        return len(val)
 
     def strlen(self, name):
         try:

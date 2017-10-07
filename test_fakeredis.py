@@ -985,6 +985,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('baz', 'member1')
         self.assertEqual(self.redis.scard('baz'), 1)
 
+    def test_setrange(self):
+        self.redis.set('foo', 'test')
+        self.assertEqual(self.redis.setrange('foo', 1, 'aste'), 5)
+        self.assertEqual(self.redis.get('foo'), b'taste')
+
+        self.redis.set('foo', 'test')
+        self.assertEqual(self.redis.setrange('foo', 1, 'a'), 4)
+        self.assertEqual(self.redis.get('foo'), b'tast')
+
+        self.assertEqual(self.redis.setrange('bar', 2, 'test'), 6)
+        self.assertEqual(self.redis.get('bar'), b'\x00\x00test')
+
     def test_sinter(self):
         self.redis.sadd('foo', 'member1')
         self.redis.sadd('foo', 'member2')
