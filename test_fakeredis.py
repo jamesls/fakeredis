@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 from time import sleep, time
 from redis.exceptions import ResponseError
 import inspect
@@ -40,6 +41,9 @@ except:
         from imp import reload
     except:
         pass
+
+
+DEFAULT_ENCODING = fakeredis.DEFAULT_ENCODING
 
 
 def redis_must_be_running(cls):
@@ -99,6 +103,24 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_set_None_value(self):
         self.assertEqual(self.redis.set('foo', None), True)
         self.assertEqual(self.redis.get('foo'), b'None')
+
+    def test_saving_non_ascii_chars_as_value(self):
+        self.assertEqual(self.redis.set('foo', 'Ñandu'), True)
+        self.assertEqual(self.redis.get('foo'),
+                         u'Ñandu'.encode(DEFAULT_ENCODING))
+
+    def test_saving_unicode_type_as_value(self):
+        self.assertEqual(self.redis.set('foo', u'Ñandu'), True)
+        self.assertEqual(self.redis.get('foo'),
+                         u'Ñandu'.encode(DEFAULT_ENCODING))
+
+    def test_saving_non_ascii_chars_as_key(self):
+        self.assertEqual(self.redis.set('Ñandu', 'foo'), True)
+        self.assertEqual(self.redis.get('Ñandu'), b'foo')
+
+    def test_saving_unicode_type_as_key(self):
+        self.assertEqual(self.redis.set(u'Ñandu', 'foo'), True)
+        self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
