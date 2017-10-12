@@ -1074,10 +1074,17 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.spop('foo'), None)
 
     def test_srandmember(self):
+        self.assertIs(self.redis.srandmember('foo'), None)
         self.redis.sadd('foo', 'member1')
         self.assertEqual(self.redis.srandmember('foo'), b'member1')
         # Shouldn't be removed from the set.
         self.assertEqual(self.redis.srandmember('foo'), b'member1')
+        # With number should return list
+        self.assertEqual(self.redis.srandmember('foo', 1), [b'member1'])
+        # With larger number should return list unique list
+        self.assertEqual(self.redis.srandmember('foo', 3), [b'member1'])
+        # With negative number should return repeats
+        self.assertEqual(self.redis.srandmember('foo', -2), [b'member1', b'member1'])
 
     def test_srem(self):
         self.redis.sadd('foo', 'member1', 'member2', 'member3', 'member4')
