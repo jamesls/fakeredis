@@ -1079,6 +1079,26 @@ class TestFakeStrictRedis(unittest.TestCase):
         # Shouldn't be removed from the set.
         self.assertEqual(self.redis.srandmember('foo'), b'member1')
 
+    def test_srandmember_number(self):
+        """srandmember works with the number argument."""
+        self.assertEqual(self.redis.srandmember('foo', 2), [])
+        self.redis.sadd('foo', b'member1')
+        self.assertEqual(self.redis.srandmember('foo', 2), [b'member1'])
+        self.redis.sadd('foo', b'member2')
+        self.assertEqual(set(self.redis.srandmember('foo', 2)),
+                         set([b'member1', b'member2']))
+        self.redis.sadd('foo', b'member3')
+        res = self.redis.srandmember('foo', 2)
+        self.assertEqual(len(res), 2)
+
+        if self.decode_responses:
+            superset = set(['member1', 'member2', 'member3'])
+        else:
+            superset = set([b'member1', b'member2', b'member3'])
+
+        for e in res:
+            self.assertIn(e, superset)
+
     def test_srem(self):
         self.redis.sadd('foo', 'member1', 'member2', 'member3', 'member4')
         self.assertEqual(self.redis.smembers('foo'),

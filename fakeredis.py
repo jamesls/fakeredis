@@ -986,12 +986,34 @@ class FakeStrictRedis(object):
         except KeyError:
             return None
 
-    def srandmember(self, name):
-        "Return a random member of set ``name``"
+    def srandmember(self, name, number=None):
+        """
+        If ``number`` is None, returns a random member of set ``name``.
+
+        If ``number`` is supplied, returns a list of ``number`` random
+        memebers of set ``name``.
+        """
         members = self._db.get(name, set())
-        if members:
+        if not members:
+            if number is not None:
+                return []
+            else:
+                return None
+
+        if number is None:
             index = random.randint(0, len(members) - 1)
             return list(members)[index]
+        elif len(members) <= number:
+            # We return them all, shuffled.
+            res = list(members)
+            random.shuffle(res)
+            return res
+        else:
+            member_list = list(members)
+            return [
+                member_list[i] for i
+                in sorted(random.sample(range(len(members)), number))
+            ]
 
     def srem(self, name, *values):
         "Remove ``value`` from set ``name``"
