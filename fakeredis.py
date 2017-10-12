@@ -39,13 +39,10 @@ if PY2:
     int_to_byte = chr
 
     def to_bytes(x, charset=DEFAULT_ENCODING, errors='strict'):
-        if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
-            try:
-                return bytes(x)
-            except Exception:
-                return bytes(x.encode(charset, errors))
         if isinstance(x, unicode):
             return x.encode(charset, errors)
+        if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
+            return bytes(x)
         if hasattr(x, '__unicode__'):
             return unicode(x).encode(charset, errors)
         raise TypeError('expected bytes or unicode, not ' + type(x).__name__)
@@ -60,6 +57,7 @@ if PY2:
     iteritems = lambda d: d.iteritems()
     from urlparse import urlparse
 else:
+    DEFAULT_ENCODING = sys.getdefaultencoding()
     long = int
     basestring = str
     text_type = str
@@ -184,11 +182,10 @@ def DecodeGenerator(gen):
 
 
 def _decode(value):
-    if isinstance(value, bytes):
-        if PY2:
-            value = value.decode(DEFAULT_ENCODING)
-        else:
-            value = value.decode()
+    if isinstance(value, text_type):
+        return value
+    elif isinstance(value, bytes):
+        value = value.decode(DEFAULT_ENCODING)
     elif isinstance(value, dict):
         value = dict((_decode(k), _decode(v)) for k, v in value.items())
     elif isinstance(value, (list, set, tuple)):
