@@ -27,7 +27,7 @@ except:
 PY2 = sys.version_info[0] == 2
 
 
-__version__ = '0.8.2'
+__version__ = '0.9.0'
 
 
 if PY2:
