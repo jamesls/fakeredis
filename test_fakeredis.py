@@ -134,6 +134,21 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.get('foo')
 
+    def test_get_invalid_type_list(self):
+        self.assertEqual(self.redis.rpush('foo', 'bar'), True)        
+        with self.assertRaises(redis.ResponseError):
+            self.redis.get('foo')        
+
+    def test_get_invalid_type_set(self):
+        self.assertEqual(self.redis.sadd('foo', 'bar'), True)        
+        with self.assertRaises(redis.ResponseError):
+            self.redis.get('foo')
+
+    def test_get_invalid_type_sorted_set(self):
+        self.assertEqual(self.redis.zadd('foo', 1, 'bar'), True)        
+        with self.assertRaises(redis.ResponseError):
+            self.redis.get('foo')
+            
     def test_set_non_str_keys(self):
         self.assertEqual(self.redis.set(2, 'bar'), True)
         self.assertEqual(self.redis.get(2), b'bar')
