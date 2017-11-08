@@ -1161,6 +1161,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.RedisError):
             self.redis.zadd('foo', 'two')
 
+    def test_zadd_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zadd('foo', 2, 'two')
+
     def test_zadd_multiple(self):
         self.redis.zadd('foo', 1, 'one', 2, 'two')
         self.assertEqual(self.redis.zrange('foo', 0, 0),
@@ -1185,6 +1190,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zcard_non_existent_key(self):
         self.assertEqual(self.redis.zcard('foo'), 0)
 
+    def test_zcard_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zcard('foo')
+
     def test_zcount(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', three=2)
@@ -1208,11 +1218,21 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zcount('foo', '(1', '(5'), 1)
         self.assertEqual(self.redis.zcount('foo', 2, '(5'), 1)
 
+    def test_zcount_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zcount('foo', '-inf', '+inf')
+
     def test_zincrby(self):
         self.redis.zadd('foo', one=1)
         self.assertEqual(self.redis.zincrby('foo', 'one', 10), 11)
         self.assertEqual(self.redis.zrange('foo', 0, -1, withscores=True),
                          [(b'one', 11)])
+
+    def test_zincrby_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zincrby('foo', 'one', 10)
 
     def test_zrange_descending(self):
         self.redis.zadd('foo', one=1)
@@ -1235,6 +1255,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zadd('foo', three=3)
         self.assertEqual(self.redis.zrange('foo', 0, 1), [b'one', b'two'])
 
+    def test_zrange_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrange('foo', 0, -1)
+
     def test_zrank(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -1245,6 +1270,11 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_zrank_non_existent_member(self):
         self.assertEqual(self.redis.zrank('foo', 'one'), None)
+
+    def test_zrank_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrank('foo', 'one')
 
     def test_zrem(self):
         self.redis.zadd('foo', one=1)
@@ -1269,12 +1299,22 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrem('foo', 128), True)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'129'])
 
+    def test_zrem_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrem('foo', 'bar')
+
     def test_zscore(self):
         self.redis.zadd('foo', one=54)
         self.assertEqual(self.redis.zscore('foo', 'one'), 54)
 
     def test_zscore_non_existent_member(self):
         self.assertIsNone(self.redis.zscore('foo', 'one'))
+
+    def test_zscore_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zscore('foo', 'one')
 
     def test_zrevrank(self):
         self.redis.zadd('foo', one=1)
@@ -1286,6 +1326,11 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_zrevrank_non_existent_member(self):
         self.assertEqual(self.redis.zrevrank('foo', 'one'), None)
+
+    def test_zrevrank_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrank('foo', 'one')
 
     def test_zrevrange(self):
         self.redis.zadd('foo', one=1)
@@ -1304,6 +1349,11 @@ class TestFakeStrictRedis(unittest.TestCase):
                          [b'three', b'two_b', b'two'])
         self.assertEqual(self.redis.zrevrange('foo', 0, -1),
                          [b'three', b'two_b', b'two', b'one'])
+
+    def test_zrevrange_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrange('foo', 0, 2)
 
     def test_zrangebyscore(self):
         self.redis.zadd('foo', zero=0)
@@ -1350,6 +1400,11 @@ class TestFakeStrictRedis(unittest.TestCase):
             self.redis.zrangebyscore('foo', 2, '3)')
         with self.assertRaises(redis.RedisError):
             self.redis.zrangebyscore('foo', 2, '3)', 0, None)
+
+    def test_zrangebyscore_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebyscore('foo', '(1', '(2')
 
     def test_zrangebyscore_slice(self):
         self.redis.zadd('foo', two_a=2)
@@ -1411,6 +1466,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.zrevrangebyscore('foo', '((3', '1)')
 
+    def test_zrevrangebyscore_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebyscore('foo', '(3', '(1')
+
     def test_zrangebylex(self):
         self.redis.zadd('foo', one_a=0)
         self.redis.zadd('foo', two_a=0)
@@ -1445,6 +1505,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrangebylex('foo', b'[o', b'-'),
                          [])
 
+    def test_zrangebylex_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrangebylex('foo', b'-', b'+')
+
     def test_zlexcount(self):
         self.redis.zadd('foo', one_a=0)
         self.redis.zadd('foo', two_a=0)
@@ -1477,6 +1542,11 @@ class TestFakeStrictRedis(unittest.TestCase):
                          0)
         self.assertEqual(self.redis.zlexcount('foo', b'[o', b'-'),
                          0)
+
+    def test_zlexcount_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zlexcount('foo', b'-', b'+')
 
     def test_zrangebylex_with_limit(self):
         self.redis.zadd('foo', one_a=0)
@@ -1590,6 +1660,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.RedisError):
             self.redis.zrevrangebylex('foo', b'[two_a', b'(two_b', 1)
 
+    def test_zrevrangebylex_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zrevrangebylex('foo', b'+', b'-')
+
     def test_zremrangebyrank(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -1607,6 +1682,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zremrangebyrank_out_of_bounds(self):
         self.redis.zadd('foo', one=1)
         self.assertEqual(self.redis.zremrangebyrank('foo', 1, 3), 0)
+
+    def test_zremrangebyrank_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebyrank('foo', 1, 3)
 
     def test_zremrangebyscore(self):
         self.redis.zadd('foo', zero=0)
@@ -1657,6 +1737,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zremrangebyscore_badkey(self):
         self.assertEqual(self.redis.zremrangebyscore('foo', 0, 2), 0)
 
+    def test_zremrangebyscore_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebyscore('foo', 0, 2)
+
     def test_zremrangebylex(self):
         self.redis.zadd('foo', two_a=0)
         self.redis.zadd('foo', two_b=0)
@@ -1686,6 +1771,11 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_zremrangebylex_badkey(self):
         self.assertEqual(self.redis.zremrangebylex('foo', b'(three_a', b'[two_b'), 0)
+
+    def test_zremrangebylex_wrong_type(self):
+        self.redis.sadd('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zremrangebylex('foo', b'bar', b'baz')
 
     def test_zunionstore(self):
         self.redis.zadd('foo', one=1)
@@ -1758,6 +1848,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
                          [(b'one', 1), (b'two', 2)])
 
+    def test_zunionstore_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zunionstore('baz', ['foo', 'bar'])
+
     def test_zinterstore(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -1801,6 +1896,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zunionstore_nokey(self):
         with self.assertRaises(redis.ResponseError):
             self.redis.zunionstore('baz', [], aggregate='MAX')
+
+    def test_zinterstore_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zinterstore('baz', ['foo', 'bar'])
 
     def test_multidb(self):
         r1 = self.create_redis(db=0)

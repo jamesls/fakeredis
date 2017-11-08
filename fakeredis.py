@@ -104,6 +104,10 @@ _libc.strtod.argtypes = [c_char_p, POINTER(c_char_p)]
 _strtod = _libc.strtod
 
 
+_WRONGTYPE_MSG = \
+    "WRONGTYPE Operation against a key holding the wrong kind of value"
+
+
 def timedelta_total_seconds(delta):
     return delta.days * 86400 + delta.seconds + delta.microseconds / 1E6
 
@@ -1039,6 +1043,24 @@ class FakeStrictRedis(object):
         self._db[dest] = set(to_bytes(x) for x in union)
         return len(union)
 
+    def _get_zset(self, name):
+        value = self._db.get(name, _ZSet())
+        if not isinstance(value, _ZSet):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
+    def _get_anyset(self, name):
+        value = self._db.get(name, set())
+        if not isinstance(value, (_ZSet, set)):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
+    def _setdefault_zset(self, name):
+        value = self._db.setdefault(name, _ZSet())
+        if not isinstance(value, _ZSet):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
     def _get_zelement_range_filter_func(self, min_val, max_val):
         # This will return a filter function based on the
         # min and max values.  It takes a single argument
@@ -1136,7 +1158,7 @@ class FakeStrictRedis(object):
         if len(args) % 2 != 0:
             raise redis.RedisError("ZADD requires an equal number of "
                                    "values and scores")
-        zset = self._db.setdefault(name, _ZSet())
+        zset = self._setdefault_zset(name)
         added = 0
         for score, value in zip(*[args[i::2] for i in range(2)]):
             if value not in zset:
@@ -1156,19 +1178,19 @@ class FakeStrictRedis(object):
 
     def zcard(self, name):
         "Return the number of elements in the sorted set ``name``"
-        return len(self._db.get(name, {}))
+        return len(self._get_zset(name))
 
     def zcount(self, name, min, max):
         found = 0
         filter_func = self._get_zelement_range_filter_func(min, max)
-        for score in self._db.get(name, {}).values():
+        for score in self._get_zset(name).values():
             if filter_func(score):
                 found += 1
         return found
 
     def zincrby(self, name, value, amount=1):
         "Increment the score of ``value`` in sorted set ``name`` by ``amount``"
-        d = self._db.setdefault(name, _ZSet())
+        d = self._setdefault_zset(name)
         score = d.get(value, 0) + amount
         d[value] = score
         return score
@@ -1185,9 +1207,9 @@ class FakeStrictRedis(object):
         # keys can be a list or a dict so it needs to be converted to
         # a list first.
         list_keys = list(keys)
-        valid_keys = set(self._db.get(list_keys[0], {}))
+        valid_keys = set(self._get_anyset(list_keys[0]))
         for key in list_keys[1:]:
-            valid_keys.intersection_update(self._db.get(key, {}))
+            valid_keys.intersection_update(self._get_anyset(key))
         return self._zaggregate(dest, keys, aggregate,
                                 lambda x: x in
                                 valid_keys)
@@ -1208,7 +1230,7 @@ class FakeStrictRedis(object):
             end = None
         else:
             end += 1
-        all_items = self._db.get(name, {})
+        all_items = self._get_zset(name)
         if desc:
             reverse = True
         else:
@@ -1246,7 +1268,7 @@ class FakeStrictRedis(object):
                 (num is not None and start is None):
             raise redis.RedisError("``start`` and ``num`` must both "
                                    "be specified")
-        all_items = self._db.get(name, {})
+        all_items = self._get_zset(name)
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
         filter_func = self._get_zelement_range_filter_func(min, max)
         matches = []
@@ -1283,7 +1305,7 @@ class FakeStrictRedis(object):
                 (num is not None and start is None):
             raise redis.RedisError("``start`` and ``num`` must both "
                                    "be specified")
-        all_items = self._db.get(name, {})
+        all_items = self._get_zset(name)
         in_order = self._get_zelements_in_order(all_items, reverse=reverse)
         filter_func = self._get_zelement_lexrange_filter_func(min, max)
         matches = []
@@ -1301,7 +1323,7 @@ class FakeStrictRedis(object):
         Returns a 0-based value indicating the rank of ``value`` in sorted set
         ``name``
         """
-        all_items = self._db.get(name, {})
+        all_items = self._get_zset(name)
         in_order = sorted(all_items, key=lambda x: all_items[x])
         try:
             return in_order.index(to_bytes(value))
@@ -1310,7 +1332,7 @@ class FakeStrictRedis(object):
 
     def zrem(self, name, *values):
         "Remove member ``value`` from sorted set ``name``"
-        z = self._db.get(name, {})
+        z = self._get_zset(name)
         rem = 0
         for v in values:
             if v in z:
@@ -1325,7 +1347,7 @@ class FakeStrictRedis(object):
         to largest. Values can be negative indicating the highest scores.
         Returns the number of elements removed
         """
-        all_items = self._db.get(name, {})
+        all_items = self._get_zset(name)
         in_order = self._get_zelements_in_order(all_items)
         num_deleted = 0
         if max == -1:
@@ -1342,7 +1364,7 @@ class FakeStrictRedis(object):
         Remove all elements in the sorted set ``name`` with scores
         between ``min`` and ``max``. Returns the number of elements removed.
         """
-        all_items = self._db.get(name, {})
+        all_items = self._get_zset(name)
         filter_func = self._get_zelement_range_filter_func(min, max)
         removed = 0
         for key in all_items.copy():
@@ -1362,7 +1384,7 @@ class FakeStrictRedis(object):
             - equal ``-`` for negative infinite string (start)
             - equal ``+`` for positive infinite string (stop)
         """
-        all_items = self._db.get(name, {})
+        all_items = self._get_zset(name)
         filter_func = self._get_zelement_lexrange_filter_func(min, max)
         removed = 0
         for key in all_items.copy():
@@ -1382,7 +1404,7 @@ class FakeStrictRedis(object):
             - equal ``-`` for negative infinite string (start)
             - equal ``+`` for positive infinite string (stop)
         """
-        all_items = self._db.get(name, {})
+        all_items = self._get_zset(name)
         filter_func = self._get_zelement_lexrange_filter_func(min, max)
         found = 0
         for key in all_items.copy():
@@ -1441,15 +1463,16 @@ class FakeStrictRedis(object):
         Returns a 0-based value indicating the descending rank of
         ``value`` in sorted set ``name``
         """
-        num_items = len(self._db.get(name, {}))
+        num_items = len(self._get_zset(name))
         zrank = self.zrank(name, value)
         if zrank is not None:
             return num_items - self.zrank(name, value) - 1
 
     def zscore(self, name, value):
         "Return the score of element ``value`` in sorted set ``name``"
+        all_items = self._get_zset(name)
         try:
-            return self._db[name][value]
+            return all_items[value]
         except KeyError:
             return None
 
@@ -1475,7 +1498,7 @@ class FakeStrictRedis(object):
         else:
             keys_weights = [(k, 1) for k in keys]
         for key, weight in keys_weights:
-            current_zset = self._db.get(key, {})
+            current_zset = self._get_anyset(key)
             if isinstance(current_zset, set):
                 # When casting set to zset redis uses a default score of 1.0
                 current_zset = dict((k, 1.0) for k in current_zset)
