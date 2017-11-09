@@ -704,8 +704,30 @@ class FakeStrictRedis(object):
 
         data.sort(key=_by_key)
 
+    def _get_list(self, name):
+        value = self._db.get(name, [])
+        if not isinstance(value, list):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
+    def _get_list_or_none(self, name):
+        """Like _get_list, but default value is None"""
+        try:
+            value = self._db[name]
+            if not isinstance(value, list):
+                raise redis.ResponseError(_WRONGTYPE_MSG)
+            return value
+        except KeyError:
+            return None
+
+    def _setdefault_list(self, name):
+        value = self._db.setdefault(name, [])
+        if not isinstance(value, list):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
     def lpush(self, name, *values):
-        self._db.setdefault(name, [])[0:0] = list(reversed(
+        self._setdefault_list(name)[0:0] = list(reversed(
             [to_bytes(x) for x in values]))
         return len(self._db[name])
 
@@ -714,14 +736,14 @@ class FakeStrictRedis(object):
             end = None
         else:
             end += 1
-        return self._db.get(name, [])[start:end]
+        return self._get_list(name)[start:end]
 
     def llen(self, name):
-        return len(self._db.get(name, []))
+        return len(self._get_list(name))
 
     def lrem(self, name, count, value):
         value = to_bytes(value)
-        a_list = self._db.get(name, [])
+        a_list = self._get_list(name)
         found = []
         for i, el in enumerate(a_list):
             if el == value:
@@ -739,69 +761,78 @@ class FakeStrictRedis(object):
         return len(indices_to_remove)
 
     def rpush(self, name, *values):
-        self._db.setdefault(name, []).extend([to_bytes(x) for x in values])
+        self._setdefault_list(name).extend([to_bytes(x) for x in values])
         return len(self._db[name])
 
     def lpop(self, name):
         try:
-            return self._db.get(name, []).pop(0)
+            return self._get_list(name).pop(0)
         except IndexError:
             return None
 
     def lset(self, name, index, value):
         try:
-            self._db.get(name, [])[index] = to_bytes(value)
+            lst = self._get_list_or_none(name)
+            if lst is None:
+                raise redis.ResponseError("no such key")
+            lst[index] = to_bytes(value)
         except IndexError:
             raise redis.ResponseError("index out of range")
 
     def rpushx(self, name, value):
-        try:
-            self._db[name].append(to_bytes(value))
-        except KeyError:
-            return
+        self._get_list(name).append(to_bytes(value))
 
     def ltrim(self, name, start, end):
-        try:
-            val = self._db[name]
-        except KeyError:
-            return True
-        if end == -1:
-            end = None
-        else:
-            end += 1
-        self._db[name] = val[start:end]
+        val = self._get_list_or_none(name)
+        if val is not None:
+            if end == -1:
+                end = None
+            else:
+                end += 1
+            self._db[name] = val[start:end]
         return True
 
     def lindex(self, name, index):
         try:
-            return self._db.get(name, [])[index]
+            return self._get_list(name)[index]
         except IndexError:
             return None
 
     def lpushx(self, name, value):
-        try:
-            self._db[name].insert(0, to_bytes(value))
-        except KeyError:
-            return
+        self._get_list(name).insert(0, to_bytes(value))
 
     def rpop(self, name):
         try:
-            return self._db.get(name, []).pop()
+            return self._get_list(name).pop()
         except IndexError:
             return None
 
     def linsert(self, name, where, refvalue, value):
-        index = self._db.get(name, []).index(to_bytes(refvalue))
-        self._db.get(name, []).insert(index, to_bytes(value))
+        if where.lower() not in ('before', 'after'):
+            raise redis.ResponseError('syntax error')
+        lst = self._get_list_or_none(name)
+        if lst is None:
+            return 0
+        else:
+            refvalue = to_bytes(refvalue)
+            try:
+                index = lst.index(refvalue)
+            except ValueError:
+                return -1
+            if where.lower() == 'after':
+                index += 1
+            lst.insert(index, to_bytes(value))
+            return len(lst)
 
     def rpoplpush(self, src, dst):
+        # _get_list instead of _setdefault_list at this point because we
+        # don't want to create the list if nothing gets popped.
+        dst_list = self._get_list(dst)
         el = self.rpop(src)
         if el is not None:
             el = to_bytes(el)
-            try:
-                self._db[dst].insert(0, el)
-            except KeyError:
-                self._db[dst] = [el]
+            dst_list.insert(0, el)
+            self._db[dst] = dst_list
         return el
 
     def blpop(self, keys, timeout=0):
@@ -816,8 +847,9 @@ class FakeStrictRedis(object):
         else:
             keys = [to_bytes(k) for k in keys]
         for key in keys:
-            if self._db.get(key, []):
-                return (key, self._db[key].pop(0))
+            lst = self._get_list(key)
+            if lst:
+                return (key, lst.pop(0))
 
     def brpop(self, keys, timeout=0):
         if isinstance(keys, string_types):
@@ -825,18 +857,12 @@ class FakeStrictRedis(object):
         else:
             keys = [to_bytes(k) for k in keys]
         for key in keys:
-            if self._db.get(key, []):
-                return (key, self._db[key].pop())
+            lst = self._get_list(key)
+            if lst:
+                return (key, lst.pop())
 
     def brpoplpush(self, src, dst, timeout=0):
-        el = self.rpop(src)
-        if el is not None:
-            el = to_bytes(el)
-            try:
-                self._db[dst].insert(0, el)
-            except KeyError:
-                self._db[dst] = [el]
-        return el
+        return self.rpoplpush(src, dst)
 
     def hdel(self, name, *keys):
         h = self._db.get(name, {})

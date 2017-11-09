@@ -582,6 +582,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrange('1', 0, 2),
                          [b'three', b'two', b'one'])
 
+    def test_lpush_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.lpush('foo', 'element')
+
     def test_llen(self):
         self.redis.lpush('foo', 'one')
         self.redis.lpush('foo', 'two')
@@ -591,7 +596,12 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_llen_no_exist(self):
         self.assertEqual(self.redis.llen('foo'), 0)
 
-    def test_lrem_postitive_count(self):
+    def test_llen_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.llen('foo')
+
+    def test_lrem_positive_count(self):
         self.redis.lpush('foo', 'same')
         self.redis.lpush('foo', 'same')
         self.redis.lpush('foo', 'different')
@@ -637,6 +647,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(count, 1)
         self.assertEqual(self.redis.lrem('foo', 0, 'one'), 0)
 
+    def test_lrem_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.lrem('foo', 0, 'element')
+
     def test_rpush(self):
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
@@ -644,6 +659,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'four', 'five')
         self.assertEqual(self.redis.lrange('foo', 0, -1),
                          [b'one', b'two', b'three', b'four', b'five'])
+
+    def test_rpush_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.rpush('foo', 'element')
 
     def test_lpop(self):
         self.assertEqual(self.redis.rpush('foo', 'one'), 1)
@@ -661,6 +681,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         # we've never seen before.
         self.assertEqual(self.redis.lpop('noexists'), None)
 
+    def test_lpop_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.lpop('foo')
+
     def test_lset(self):
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
@@ -675,12 +700,22 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.lset('foo', 3, 'three')
 
+    def test_lset_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.lset('foo', 0, 'element')
+
     def test_rpushx(self):
         self.redis.rpush('foo', 'one')
         self.redis.rpushx('foo', 'two')
         self.redis.rpushx('bar', 'three')
         self.assertEqual(self.redis.lrange('foo', 0, -1), [b'one', b'two'])
         self.assertEqual(self.redis.lrange('bar', 0, -1), [])
+
+    def test_rpushx_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.rpushx('foo', 'element')
 
     def test_ltrim(self):
         self.redis.rpush('foo', 'one')
@@ -697,6 +732,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_ltrim_with_non_existent_key(self):
         self.assertTrue(self.redis.ltrim('foo', 0, -1))
 
+    def test_ltrim_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.ltrim('foo', 1, -1)
+
     def test_lindex(self):
         self.redis.rpush('foo', 'one')
         self.redis.rpush('foo', 'two')
@@ -704,12 +744,22 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.lindex('foo', 4), None)
         self.assertEqual(self.redis.lindex('bar', 4), None)
 
+    def test_lindex_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.lindex('foo', 0)
+
     def test_lpushx(self):
         self.redis.lpush('foo', 'two')
         self.redis.lpushx('foo', 'one')
         self.redis.lpushx('bar', 'one')
         self.assertEqual(self.redis.lrange('foo', 0, -1), [b'one', b'two'])
         self.assertEqual(self.redis.lrange('bar', 0, -1), [])
+
+    def test_lpushx_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.lpushx('foo', 'element')
 
     def test_rpop(self):
         self.assertEqual(self.redis.rpop('foo'), None)
@@ -719,12 +769,39 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.rpop('foo'), b'one')
         self.assertEqual(self.redis.rpop('foo'), None)
 
-    def test_linsert(self):
+    def test_rpop_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.rpop('foo')
+
+    def test_linsert_before(self):
         self.redis.rpush('foo', 'hello')
         self.redis.rpush('foo', 'world')
-        self.redis.linsert('foo', 'before', 'world', 'there')
+        self.assertEqual(self.redis.linsert('foo', 'before', 'world', 'there'),
+                         3)
         self.assertEqual(self.redis.lrange('foo', 0, -1),
                          [b'hello', b'there', b'world'])
+
+    def test_linsert_after(self):
+        self.redis.rpush('foo', 'hello')
+        self.redis.rpush('foo', 'world')
+        self.assertEqual(self.redis.linsert('foo', 'after', 'hello', 'there'),
+                         3)
+        self.assertEqual(self.redis.lrange('foo', 0, -1),
+                         [b'hello', b'there', b'world'])
+
+    def test_linsert_no_pivot(self):
+        self.redis.rpush('foo', 'hello')
+        self.redis.rpush('foo', 'world')
+        self.assertEqual(self.redis.linsert('foo', 'after', 'goodbye', 'bar'),
+                         -1)
+        self.assertEqual(self.redis.lrange('foo', 0, -1),
+                         [b'hello', b'world'])
+
+    def test_linsert_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.linsert('foo', 'after', 'bar', 'element')
 
     def test_rpoplpush(self):
         self.assertEqual(self.redis.rpoplpush('foo', 'bar'), None)
@@ -745,6 +822,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.assertEqual(self.redis.rpoplpush('foo', 'bar'), b'one')
         self.assertEqual(self.redis.rpop('bar'), b'one')
+
+    def test_rpoplpush_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('list', 'element')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.rpoplpush('foo', 'list')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.assertEqual(self.redis.lrange('list', 0, -1), [b'element'])
+        with self.assertRaises(redis.ResponseError):
+            self.redis.rpoplpush('list', 'foo')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.assertEqual(self.redis.lrange('list', 0, -1), [b'element'])
 
     def test_blpop_single_list(self):
         self.redis.rpush('foo', 'one')
@@ -777,6 +866,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.assertEqual(self.redis.blpop('foo', timeout=1), (b'foo', b'one'))
 
+    def test_blpop_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.blpop('foo', timeout=1)
+
     def test_brpop_test_multiple_lists(self):
         self.redis.rpush('baz', 'zero')
         self.assertEqual(self.redis.brpop(['foo', 'baz'], timeout=1),
@@ -793,6 +887,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.brpop('foo', timeout=1),
                          (b'foo', b'two'))
 
+    def test_brpop_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.brpop('foo', timeout=1)
+
     def test_brpoplpush_multi_keys(self):
         self.assertEqual(self.redis.lpop('bar'), None)
         self.redis.rpush('foo', 'one')
@@ -804,6 +903,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         # Catch instances where we store bytes and strings inconsistently
         # and thus bar = ['two']
         self.assertEqual(self.redis.lrem('bar', -1, 'two'), 1)
+
+    def test_brpoplpush_wrong_type(self):
+        self.redis.set('foo', 'bar')
+        self.redis.rpush('list', 'element')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.brpoplpush('foo', 'list')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.assertEqual(self.redis.lrange('list', 0, -1), [b'element'])
+        with self.assertRaises(redis.ResponseError):
+            self.redis.brpoplpush('list', 'foo')
+        self.assertEqual(self.redis.get('foo'), b'bar')
+        self.assertEqual(self.redis.lrange('list', 0, -1), [b'element'])
 
     @attr('slow')
     def test_blocking_operations_when_empty(self):
