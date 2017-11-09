@@ -921,23 +921,35 @@ class FakeStrictRedis(object):
         "Return the list of values within hash ``name``"
         return list(self._db.get(name, {}).values())
 
+    def _get_set(self, name):
+        value = self._db.get(name, set())
+        if not isinstance(value, set):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
+    def _setdefault_set(self, name):
+        value = self._db.setdefault(name, set())
+        if not isinstance(value, set):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
     def sadd(self, name, *values):
         "Add ``value`` to set ``name``"
-        a_set = self._db.setdefault(name, set())
+        a_set = self._setdefault_set(name)
         card = len(a_set)
         a_set |= set(to_bytes(x) for x in values)
         return len(a_set) - card
 
     def scard(self, name):
         "Return the number of elements in set ``name``"
-        return len(self._db.get(name, set()))
+        return len(self._get_set(name))
 
     def sdiff(self, keys, *args):
         "Return the difference of sets specified by ``keys``"
         all_keys = (to_bytes(x) for x in self._list_or_args(keys, args))
-        diff = self._db.get(next(all_keys), set()).copy()
+        diff = self._get_set(next(all_keys)).copy()
         for key in all_keys:
-            diff -= self._db.get(key, set())
+            diff -= self._get_set(key)
         return diff
 
     def sdiffstore(self, dest, keys, *args):
@@ -952,9 +964,9 @@ class FakeStrictRedis(object):
     def sinter(self, keys, *args):
         "Return the intersection of sets specified by ``keys``"
         all_keys = (to_bytes(x) for x in self._list_or_args(keys, args))
-        intersect = self._db.get(next(all_keys), set()).copy()
+        intersect = self._get_set(next(all_keys)).copy()
         for key in all_keys:
-            intersect.intersection_update(self._db.get(key, set()))
+            intersect.intersection_update(self._get_set(key))
         return intersect
 
     def sinterstore(self, dest, keys, *args):
@@ -968,17 +980,19 @@ class FakeStrictRedis(object):
 
     def sismember(self, name, value):
         "Return a boolean indicating if ``value`` is a member of set ``name``"
-        return to_bytes(value) in self._db.get(name, set())
+        return to_bytes(value) in self._get_set(name)
 
     def smembers(self, name):
         "Return all members of the set ``name``"
-        return self._db.get(name, set())
+        return self._get_set(name)
 
     def smove(self, src, dst, value):
         value = to_bytes(value)
+        src_set = self._get_set(src)
+        dst_set = self._setdefault_set(dst)
         try:
-            self._db.get(src, set()).remove(value)
-            self._db.setdefault(dst, set()).add(value)
+            src_set.remove(value)
+            dst_set.add(value)
             return True
         except KeyError:
             return False
@@ -986,7 +1000,7 @@ class FakeStrictRedis(object):
     def spop(self, name):
         "Remove and return a random member of set ``name``"
         try:
-            return self._db.get(name, set()).pop()
+            return self._get_set(name).pop()
         except KeyError:
             return None
 
@@ -995,9 +1009,9 @@ class FakeStrictRedis(object):
         If ``number`` is None, returns a random member of set ``name``.
 
         If ``number`` is supplied, returns a list of ``number`` random
-        memebers of set ``name``.
+        members of set ``name``.
         """
-        members = self._db.get(name, set())
+        members = self._get_set(name)
         if not members:
             if number is not None:
                 return []
@@ -1021,7 +1035,7 @@ class FakeStrictRedis(object):
 
     def srem(self, name, *values):
         "Remove ``value`` from set ``name``"
-        a_set = self._db.setdefault(name, set())
+        a_set = self._setdefault_set(name)
         card = len(a_set)
         a_set -= set(to_bytes(x) for x in values)
         return card - len(a_set)
@@ -1029,9 +1043,9 @@ class FakeStrictRedis(object):
     def sunion(self, keys, *args):
         "Return the union of sets specifiued by ``keys``"
         all_keys = (to_bytes(x) for x in self._list_or_args(keys, args))
-        union = self._db.get(next(all_keys), set()).copy()
+        union = self._get_set(next(all_keys)).copy()
         for key in all_keys:
-            union.update(self._db.get(key, set()))
+            union.update(self._get_set(key))
         return union
 
     def sunionstore(self, dest, keys, *args):
