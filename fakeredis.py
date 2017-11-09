@@ -249,9 +249,22 @@ class FakeStrictRedis(object):
 
         del self._pubsubs[:]
 
+    def _get_string(self, name, default=b''):
+        value = self._db.get(name, default)
+        # Allow None so that default can be set as None
+        if not isinstance(value, bytes) and value is not None:
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
+    def _setdefault_string(self, name):
+        value = self._db.setdefault(name, b'')
+        if not isinstance(value, bytes):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
     # Basic key commands
     def append(self, key, value):
-        self._db.setdefault(key, b'')
+        self._setdefault_string(key)
         self._db[key] += to_bytes(value)
         return len(self._db[key])
 
@@ -261,18 +274,18 @@ class FakeStrictRedis(object):
         else:
             end += 1
         try:
-            s = self._db[name][start:end]
+            s = self._get_string(name)[start:end]
             return sum([bin(byte_to_int(l)).count('1') for l in s])
         except KeyError:
             return 0
 
     def decr(self, name, amount=1):
         try:
-            self._db[name] = int(self._db.get(name, '0')) - amount
+            self._db[name] = to_bytes(int(self._get_string(name, b'0')) - amount)
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
-        return self._db[name]
+        return int(self._db[name])
 
     def exists(self, name):
         return name in self._db
@@ -318,10 +331,7 @@ class FakeStrictRedis(object):
         return value
 
     def get(self, name):
-        value = self._db.get(name)
-        if isinstance(value, _StrKeyDict):
-            raise redis.ResponseError("WRONGTYPE Operation against a key "
-                                      "holding the wrong kind of value")
+        value = self._get_string(name, None)
         if value is not None:
             return to_bytes(value)
 
@@ -330,7 +340,7 @@ class FakeStrictRedis(object):
 
     def getbit(self, name, offset):
         """Returns a boolean indicating the value of ``offset`` in ``name``"""
-        val = self._db.get(name, '\x00')
+        val = self._get_string(name)
         byte = offset // 8
         remaining = offset % 8
         actual_bitoffset = 7 - remaining
@@ -345,8 +355,8 @@ class FakeStrictRedis(object):
         Set the value at key ``name`` to ``value`` if key doesn't exist
         Return the value at key ``name`` atomically
         """
-        val = self._db.get(name)
-        self._db[name] = value
+        val = self._get_string(name, None)
+        self._db[name] = to_bytes(value)
         return val
 
     def incr(self, name, amount=1):
@@ -358,7 +368,7 @@ class FakeStrictRedis(object):
             if not isinstance(amount, int):
                 raise redis.ResponseError("value is not an integer or out "
                                           "of range.")
-            self._db[name] = to_bytes(int(self._db.get(name, '0')) + amount)
+            self._db[name] = to_bytes(int(self._get_string(name, b'0')) + amount)
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
@@ -372,10 +382,10 @@ class FakeStrictRedis(object):
 
     def incrbyfloat(self, name, amount=1.0):
         try:
-            self._db[name] = float(self._db.get(name, '0')) + amount
+            self._db[name] = to_bytes(float(self._get_string(name, b'0')) + amount)
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not a valid float.")
-        return self._db[name]
+        return float(self._db[name])
 
     def keys(self, pattern=None):
         return [key for key in self._db
@@ -389,7 +399,11 @@ class FakeStrictRedis(object):
             raise redis.ResponseError(
                 "wrong number of arguments for 'mget' command")
         for key in all_keys:
-            found.append(self._db.get(key))
+            value = self._db.get(key)
+            # Non-strings are returned as nil
+            if not isinstance(value, bytes):
+                value = None
+            found.append(value)
         return found
 
     def mset(self, *args, **kwargs):
@@ -470,7 +484,7 @@ class FakeStrictRedis(object):
     __setitem__ = set
 
     def setbit(self, name, offset, value):
-        val = self._db.get(name, b'\x00')
+        val = self._get_string(name, b'\x00')
         byte = offset // 8
         remaining = offset % 8
         actual_bitoffset = 7 - remaining
@@ -510,7 +524,7 @@ class FakeStrictRedis(object):
         return result
 
     def setrange(self, name, offset, value):
-        val = self._db.get(name, b"")
+        val = self._get_string(name, b"")
         if len(val) < offset:
             val += b'\x00' * (offset - len(val))
         val = val[0:offset] + to_bytes(value) + val[offset+len(value):]
@@ -518,10 +532,7 @@ class FakeStrictRedis(object):
         return len(val)
 
     def strlen(self, name):
-        try:
-            return len(self._db[name])
-        except KeyError:
-            return 0
+        return len(self._get_string(name))
 
     def substr(self, name, start, end=-1):
         if end == -1:
@@ -529,7 +540,7 @@ class FakeStrictRedis(object):
         else:
             end += 1
         try:
-            return self._db[name][start:end]
+            return self._get_string(name)[start:end]
         except KeyError:
             return b''
     # Redis >= 2.0.0 this command is called getrange
@@ -616,7 +627,10 @@ class FakeStrictRedis(object):
             raise redis.RedisError(
                 "RedisError: ``start`` and ``num`` must both be specified")
         try:
-            data = list(self._db[name])[:]
+            data = self._db[name]
+            if not isinstance(data, (list, set, _ZSet)):
+                raise redis.ResponseError(_WRONGTYPE_MSG)
+            data = list(data)
             if by is not None:
                 # _sort_using_by_arg mutates data so we don't
                 # need need a return value.

@@ -148,6 +148,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.getbit('foo', 4), 0)
         self.assertEqual(self.redis.getbit('foo', 100), 0)
 
+    def test_getbit_wrong_type(self):
+        self.redis.rpush('foo', b'x')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.getbit('foo', 1)
+
     def test_multiple_bits_set(self):
         self.redis.setbit('foo', 1, 1)
         self.redis.setbit('foo', 3, 1)
@@ -185,6 +190,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.setbit('foo', 54, 1)
         self.assertEqual(self.redis.get('foo'), b'p@\x00\x00\x00\x00\x02')
 
+    def test_setbit_wrong_type(self):
+        self.redis.rpush('foo', b'x')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.setbit('foo', 0, 1)
+
     def test_bitcount(self):
         self.redis.delete('foo')
         self.assertEqual(self.redis.bitcount('foo'), 0)
@@ -198,6 +208,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', ' ')
         self.assertEqual(self.redis.bitcount('foo'), 1)
 
+    def test_bitcount_wrong_type(self):
+        self.redis.rpush('foo', b'x')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.bitcount('foo')
+
     def test_getset_not_exist(self):
         val = self.redis.getset('foo', 'bar')
         self.assertEqual(val, None)
@@ -210,6 +225,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         val = self.redis.getset('foo', b'baz2')
         self.assertEqual(val, b'baz')
 
+    def test_getset_wrong_type(self):
+        self.redis.rpush('foo', b'x')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.getset('foo', 'bar')
+
     def test_setitem_getitem(self):
         self.assertEqual(self.redis.keys(), [])
         self.redis['foo'] = 'bar'
@@ -220,6 +240,11 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         self.assertEqual(self.redis.strlen('foo'), 3)
         self.assertEqual(self.redis.strlen('noexists'), 0)
+
+    def test_strlen_wrong_type(self):
+        self.redis.rpush('foo', b'x')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.strlen('foo')
 
     def test_substr(self):
         self.redis['foo'] = 'one_two_three'
@@ -233,6 +258,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.substr('foo', 10), b'')
         self.assertEqual(self.redis.substr('foo', -5, -1), b'')
 
+    def test_substr_wrong_type(self):
+        self.redis.rpush('foo', b'x')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.substr('foo', 0)
+
     def test_append(self):
         self.assertTrue(self.redis.set('foo', 'bar'))
         self.assertEqual(self.redis.append('foo', 'baz'), 6)
@@ -241,6 +271,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_append_with_no_preexisting_key(self):
         self.assertEqual(self.redis.append('foo', 'bar'), 3)
         self.assertEqual(self.redis.get('foo'), b'bar')
+
+    def test_append_wrong_type(self):
+        self.redis.rpush('foo', b'x')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.append('foo', b'x')
 
     def test_incr_with_no_preexisting_key(self):
         self.assertEqual(self.redis.incr('foo'), 1)
@@ -259,6 +294,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
             self.redis.incr('foo', 15)
+        self.redis.rpush('foo2', 1)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.incr('foo2', 15)
 
     def test_incr_with_float(self):
         with self.assertRaises(redis.ResponseError):
@@ -286,6 +324,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         with self.assertRaisesRegexp(redis.ResponseError, 'not a valid float'):
             self.redis.incrbyfloat('foo', 1.0)
+        self.redis.rpush('foo2', 1)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.incrbyfloat('foo2', 1.0)
 
     def test_decr(self):
         self.redis.set('foo', 10)
@@ -300,6 +341,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
             self.redis.decr('foo', 15)
+        self.redis.rpush('foo2', 1)
+        with self.assertRaises(redis.ResponseError):
+            self.redis.decr('foo2', 15)
 
     def test_exists(self):
         self.assertFalse('foo' in self.redis)
@@ -344,10 +388,20 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.mget('foo', 'bar', None),
                          [b'one', b'two', None])
 
-    def test_mgset_with_no_keys_raises_error(self):
+    def test_mget_with_no_keys_raises_error(self):
         with self.assertRaisesRegexp(
                 redis.ResponseError, 'wrong number of arguments'):
             self.redis.mget([])
+
+    def test_mget_mixed_types(self):
+        self.redis.hset('hash', 'bar', 'baz')
+        self.redis.zadd('zset', 1, 'bar')
+        self.redis.sadd('set', 'member')
+        self.redis.rpush('list', 'item1')
+        self.redis.set('string', 'value')
+        self.assertEqual(
+            self.redis.mget(['hash', 'zset', 'set', 'string', 'absent']),
+            [None, None, None, b'value', None])
 
     def test_mset_with_no_keys_raises_error(self):
         with self.assertRaisesRegexp(
@@ -2043,6 +2097,11 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         self.assertEqual(self.redis.sort('foo', alpha=True),
                          [b'1a', b'1b', b'2a', b'2b'])
+
+    def test_sort_wrong_type(self):
+        self.redis.set('string', '3')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.sort('string')
 
     def test_foo(self):
         self.redis.rpush('foo', '2a')
