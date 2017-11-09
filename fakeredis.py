@@ -864,8 +864,20 @@ class FakeStrictRedis(object):
     def brpoplpush(self, src, dst, timeout=0):
         return self.rpoplpush(src, dst)
 
+    def _get_hash(self, name):
+        value = self._db.get(name, _Hash())
+        if not isinstance(value, _Hash):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
+    def _setdefault_hash(self, name):
+        value = self._db.setdefault(name, _Hash())
+        if not isinstance(value, _Hash):
+            raise redis.ResponseError(_WRONGTYPE_MSG)
+        return value
+
     def hdel(self, name, *keys):
-        h = self._db.get(name, {})
+        h = self._get_hash(name)
         rem = 0
         for k in keys:
             if k in h:
@@ -875,26 +887,26 @@ class FakeStrictRedis(object):
 
     def hexists(self, name, key):
         "Returns a boolean indicating if ``key`` exists within hash ``name``"
-        if self._db.get(name, {}).get(key) is None:
+        if self._get_hash(name).get(key) is None:
             return 0
         else:
             return 1
 
     def hget(self, name, key):
         "Return the value of ``key`` within the hash ``name``"
-        return self._db.get(name, {}).get(key)
+        return self._get_hash(name).get(key)
 
     def hgetall(self, name):
         "Return a Python dict of the hash's name/value pairs"
-        all_items = self._db.get(name, {})
+        all_items = self._get_hash(name)
         if hasattr(all_items, 'to_bare_dict'):
             all_items = all_items.to_bare_dict()
         return all_items
 
     def hincrby(self, name, key, amount=1):
         "Increment the value of ``key`` in hash ``name`` by ``amount``"
-        new = int(self._db.setdefault(name, _Hash()).get(key, '0')) + amount
-        self._db[name][key] = new
+        new = int(self._setdefault_hash(name).get(key, b'0')) + amount
+        self._db[name][key] = to_bytes(new)
         return new
 
     def hincrbyfloat(self, name, key, amount=1.0):
@@ -904,28 +916,28 @@ class FakeStrictRedis(object):
         except ValueError:
             raise redis.ResponseError("value is not a valid float")
         try:
-            current = float(self._db.setdefault(name, _Hash()).get(key, '0'))
+            current = float(self._setdefault_hash(name).get(key, b'0'))
         except ValueError:
             raise redis.ResponseError("hash value is not a valid float")
         new = current + amount
-        self._db[name][key] = new
+        self._db[name][key] = to_bytes(new)
         return new
 
     def hkeys(self, name):
         "Return the list of keys within hash ``name``"
-        return list(self._db.get(name, {}))
+        return list(self._get_hash(name))
 
     def hlen(self, name):
         "Return the number of elements in hash ``name``"
-        return len(self._db.get(name, {}))
+        return len(self._get_hash(name))
 
     def hset(self, name, key, value):
         """
         Set ``key`` to ``value`` within hash ``name``
         Returns 1 if HSET created a new field, otherwise 0
         """
-        key_is_new = key not in self._db.get(name, {})
-        self._db.setdefault(name, _Hash())[key] = to_bytes(value)
+        key_is_new = key not in self._get_hash(name)
+        self._setdefault_hash(name)[key] = to_bytes(value)
         return 1 if key_is_new else 0
 
     def hsetnx(self, name, key, value):
@@ -933,9 +945,9 @@ class FakeStrictRedis(object):
         Set ``key`` to ``value`` within hash ``name`` if ``key`` does not
         exist.  Returns 1 if HSETNX created a field, otherwise 0.
         """
-        if key in self._db.get(name, {}):
+        if key in self._get_hash(name):
             return False
-        self._db.setdefault(name, _Hash())[key] = to_bytes(value)
+        self._setdefault_hash(name)[key] = to_bytes(value)
         return True
 
     def hmset(self, name, mapping):
@@ -948,18 +960,18 @@ class FakeStrictRedis(object):
         new_mapping = {}
         for k, v in mapping.items():
             new_mapping[k] = to_bytes(v)
-        self._db.setdefault(name, _Hash()).update(new_mapping)
+        self._setdefault_hash(name).update(new_mapping)
         return True
 
     def hmget(self, name, keys, *args):
         "Returns a list of values ordered identically to ``keys``"
-        h = self._db.get(name, {})
+        h = self._get_hash(name)
         all_keys = self._list_or_args(keys, args)
         return [h.get(k) for k in all_keys]
 
     def hvals(self, name):
         "Return the list of values within hash ``name``"
-        return list(self._db.get(name, {}).values())
+        return list(self._get_hash(name).values())
 
     def _get_set(self, name):
         value = self._db.get(name, set())

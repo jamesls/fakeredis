@@ -937,6 +937,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
         self.assertEqual(self.redis.hset('foo', 'key', 'value'), 0)
 
+    def test_hset_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hset('foo', 'key', 'value')
+
     def test_hgetall(self):
         self.assertEqual(self.redis.hset('foo', 'k1', 'v1'), 1)
         self.assertEqual(self.redis.hset('foo', 'k2', 'v2'), 1)
@@ -952,11 +957,21 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_hgetall_empty_key(self):
         self.assertEqual(self.redis.hgetall('foo'), {})
 
+    def test_hgetall_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hgetall('foo')
+
     def test_hexists(self):
         self.redis.hset('foo', 'bar', 'v1')
         self.assertEqual(self.redis.hexists('foo', 'bar'), 1)
         self.assertEqual(self.redis.hexists('foo', 'baz'), 0)
         self.assertEqual(self.redis.hexists('bar', 'bar'), 0)
+
+    def test_hexists_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hexists('foo', 'key')
 
     def test_hkeys(self):
         self.redis.hset('foo', 'k1', 'v1')
@@ -964,16 +979,31 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(set(self.redis.hkeys('foo')), set([b'k1', b'k2']))
         self.assertEqual(set(self.redis.hkeys('bar')), set([]))
 
+    def test_hkeys_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hkeys('foo')
+
     def test_hlen(self):
         self.redis.hset('foo', 'k1', 'v1')
         self.redis.hset('foo', 'k2', 'v2')
         self.assertEqual(self.redis.hlen('foo'), 2)
+
+    def test_hlen_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hlen('foo')
 
     def test_hvals(self):
         self.redis.hset('foo', 'k1', 'v1')
         self.redis.hset('foo', 'k2', 'v2')
         self.assertEqual(set(self.redis.hvals('foo')), set([b'v1', b'v2']))
         self.assertEqual(set(self.redis.hvals('bar')), set([]))
+
+    def test_hvals_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hvals('foo')
 
     def test_hmget(self):
         self.redis.hset('foo', 'k1', 'v1')
@@ -991,6 +1021,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hmget('foo', 'k1', 'k500'),
                          [b'v1', None])
 
+    def test_hmget_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hmget('foo', 'key1', 'key2')
+
     def test_hdel(self):
         self.redis.hset('foo', 'k1', 'v1')
         self.redis.hset('foo', 'k2', 'v2')
@@ -1004,6 +1039,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hget('foo', 'k2'), None)
         self.assertEqual(self.redis.hget('foo', 'k3'), None)
         self.assertEqual(self.redis.hdel('foo', 'k2', 'k3'), False)
+
+    def test_hdel_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hdel('foo', 'key')
 
     def test_hincrby(self):
         self.redis.hset('foo', 'counter', 0)
@@ -1020,6 +1060,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.hincrby('foo', 'counter', 2), 2)
         self.assertEqual(self.redis.hincrby('foo', 'counter', 2), 4)
         self.assertEqual(self.redis.hincrby('foo', 'counter', 2), 6)
+
+    def test_hincrby_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hincrby('foo', 'key', 2)
 
     def test_hincrbyfloat(self):
         self.redis.hset('foo', 'counter', 0.0)
@@ -1049,6 +1094,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.hincrbyfloat('foo', 'counter', 'cat')
 
+    def test_hincrbyfloat_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hincrbyfloat('foo', 'key', 0.1)
+
     def test_hsetnx(self):
         self.assertEqual(self.redis.hsetnx('foo', 'newkey', 'v1'), True)
         self.assertEqual(self.redis.hsetnx('foo', 'newkey', 'v1'), False)
@@ -1072,6 +1122,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         original = {'key': [123, 456]}
         self.redis.hmset('foo', original)
         self.assertEqual(original, {'key': [123, 456]})
+
+    def test_hmset_wrong_type(self):
+        self.redis.zadd('foo', 1, 'bar')
+        with self.assertRaises(redis.ResponseError):
+            self.redis.hmset('foo', {'key': 'value'})
 
     def test_sadd(self):
         self.assertEqual(self.redis.sadd('foo', 'member1'), 1)
