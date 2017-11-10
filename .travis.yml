@@ -20,5 +20,5 @@ before_script:
   - flake8
 script:
   - coverage erase
-  - coverage run --source fakeredis.py test_fakeredis.py
+  - coverage run --source fakenewsredis.py test_fakenewsredis.py
 after_success: coveralls
