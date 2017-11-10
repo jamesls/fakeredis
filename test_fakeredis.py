@@ -76,6 +76,7 @@ def key_val_dict(size=100):
 
 class TestFakeStrictRedis(unittest.TestCase):
     decode_responses = False
+
     def setUp(self):
         self.redis = self.create_redis()
 
