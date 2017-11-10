@@ -1,5 +1,5 @@
 .commands.json
-fakeredis.egg-info
+fakenewsredis.egg-info
 dump.rdb
 extras/*
 .tox
