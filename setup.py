@@ -11,8 +11,10 @@ setup(
                                        'README.rst')).read(),
     license='BSD',
     url="https://github.com/jamesls/fakeredis",
-    author='Bruce Merry',
-    author_email='bmerry@ska.ac.za',
+    author='James Saryerwinnie',
+    author_email='js@jamesls.com',
+    maintainer='Bruce Merry',
+    maintainer_email='bmerry@ska.ac.za',
     py_modules=['fakenewsredis'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
