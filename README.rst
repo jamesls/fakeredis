@@ -1,12 +1,12 @@
 fakenewredis: A fake version of a redis-py
 ==========================================
 
-.. image:: https://secure.travis-ci.org/bmerry/fakenewsredis.svg?branch=master
-   :target: http://travis-ci.org/bmerry/fakenewsredis
+.. image:: https://secure.travis-ci.org/ska-sa/fakenewsredis.svg?branch=master
+   :target: http://travis-ci.org/ska-sa/fakenewsredis
 
 
-.. image:: https://coveralls.io/repos/bmerry/fakenewsredis/badge.svg?branch=master
-   :target: https://coveralls.io/r/bmerry/fakenewsredis
+.. image:: https://coveralls.io/repos/ska-sa/fakenewsredis/badge.svg?branch=master
+   :target: https://coveralls.io/r/ska-sa/fakenewsredis
 
 
 fakenewsredis is a fork of `fakeredis`_, a pure-Python implementation of the
@@ -265,5 +265,5 @@ they have all been tagged as 'slow' so you can skip them by running::
 
 .. _fakeredis: https://github.com/jamesls/fakeredis
 .. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
-.. _contributing guide: https://github.com/bmerry/fakenewsredis/blob/master/CONTRIBUTING.rst
-.. _HelpWanted: https://github.com/bmerry/fakenewsredis/issues?q=is%3Aissue+is%3Aopen+label%3AHelpWanted
+.. _contributing guide: https://github.com/ska-sa/fakenewsredis/blob/master/CONTRIBUTING.rst
+.. _HelpWanted: https://github.com/ska-sa/fakenewsredis/issues?q=is%3Aissue+is%3Aopen+label%3AHelpWanted
