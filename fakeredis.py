@@ -1633,8 +1633,8 @@ class FakeStrictRedis(object):
 
     def publish(self, channel, message):
         """
-        Loops throug all available pubsub objects and publishes the
-        ``message`` to then for the given ``channel``.
+        Loops through all available pubsub objects and publishes the
+        ``message`` to them for the given ``channel``.
         """
         count = 0
         for i, ps in enumerate(self._pubsubs):
@@ -1642,7 +1642,7 @@ class FakeStrictRedis(object):
                 del self._pubsubs[i]
                 continue
 
-            count += ps.put(channel, message, 'message')
+            count += ps.put(channel, to_bytes(message), 'message')
 
         return count
 
@@ -1905,7 +1905,7 @@ class FakePubSub(object):
             'type': message_type,
             'pattern': pattern,
             'channel': channel.encode(),
-            'data': data.encode() if type(data) == str else data
+            'data': data
         }
 
         self._q.put(msg)

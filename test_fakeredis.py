@@ -2734,6 +2734,32 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(msg4['data'], msg)
         self.assertIn(msg4['channel'], bpatterns)
 
+    @attr('slow')
+    def test_pubsub_binary_message(self):
+        if self.decode_responses:
+            # Reading the non-UTF-8 message will break if decoding
+            # responses.
+            return
+
+        def _listen(pubsub, q):
+            for message in pubsub.listen():
+                q.put(message)
+                pubsub.close()
+
+        pubsub = self.redis.pubsub(ignore_subscribe_messages=True)
+        pubsub.subscribe('channel')
+        sleep(1)
+
+        q = Queue()
+        t = threading.Thread(target=_listen, args=(pubsub, q))
+        t.start()
+        msg = b'\x00hello world\r\n\xff'
+        self.redis.publish('channel', msg)
+        t.join()
+
+        received = q.get()
+        self.assertEqual(received['data'], msg)
+
     def test_pfadd(self):
         key = "hll-pfadd"
         self.assertEqual(
