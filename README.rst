@@ -263,6 +263,25 @@ they have all been tagged as 'slow' so you can skip them by running::
     nosetests -a '!slow'
 
 
+Revision history
+================
+
+0.9.2
+-----
+This is the first release of fakenewsredis, based on `fakeredis`_ 0.9.0, with the following features and fixes:
+
+- fakeredis [#78](https://github.com/jamesls/fakeredis/issues/78) Behaviour of transaction() does not match redis-py
+- fakeredis [#79](https://github.com/jamesls/fakeredis/issues/79) Implement redis-py's .lock()
+- fakeredis [#90](https://github.com/jamesls/fakeredis/issues/90) HINCRBYFLOAT changes hash value type to float
+- fakeredis [#101](https://github.com/jamesls/fakeredis/issues/101) Should raise an error when attempting to get a key holding a list)
+- fakeredis [#146](https://github.com/jamesls/fakeredis/issues/146) Pubsub messages and channel names are forced to be ASCII strings on Python 2
+- fakeredis [#163](https://github.com/jamesls/fakeredis/issues/163) getset does not to_bytes the value
+- fakeredis [#165](https://github.com/jamesls/fakeredis/issues/165) linsert implementation is incomplete
+- fakeredis [#128](https://github.com/jamesls/fakeredis/pull/128) Remove `_ex_keys` mapping
+- fakeredis [#139](https://github.com/jamesls/fakeredis/pull/139) Fixed all flake8 errors and added flake8 to Travis CI
+- fakeredis [#166](https://github.com/jamesls/fakeredis/pull/166) Add type checking
+- fakeredis [#168](https://github.com/jamesls/fakeredis/pull/168) Use repr to encode floats in to_bytes
+
 .. _fakeredis: https://github.com/jamesls/fakeredis
 .. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
 .. _contributing guide: https://github.com/ska-sa/fakenewsredis/blob/master/CONTRIBUTING.rst
