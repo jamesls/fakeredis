@@ -104,6 +104,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.set('foo', None), True)
         self.assertEqual(self.redis.get('foo'), b'None')
 
+    def test_set_float_value(self):
+        x = 1.23456789123456789
+        self.redis.set('foo', x)
+        self.assertEqual(float(self.redis.get('foo')), x)
+
     def test_saving_non_ascii_chars_as_value(self):
         self.assertEqual(self.redis.set('foo', 'Ñandu'), True)
         self.assertEqual(self.redis.get('foo'),
@@ -286,6 +291,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         with self.assertRaisesRegexp(redis.ResponseError, 'not a valid float'):
             self.redis.incrbyfloat('foo', 1.0)
+
+    def test_incrbyfloat_precision(self):
+        x = 1.23456789123456789
+        self.assertEqual(self.redis.incrbyfloat('foo', x), x)
+        self.assertEqual(float(self.redis.get('foo')), x)
 
     def test_decr(self):
         self.redis.set('foo', 10)
@@ -883,6 +893,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_hincrbyfloat_with_non_float_amount_raises_error(self):
         with self.assertRaises(redis.ResponseError):
             self.redis.hincrbyfloat('foo', 'counter', 'cat')
+
+    def test_hincrbyfloat_precision(self):
+        x = 1.23456789123456789
+        self.assertEqual(self.redis.hincrbyfloat('foo', 'bar', x), x)
+        self.assertEqual(float(self.redis.hget('foo', 'bar')), x)
 
     def test_hsetnx(self):
         self.assertEqual(self.redis.hsetnx('foo', 'newkey', 'v1'), True)
