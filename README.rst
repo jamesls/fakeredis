@@ -1,4 +1,4 @@
-fakenewredis: A fake version of a redis-py
+fakenewsredis: A fake version of a redis-py
 ==========================================
 
 .. image:: https://secure.travis-ci.org/ska-sa/fakenewsredis.svg?branch=master
