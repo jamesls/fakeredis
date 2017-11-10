@@ -1609,7 +1609,7 @@ class FakeStrictRedis(object):
             keys.extend(args)
         return keys
 
-    def pipeline(self, transaction=True):
+    def pipeline(self, transaction=True, shard_hint=None):
         """Return an object that can be used to issue Redis commands in a batch.
 
         Arguments --
@@ -1618,17 +1618,25 @@ class FakeStrictRedis(object):
         """
         return FakePipeline(self, transaction)
 
-    def transaction(self, func, *keys):
+    def transaction(self, func, *keys, **kwargs):
+        shard_hint = kwargs.pop('shard_hint', None)
+        value_from_callable = kwargs.pop('value_from_callable', False)
+        watch_delay = kwargs.pop('watch_delay', None)
         # We use a for loop instead of while
         # because if the test this is being used in
         # goes wrong we don't want an infinite loop!
-        with self.pipeline() as p:
+        with self.pipeline(True, shard_hint=shard_hint) as p:
             for _ in range(5):
                 try:
-                    p.watch(*keys)
-                    func(p)
-                    return p.execute()
+                    if keys:
+                        p.watch(*keys)
+                    func_value = func(p)
+                    exec_value = p.execute()
+                    return func_value if value_from_callable else exec_value
                 except redis.WatchError:
+                    if watch_delay is not None and watch_delay > 0:
+                        time.sleep(watch_delay)
+
                     continue
         raise redis.WatchError('Could not run transaction after 5 tries')
 

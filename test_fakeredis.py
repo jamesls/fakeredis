@@ -2540,6 +2540,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(16, int(self.redis.get('OUR-SEQUENCE-KEY')))
         self.assertEqual(3, len(calls))
 
+    def test_pipeline_transaction_value_from_callable(self):
+        def callback(pipe):
+            # No need to do anything here since we only want the return value
+            return 'OUR-RETURN-VALUE'
+
+        res = self.redis.transaction(callback, 'OUR-SEQUENCE-KEY',
+                                     value_from_callable=True)
+
+        self.assertEqual('OUR-RETURN-VALUE', res)
+
     def test_key_patterns(self):
         self.redis.mset({'one': 1, 'two': 2, 'three': 3, 'four': 4})
         self.assertItemsEqual(self.redis.keys('*o*'),
