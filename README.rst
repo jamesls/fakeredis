@@ -1,16 +1,20 @@
-fakeredis: A fake version of a redis-py
-=======================================
+fakenewredis: A fake version of a redis-py
+==========================================
 
-.. image:: https://secure.travis-ci.org/jamesls/fakeredis.svg?branch=master
-   :target: http://travis-ci.org/jamesls/fakeredis
-
-
-.. image:: https://coveralls.io/repos/jamesls/fakeredis/badge.svg?branch=master
-   :target: https://coveralls.io/r/jamesls/fakeredis
+.. image:: https://secure.travis-ci.org/bmerry/fakenewsredis.svg?branch=master
+   :target: http://travis-ci.org/bmerry/fakenewsredis
 
 
-fakeredis is a pure python implementation of the redis-py python client
-that simulates talking to a redis server.  This was created for a single
+.. image:: https://coveralls.io/repos/bmerry/fakenewsredis/badge.svg?branch=master
+   :target: https://coveralls.io/r/bmerry/fakenewsredis
+
+
+fakenewsredis is a fork of `fakeredis`_, a pure-Python implementation of the
+redis-py python client that simulates talking to a redis server. It was forked
+because pull requests for fakeredis were languishing without being merged or
+getting feedback.
+
+fakeredis was created for a single
 purpose: **to write unittests**.  Setting up redis is not hard, but
 many times you want to write unittests that do not talk to an external server
 (such as redis).  This module now allows tests to simply use this
@@ -20,14 +24,14 @@ module as a reasonable substitute for redis.
 How to Use
 ==========
 
-The intent is for fakeredis to act as though you're talking to a real
-redis server.  It does this by storing state in the fakeredis module.
+The intent is for fakenewsredis to act as though you're talking to a real
+redis server.  It does this by storing state in the fakenewsredis module.
 For example:
 
 .. code-block:: python
 
-  >>> import fakeredis
-  >>> r = fakeredis.FakeStrictRedis()
+  >>> import fakenewsredis
+  >>> r = fakenewsredis.FakeStrictRedis()
   >>> r.set('foo', 'bar')
   True
   >>> r.get('foo')
@@ -39,16 +43,16 @@ For example:
   >>> r.lrange('bar', 0, -1)
   [2, 1]
 
-By storing state in the fakeredis module, instances can share
+By storing state in the fakenewsredis module, instances can share
 data:
 
 .. code-block:: python
 
-  >>> import fakeredis
-  >>> r1 = fakeredis.FakeStrictRedis()
+  >>> import fakenewsredis
+  >>> r1 = fakenewsredis.FakeStrictRedis()
   >>> r1.set('foo', 'bar')
   True
-  >>> r2 = fakeredis.FakeStrictRedis()
+  >>> r2 = fakenewsredis.FakeStrictRedis()
   >>> r2.get('foo')
   'bar'
   >>> r2.set('bar', 'baz')
@@ -58,28 +62,28 @@ data:
   >>> r2.get('bar')
   'baz'
 
-Because fakeredis stores state at the module level, if you
+Because fakenewsredis stores state at the module level, if you
 want to ensure that you have a clean slate for every unit
 test you run, be sure to call `r.flushall()` in your
 ``tearDown`` method.  For example::
 
     def setUp(self):
         # Setup fake redis for testing.
-        self.r = fakeredis.FakeStrictRedis()
+        self.r = fakenewsredis.FakeStrictRedis()
 
     def tearDown(self):
-        # Clear data in fakeredis.
+        # Clear data in fakenewsredis.
         self.r.flushall()
 
 
-Fakeredis implements the same interface as `redis-py`_, the
+Fakenewsredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
 of redis 2.6.
 
 Unimplemented Commands
 ======================
 
-All of the redis commands are implemented in fakeredis with
+All of the redis commands are implemented in fakenewsredis with
 these exceptions:
 
 
@@ -230,20 +234,20 @@ To run all the tests, install the requirements file::
 
 If you just want to run the unittests::
 
-    nosetests test_fakeredis.py:TestFakeStrictRedis test_fakeredis.py:TestFakeRedis
+    nosetests test_fakenewsredis.py:TestFakeStrictRedis test_fakenewsredis.py:TestFakeRedis
 
 Because this module is attempting to provide the same interface as `redis-py`_,
 the python bindings to redis, a reasonable way to test this to to take each
-unittest and run it against a real redis server.  fakeredis and the real redis
+unittest and run it against a real redis server.  fakenewsredis and the real redis
 server should give the same result.  This ensures parity between the two.  You
 can run these "integration" tests like this::
 
-    nosetests test_fakeredis.py:TestRealStrictRedis test_fakeredis.py:TestRealRedis
+    nosetests test_fakenewsredis.py:TestRealStrictRedis test_fakenewsredis.py:TestRealRedis
 
 In terms of implementation, ``TestRealRedis`` is a subclass of
 ``TestFakeRedis`` that overrides a factory method to create
 an instance of ``redis.Redis`` (an actual python client for redis)
-instead of ``fakeredis.FakeStrictRedis``.
+instead of ``fakenewsredis.FakeStrictRedis``.
 
 To run both the unittests and the "integration" tests, run::
 
@@ -259,6 +263,7 @@ they have all been tagged as 'slow' so you can skip them by running::
     nosetests -a '!slow'
 
 
+.. _fakeredis: https://github.com/jamesls/fakeredis
 .. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
-.. _contributing guide: https://github.com/jamesls/fakeredis/blob/master/CONTRIBUTING.rst
-.. _HelpWanted: https://github.com/jamesls/fakeredis/issues?q=is%3Aissue+is%3Aopen+label%3AHelpWanted
+.. _contributing guide: https://github.com/bmerry/fakenewsredis/blob/master/CONTRIBUTING.rst
+.. _HelpWanted: https://github.com/bmerry/fakenewsredis/issues?q=is%3Aissue+is%3Aopen+label%3AHelpWanted

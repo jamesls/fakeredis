@@ -13,7 +13,7 @@ from nose.plugins.attrib import attr
 import redis
 import redis.client
 
-import fakeredis
+import fakenewsredis
 from datetime import datetime, timedelta
 
 try:
@@ -43,7 +43,7 @@ except:
         pass
 
 
-DEFAULT_ENCODING = fakeredis.DEFAULT_ENCODING
+DEFAULT_ENCODING = fakenewsredis.DEFAULT_ENCODING
 
 
 def redis_must_be_running(cls):
@@ -89,7 +89,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             return self.assertCountEqual(a, b)
 
     def create_redis(self, db=0):
-        return fakeredis.FakeStrictRedis(db=db)
+        return fakenewsredis.FakeStrictRedis(db=db)
 
     def test_flushdb(self):
         self.redis.set('foo', 'bar')
@@ -2423,7 +2423,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.addCleanup(p.reset)
 
         p.watch('greet', 'foo')
-        nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
+        nextf = fakenewsredis.to_bytes(p.get('foo')) + b'baz'
         # Simulate change happening on another thread.
         self.redis.rpush('greet', 'world')
         # Begin pipelining.
@@ -2441,7 +2441,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             # Only watch one of the 2 keys.
             p.watch('foo')
-            nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
+            nextf = fakenewsredis.to_bytes(p.get('foo')) + b'baz'
             # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
             p.multi()
@@ -2460,7 +2460,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             # Also watch a nonexistent key.
             p.watch('foo', 'bam')
-            nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
+            nextf = fakenewsredis.to_bytes(p.get('foo')) + b'baz'
             # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
             p.multi()
@@ -2973,7 +2973,7 @@ class TestFakeRedis(unittest.TestCase):
         self.assertLessEqual(value, end, msg)
 
     def create_redis(self, db=0):
-        return fakeredis.FakeRedis(db=db)
+        return fakenewsredis.FakeRedis(db=db)
 
     def test_setex(self):
         self.assertEqual(self.redis.setex('foo', 'bar', 100), True)
@@ -3282,23 +3282,23 @@ class DecodeMixin(object):
     decode_responses = True
 
     def assertEqual(self, a, b, msg=None):
-        super(DecodeMixin, self).assertEqual(a, fakeredis._decode(b), msg)
+        super(DecodeMixin, self).assertEqual(a, fakenewsredis._decode(b), msg)
 
     def assertIn(self, member, container, msg=None):
-        super(DecodeMixin, self).assertIn(fakeredis._decode(member), container)
+        super(DecodeMixin, self).assertIn(fakenewsredis._decode(member), container)
 
     def assertItemsEqual(self, a, b):
-        super(DecodeMixin, self).assertItemsEqual(a, fakeredis._decode(b))
+        super(DecodeMixin, self).assertItemsEqual(a, fakenewsredis._decode(b))
 
 
 class TestFakeStrictRedisDecodeResponses(DecodeMixin, TestFakeStrictRedis):
     def create_redis(self, db=0):
-        return fakeredis.FakeStrictRedis(db=db, decode_responses=True)
+        return fakenewsredis.FakeStrictRedis(db=db, decode_responses=True)
 
 
 class TestFakeRedisDecodeResponses(DecodeMixin, TestFakeRedis):
     def create_redis(self, db=0):
-        return fakeredis.FakeRedis(db=db, decode_responses=True)
+        return fakenewsredis.FakeRedis(db=db, decode_responses=True)
 
 
 @redis_must_be_running
@@ -3327,21 +3327,21 @@ class TestRealStrictRedisDecodeResponses(TestFakeStrictRedisDecodeResponses):
 
 class TestInitArgs(unittest.TestCase):
     def test_can_accept_any_kwargs(self):
-        fakeredis.FakeRedis(foo='bar', bar='baz')
-        fakeredis.FakeStrictRedis(foo='bar', bar='baz')
+        fakenewsredis.FakeRedis(foo='bar', bar='baz')
+        fakenewsredis.FakeStrictRedis(foo='bar', bar='baz')
 
     def test_from_url(self):
-        db = fakeredis.FakeStrictRedis.from_url(
+        db = fakenewsredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/0')
         db.set('foo', 'bar')
         self.assertEqual(db.get('foo'), b'bar')
 
     def test_from_url_with_db_arg(self):
-        db = fakeredis.FakeStrictRedis.from_url(
+        db = fakenewsredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/0')
-        db1 = fakeredis.FakeStrictRedis.from_url(
+        db1 = fakenewsredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/1')
-        db2 = fakeredis.FakeStrictRedis.from_url(
+        db2 = fakenewsredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/',
             db=2)
         db.set('foo', 'foo0')
@@ -3353,12 +3353,12 @@ class TestInitArgs(unittest.TestCase):
 
     def test_from_url_db_value_error(self):
         # In ValueError, should default to 0
-        db = fakeredis.FakeStrictRedis.from_url(
+        db = fakenewsredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/a')
         self.assertEqual(db._db_num, 0)
 
     def test_can_pass_through_extra_args(self):
-        db = fakeredis.FakeStrictRedis.from_url(
+        db = fakenewsredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/0',
             decode_responses=True)
         db.set('foo', 'bar')
@@ -3368,7 +3368,7 @@ class TestInitArgs(unittest.TestCase):
 class TestImportation(unittest.TestCase):
     def test_searches_for_c_stdlib_and_raises_if_missing(self):
         """
-        Verifies that fakeredis checks for both libc and msvcrt when looking for a strtod implementation and that it
+        Verifies that fakenewsredis checks for both libc and msvcrt when looking for a strtod implementation and that it
         fails fast when neither is found.
         """
 
@@ -3383,13 +3383,13 @@ class TestImportation(unittest.TestCase):
             ctypes.util.find_library = lambda library: searched_libraries.add(library)
 
             with self.assertRaises(ImportError):
-                reload(fakeredis)
+                reload(fakenewsredis)
 
             self.assertEqual(set(['c', 'msvcrt']), searched_libraries)
         finally:
             ctypes.util.find_library = old_find_library
 
-            reload(fakeredis)
+            reload(fakenewsredis)
 
 
 if __name__ == '__main__':

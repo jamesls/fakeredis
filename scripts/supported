@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Script will import fakeredis and list what
+# Script will import fakenewsredis and list what
 # commands it does not have support for, based on the
 # command list from:
 # https://raw.github.com/antirez/redis-doc/master/commands.json
@@ -12,7 +12,7 @@ import json
 import inspect
 from urllib2 import urlopen
 
-import fakeredis
+import fakenewsredis
 
 THIS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)))
 COMMANDS_FILE = os.path.join(THIS_DIR, '.commands.json')
@@ -28,7 +28,7 @@ for k, v in commands.items():
 
 
 implemented_commands = set()
-for name, method in inspect.getmembers(fakeredis.FakeRedis):
+for name, method in inspect.getmembers(fakenewsredis.FakeRedis):
     if hasattr(method, 'im_func'):
         if name == 'delete':
             # This is specific to the python bindings because
@@ -59,7 +59,7 @@ print """
 Unimplemented Commands
 ======================
 
-All of the redis commands are implemented in fakeredis with
+All of the redis commands are implemented in fakenewsredis with
 these exceptions:
 
 """

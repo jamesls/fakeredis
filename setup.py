@@ -4,16 +4,16 @@ from setuptools import setup
 
 
 setup(
-    name='fakeredis',
-    version='0.9.0',
+    name='fakenewsredis',
+    version='0.9.1',
     description="Fake implementation of redis API for testing purposes.",
     long_description=open(os.path.join(os.path.dirname(__file__),
                                        'README.rst')).read(),
     license='BSD',
     url="https://github.com/jamesls/fakeredis",
-    author='James Saryerwinnie',
-    author_email='js@jamesls.com',
-    py_modules=['fakeredis'],
+    author='Bruce Merry',
+    author_email='bmerry@ska.ac.za',
+    py_modules=['fakenewsredis'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: BSD License',

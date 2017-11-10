@@ -98,7 +98,7 @@ DATABASES = {}
 _libc_library = find_library('c') or find_library('msvcrt')
 
 if not _libc_library:
-    raise ImportError('fakeredis: unable to find libc or equivalent')
+    raise ImportError('fakenewsredis: unable to find libc or equivalent')
 
 _libc = CDLL(_libc_library)
 _libc.strtod.restype = c_double
