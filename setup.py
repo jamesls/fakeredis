@@ -10,7 +10,7 @@ setup(
     long_description=open(os.path.join(os.path.dirname(__file__),
                                        'README.rst')).read(),
     license='BSD',
-    url="https://github.com/jamesls/fakeredis",
+    url="https://github.com/ska-sa/fakenewsredis",
     author='James Saryerwinnie',
     author_email='js@jamesls.com',
     maintainer='Bruce Merry',
