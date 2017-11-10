@@ -119,14 +119,17 @@ def timedelta_total_seconds(delta):
 class _StrKeyDict(MutableMapping):
     def __init__(self, *args, **kwargs):
         self._dict = dict(*args, **kwargs)
-        self._ex_keys = {}
 
     def __getitem__(self, key):
-        self._update_expired_keys()
-        return self._dict[to_bytes(key)]
+        now = datetime.now()
+        value, expiration = self._dict[to_bytes(key)]
+        if expiration is not None and now > expiration:
+            del self._dict[to_bytes(key)]
+            raise KeyError(key)
+        return value
 
     def __setitem__(self, key, value):
-        self._dict[to_bytes(key)] = value
+        self._dict[to_bytes(key)] = (value, None)
 
     def __delitem__(self, key):
         del self._dict[to_bytes(key)]
@@ -138,42 +141,28 @@ class _StrKeyDict(MutableMapping):
         return iter(self._dict)
 
     def expire(self, key, timestamp):
-        self._ex_keys[key] = timestamp
+        value = self._dict[to_bytes(key)][0]
+        self._dict[to_bytes(key)] = (value, timestamp)
 
     def persist(self, key):
         try:
-            del self._ex_keys[key]
+            value, _ = self._dict[to_bytes(key)]
         except KeyError:
-            pass
+            return
+        self[key] = value
 
     def expiring(self, key):
-        if key not in self._ex_keys:
-            return None
-        return self._ex_keys[key]
-
-    def _update_expired_keys(self):
-        now = datetime.now()
-        deleted = []
-        for key in self._ex_keys:
-            if now > self._ex_keys[key]:
-                deleted.append(key)
-
-        for key in deleted:
-            del self._ex_keys[key]
-            del self[key]
+        return self._dict[to_bytes(key)][1]
 
     def copy(self):
         new_copy = _StrKeyDict()
-        for key, value in self._dict.items():
-            new_copy[key] = value
+        new_copy.update(self._dict)
         return new_copy
 
-    def clear(self):
-        super(_StrKeyDict, self).clear()
-        self._ex_keys.clear()
-
     def to_bare_dict(self):
-        return copy.deepcopy(self._dict)
+        # TODO transform to dict comprehension after droping support
+        # of python2.6
+        return dict((k, v[0]) for k, v in self._dict.items())
 
 
 class _ZSet(_StrKeyDict):
@@ -461,6 +450,7 @@ class FakeStrictRedis(object):
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) or (nx and self._db.get(name, None) is None) \
                 or (xx and not self._db.get(name, None) is None):
+            self._db[name] = to_bytes(value)
             if ex is not None:
                 if isinstance(ex, timedelta):
                     ex = ex.seconds + ex.days * 24 * 3600
@@ -480,7 +470,6 @@ class FakeStrictRedis(object):
                                     timedelta(milliseconds=px))
             else:
                 self._db.persist(name)
-            self._db[name] = to_bytes(value)
             return True
         else:
             return None
@@ -598,8 +587,6 @@ class FakeStrictRedis(object):
         for name in names:
             try:
                 del self._db[name]
-                if name in self._db._ex_keys:
-                    del self._db._ex_keys[name]
                 deleted += 1
             except KeyError:
                 continue
