@@ -41,6 +41,8 @@ if PY2:
     def to_bytes(x, charset=DEFAULT_ENCODING, errors='strict'):
         if isinstance(x, unicode):
             return x.encode(charset, errors)
+        if isinstance(x, float):
+            return repr(x)
         if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
             return bytes(x)
         if hasattr(x, '__unicode__'):
@@ -76,6 +78,8 @@ else:
             return bytes(x)
         if isinstance(x, str):
             return x.encode(charset, errors)
+        if isinstance(x, float):
+            return repr(x).encode(charset, errors)
         if hasattr(x, '__str__'):
             return str(x).encode(charset, errors)
         raise TypeError('expected bytes or str, not ' + type(x).__name__)
