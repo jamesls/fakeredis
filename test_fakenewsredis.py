@@ -3368,8 +3368,9 @@ class TestInitArgs(unittest.TestCase):
 class TestImportation(unittest.TestCase):
     def test_searches_for_c_stdlib_and_raises_if_missing(self):
         """
-        Verifies that fakenewsredis checks for both libc and msvcrt when looking for a strtod implementation and that it
-        fails fast when neither is found.
+        Verifies that fakenewsredis checks for both libc and msvcrt when
+        looking for a strtod implementation and that it fails fast when neither
+        is found.
         """
 
         import ctypes.util
