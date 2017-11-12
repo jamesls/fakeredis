@@ -201,6 +201,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.setbit('foo', 0, 1)
 
+    def test_setbit_expiry(self):
+        self.redis.set('foo', b'0x00', ex=10)
+        self.redis.setbit('foo', 1, 1)
+        self.assertGreater(self.redis.ttl('foo'), 0)
+
     def test_bitcount(self):
         self.redis.delete('foo')
         self.assertEqual(self.redis.bitcount('foo'), 0)
@@ -296,6 +301,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.incr('foo', 5), 20)
         self.assertEqual(self.redis.get('foo'), b'20')
 
+    def test_incr_expiry(self):
+        self.redis.set('foo', 15, ex=10)
+        self.redis.incr('foo', 5)
+        self.assertGreater(self.redis.ttl('foo'), 0)
+
     def test_incr_bad_type(self):
         self.redis.set('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
@@ -326,6 +336,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.incrbyfloat('foo', 1.0), 1.0)
         self.assertEqual(self.redis.incrbyfloat('foo', 1.0), 2.0)
 
+    def test_incrbyfloat_expiry(self):
+        self.redis.set('foo', 1.5, ex=10)
+        self.redis.incrbyfloat('foo', 2.5)
+        self.assertGreater(self.redis.ttl('foo'), 0)
+
     def test_incrbyfloat_bad_type(self):
         self.redis.set('foo', 'bar')
         with self.assertRaisesRegexp(redis.ResponseError, 'not a valid float'):
@@ -347,6 +362,11 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_decr_newkey(self):
         self.redis.decr('foo')
         self.assertEqual(self.redis.get('foo'), b'-1')
+
+    def test_decr_expiry(self):
+        self.redis.set('foo', 10, ex=10)
+        self.redis.decr('foo', 5)
+        self.assertGreater(self.redis.ttl('foo'), 0)
 
     def test_decr_badtype(self):
         self.redis.set('foo', 'bar')
@@ -388,6 +408,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertFalse(self.redis.renamenx('foo', 'bar'))
         self.assertEqual(self.redis.get('foo'), b'unique value')
         self.assertEqual(self.redis.get('bar'), b'unique value2')
+
+    def test_rename_expiry(self):
+        self.redis.set('foo', 'value1', ex=10)
+        self.redis.set('bar', 'value2')
+        self.redis.rename('foo', 'bar')
+        self.assertGreater(self.redis.ttl('bar'), 0)
 
     def test_mget(self):
         self.redis.set('foo', 'one')
@@ -743,6 +769,12 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_ltrim_with_non_existent_key(self):
         self.assertTrue(self.redis.ltrim('foo', 0, -1))
 
+    def test_ltrim_expiry(self):
+        self.redis.rpush('foo', 'one', 'two', 'three')
+        self.redis.expire('foo', 10)
+        self.redis.ltrim('foo', 1, 2)
+        self.assertGreater(self.redis.ttl('foo'), 0)
+
     def test_ltrim_wrong_type(self):
         self.redis.set('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
@@ -833,6 +865,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.assertEqual(self.redis.rpoplpush('foo', 'bar'), b'one')
         self.assertEqual(self.redis.rpop('bar'), b'one')
+
+    def test_rpoplpush_expiry(self):
+        self.redis.rpush('foo', 'one')
+        self.redis.rpush('bar', 'two')
+        self.redis.expire('bar', 10)
+        self.redis.rpoplpush('foo', 'bar')
+        self.assertGreater(self.redis.ttl('bar'), 0)
 
     def test_rpoplpush_wrong_type(self):
         self.redis.set('foo', 'bar')
@@ -1272,6 +1311,11 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         self.assertEqual(self.redis.setrange('bar', 2, 'test'), 6)
         self.assertEqual(self.redis.get('bar'), b'\x00\x00test')
+
+    def test_setrange_expiry(self):
+        self.redis.set('foo', 'test', ex=10)
+        self.redis.setrange('foo', 1, 'aste')
+        self.assertGreater(self.redis.ttl('foo'), 0)
 
     def test_sinter(self):
         self.redis.sadd('foo', 'member1')
