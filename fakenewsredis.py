@@ -142,6 +142,18 @@ class _StrKeyDict(MutableMapping):
         value = self._dict[to_bytes(key)][0]
         self._dict[to_bytes(key)] = (value, timestamp)
 
+    def setx(self, key, value, src=None):
+        """Set a value, keeping the existing expiry time if any. If
+        `src` is specified, it is used as the source of the expiry
+        """
+        if src is None:
+            src = key
+        try:
+            _, expiration = self._dict[to_bytes(src)]
+        except KeyError:
+            expiration = None
+        self._dict[to_bytes(key)] = (value, expiration)
+
     def persist(self, key):
         try:
             value, _ = self._dict[to_bytes(key)]
@@ -294,11 +306,12 @@ class FakeStrictRedis(object):
 
     def decr(self, name, amount=1):
         try:
-            self._db[name] = to_bytes(int(self._get_string(name, b'0')) - amount)
+            value = int(self._get_string(name, b'0')) - amount
+            self._db.setx(name, to_bytes(value))
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
-        return int(self._db[name])
+        return value
 
     def exists(self, name):
         return name in self._db
@@ -381,11 +394,12 @@ class FakeStrictRedis(object):
             if not isinstance(amount, int):
                 raise redis.ResponseError("value is not an integer or out "
                                           "of range.")
-            self._db[name] = to_bytes(int(self._get_string(name, b'0')) + amount)
+            value = int(self._get_string(name, b'0')) + amount
+            self._db.setx(name, to_bytes(value))
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
-        return int(self._db[name])
+        return value
 
     def incrby(self, name, amount=1):
         """
@@ -395,10 +409,11 @@ class FakeStrictRedis(object):
 
     def incrbyfloat(self, name, amount=1.0):
         try:
-            self._db[name] = to_bytes(float(self._get_string(name, b'0')) + amount)
+            value = float(self._get_string(name, b'0')) + amount
+            self._db.setx(name, to_bytes(value))
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not a valid float.")
-        return float(self._db[name])
+        return value
 
     def keys(self, pattern=None):
         return [key for key in self._db
@@ -457,7 +472,7 @@ class FakeStrictRedis(object):
             value = self._db[src]
         except KeyError:
             raise redis.ResponseError("No such key: %s" % src)
-        self._db[dst] = value
+        self._db.setx(dst, value, src=src)
         del self._db[src]
         return True
 
@@ -512,7 +527,7 @@ class FakeStrictRedis(object):
             new_byte = byte_to_int(val[byte]) ^ (1 << actual_bitoffset)
         reconstructed = bytearray(val)
         reconstructed[byte] = new_byte
-        self._db[name] = bytes(reconstructed)
+        self._db.setx(name, bytes(reconstructed))
 
     def setex(self, name, time, value):
         if isinstance(time, timedelta):
@@ -541,7 +556,7 @@ class FakeStrictRedis(object):
         if len(val) < offset:
             val += b'\x00' * (offset - len(val))
         val = val[0:offset] + to_bytes(value) + val[offset+len(value):]
-        self.set(name, val)
+        self._db.setx(name, val)
         return len(val)
 
     def strlen(self, name):
@@ -800,7 +815,7 @@ class FakeStrictRedis(object):
                 end = None
             else:
                 end += 1
-            self._db[name] = val[start:end]
+            self._db.setx(name, val[start:end])
         return True
 
     def lindex(self, name, index):
@@ -843,7 +858,7 @@ class FakeStrictRedis(object):
         if el is not None:
             el = to_bytes(el)
             dst_list.insert(0, el)
-            self._db[dst] = dst_list
+            self._db.setx(dst, dst_list)
         return el
 
     def blpop(self, keys, timeout=0):
