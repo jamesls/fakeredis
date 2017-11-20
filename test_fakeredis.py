@@ -171,6 +171,20 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.setbit('foo', 3, 0)
         self.assertEqual(self.redis.getbit('foo', 3), 0)
 
+    def test_get_set_bits(self):
+        # set bit 5
+        self.assertFalse(self.redis.setbit('a', 5, True))
+        self.assertTrue(self.redis.getbit('a', 5))
+        # unset bit 4
+        self.assertFalse(self.redis.setbit('a', 4, False))
+        self.assertFalse(self.redis.getbit('a', 4))
+        # set bit 4
+        self.assertFalse(self.redis.setbit('a', 4, True))
+        self.assertTrue(self.redis.getbit('a', 4))
+        # set bit 5 again
+        self.assertTrue(self.redis.setbit('a', 5, True))
+        self.assertTrue(self.redis.getbit('a', 5))
+
     def test_setbits_and_getkeys(self):
         # The bit operations and the get commands
         # should play nicely with each other.

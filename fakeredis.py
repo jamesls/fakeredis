@@ -475,13 +475,16 @@ class FakeStrictRedis(object):
             # bit.
             needed = byte - (len(val) - 1)
             val += b'\x00' * needed
+        old_byte = byte_to_int(val[byte])
         if value == 1:
-            new_byte = byte_to_int(val[byte]) | (1 << actual_bitoffset)
+            new_byte = old_byte | (1 << actual_bitoffset)
         else:
-            new_byte = byte_to_int(val[byte]) ^ (1 << actual_bitoffset)
+            new_byte = old_byte & ~(1 << actual_bitoffset)
+        old_value = value if old_byte == new_byte else not value
         reconstructed = bytearray(val)
         reconstructed[byte] = new_byte
         self._db[name] = bytes(reconstructed)
+        return bool(old_value)
 
     def setex(self, name, time, value):
         if isinstance(time, timedelta):
