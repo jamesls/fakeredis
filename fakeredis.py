@@ -20,7 +20,7 @@ import redis.client
 try:
     # Python 2.6, 2.7
     from Queue import Queue, Empty
-except:
+except ImportError:
     # Python 3
     from queue import Queue, Empty
 
@@ -32,19 +32,18 @@ __version__ = '0.9.0'
 
 if PY2:
     DEFAULT_ENCODING = 'utf-8'
-    text_type = unicode
-    string_types = (str, unicode)
-    redis_string_types = (str, unicode, bytes)
+    text_type = unicode  # noqa: F821
+    string_types = (str, unicode)  # noqa: F821
+    redis_string_types = (str, unicode, bytes)  # noqa: F821
     byte_to_int = ord
-    int_to_byte = chr
 
     def to_bytes(x, charset=DEFAULT_ENCODING, errors='strict'):
-        if isinstance(x, unicode):
+        if isinstance(x, unicode):  # noqa: F821
             return x.encode(charset, errors)
-        if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):
+        if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):  # noqa: F821
             return bytes(x)
         if hasattr(x, '__unicode__'):
-            return unicode(x).encode(charset, errors)
+            return unicode(x).encode(charset, errors)  # noqa: F821
         raise TypeError('expected bytes or unicode, not ' + type(x).__name__)
 
     def to_native(x, charset=sys.getdefaultencoding(), errors='strict'):
@@ -52,9 +51,9 @@ if PY2:
             return x
         return x.encode(charset, errors)
 
-    iterkeys = lambda d: d.iterkeys()
-    itervalues = lambda d: d.itervalues()
-    iteritems = lambda d: d.iteritems()
+    def iteritems(d):
+        return d.iteritems()
+
     from urlparse import urlparse
 else:
     DEFAULT_ENCODING = sys.getdefaultencoding()
@@ -69,10 +68,8 @@ else:
             return b
         raise TypeError('an integer is required')
 
-    int_to_byte = operator.methodcaller('to_bytes', 1, 'big')
-
     def to_bytes(x, charset=sys.getdefaultencoding(), errors='strict'):
-        if isinstance(x, (bytes, bytearray, memoryview)):
+        if isinstance(x, (bytes, bytearray, memoryview)):  # noqa: F821
             return bytes(x)
         if isinstance(x, str):
             return x.encode(charset, errors)
@@ -85,9 +82,9 @@ else:
             return x
         return x.decode(charset, errors)
 
-    iterkeys = lambda d: iter(d.keys())
-    itervalues = lambda d: iter(d.values())
-    iteritems = lambda d: iter(d.items())
+    def iteritems(d):
+        return iter(d.items())
+
     from urllib.parse import urlparse
 
 
@@ -1967,7 +1964,7 @@ class FakePubSub(object):
             try:
                 channel = message['channel'].decode('utf-8')
                 del subscribed_dict[channel]
-            except:
+            except KeyError:
                 pass
 
         if message_type in self.PUBLISH_MESSAGE_TYPES:
