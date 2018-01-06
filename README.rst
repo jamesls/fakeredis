@@ -259,6 +259,6 @@ they have all been tagged as 'slow' so you can skip them by running::
     nosetests -a '!slow'
 
 
-.. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
+.. _redis-py: https://redis-py.readthedocs.io/
 .. _contributing guide: https://github.com/jamesls/fakeredis/blob/master/CONTRIBUTING.rst
 .. _HelpWanted: https://github.com/jamesls/fakeredis/issues?q=is%3Aissue+is%3Aopen+label%3AHelpWanted
