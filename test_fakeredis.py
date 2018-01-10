@@ -2944,22 +2944,36 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     def setUp(self):
         self.redis = self.create_redis()
 
+    def tearDown(self):
+        del self.redis
+
     def test_flushdb(self):
         with self.assertRaises(redis.ConnectionError):
             self.redis.flushdb()
-
-        self.assertEqual(self.redis._db, {}, 'DB should be empty')
 
     def test_flushall(self):
         with self.assertRaises(redis.ConnectionError):
             self.redis.flushall()
 
-        self.assertEqual(self.redis._db, {}, 'DB should be empty')
-
     def test_append(self):
         with self.assertRaises(redis.ConnectionError):
             self.redis.append('key', 'value')
-            self.assertEqual(self.redis._db, {}, 'DB should be empty')
+
+        self.assertEqual(self.redis._db, {}, 'DB should be empty')
+
+    def test_bitcount(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.bitcount('name', 0, 20)
+
+    def test_decr(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.decr('key', 2)
+
+        self.assertEqual(self.redis._db, {}, 'DB should be empty')
+
+    def test_exists(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.exists('key')
 
 if __name__ == '__main__':
     unittest.main()
