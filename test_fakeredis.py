@@ -2936,5 +2936,30 @@ class TestImportation(unittest.TestCase):
             reload(fakeredis)
 
 
+class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
+
+    def create_redis(self):
+        return fakeredis.FakeStrictRedis(db=0, connected=False)
+
+    def setUp(self):
+        self.redis = self.create_redis()
+
+    def test_flushdb(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.flushdb()
+
+        self.assertEqual(self.redis._db, {}, 'DB should be empty')
+
+    def test_flushall(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.flushall()
+
+        self.assertEqual(self.redis._db, {}, 'DB should be empty')
+
+    def test_append(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.append('key', 'value')
+            self.assertEqual(self.redis._db, {}, 'DB should be empty')
+
 if __name__ == '__main__':
     unittest.main()
