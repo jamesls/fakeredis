@@ -2963,7 +2963,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_bitcount(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.bitcount('name', 0, 20)
+            self.redis.bitcount('key', 0, 20)
 
     def test_decr(self):
         with self.assertRaises(redis.ConnectionError):
@@ -2974,6 +2974,66 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     def test_exists(self):
         with self.assertRaises(redis.ConnectionError):
             self.redis.exists('key')
+
+    def test_expire(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.expire('key', 20)
+
+    def test_pexpire(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pexpire('key', 20)
+
+    def test_echo(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.echo('value')
+
+    def test_get(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.get('key')
+
+    def test_getbit(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.getbit('key', 2)
+
+    def test_getset(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.getset('key', 'value')
+
+    def test_incr(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.incr('key')
+
+    def test_incrby(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.incrby('key')
+
+    def test_ncrbyfloat(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.incrbyfloat('key')
+
+    def test_keys(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.keys()
+
+    def test_mget(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.mget(['key1', 'key2'])
+
+    def test_mset(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.mset(('key', 'value'))
+
+    def test_msetnx(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.msetnx({'key': 'value'})
+
+    def test_persist(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.persist('key')
+
+    def test_rename(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.rename('key1', 'key2')
 
 if __name__ == '__main__':
     unittest.main()
