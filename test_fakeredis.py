@@ -1368,6 +1368,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrangebyscore('foo', 1, 3, 0, 2, True),
                          [(b'one', 1), (b'two', 2)])
 
+    def test_zrangebyscore_withscores_score_cast_func(self):
+        self.redis.zadd('foo', one=1)
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', three=3)
+        self.assertEqual(self.redis.zrangebyscore('foo', 1, 3, 0, 2, True,
+                                                  str),
+                         [(b'one', '1.0'), (b'two', '2.0')])
+
     def test_zrevrangebyscore(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
