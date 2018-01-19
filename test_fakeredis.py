@@ -148,6 +148,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.getbit('foo', 4), 0)
         self.assertEqual(self.redis.getbit('foo', 100), 0)
 
+    def test_getbit_initial_value(self):
+        self.assertEqual(self.redis.getbit('foo', 1), 0)
+
     def test_multiple_bits_set(self):
         self.redis.setbit('foo', 1, 1)
         self.redis.setbit('foo', 3, 1)
