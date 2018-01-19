@@ -1675,7 +1675,7 @@ class FakeStrictRedis(object):
         ``message`` to them for the given ``channel``.
         """
         count = 0
-        for i, ps in enumerate(self._pubsubs):
+        for i, ps in list(enumerate(self._pubsubs)):
             if not ps.subscribed:
                 del self._pubsubs[i]
                 continue
