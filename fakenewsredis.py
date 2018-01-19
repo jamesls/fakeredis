@@ -13,6 +13,7 @@ import threading
 import time
 import types
 import re
+import functools
 
 import redis
 from redis.exceptions import ResponseError
@@ -218,6 +219,16 @@ def _patch_responses(obj):
         setattr(obj, attr_name, func)
 
 
+def _remove_empty(func):
+    @functools.wraps(func)
+    def wrapper(self, key, *args, **kwargs):
+        ret = func(self, key, *args, **kwargs)
+        self._remove_if_empty(key)
+        return ret
+
+    return wrapper
+
+
 class _Lock(object):
     def __init__(self, redis, name, timeout):
         self.redis = redis
@@ -273,6 +284,15 @@ class FakeStrictRedis(object):
             DATABASES[db].clear()
 
         del self._pubsubs[:]
+
+    def _remove_if_empty(self, key):
+        try:
+            value = self._db[key]
+        except KeyError:
+            pass
+        else:
+            if not value:
+                del self._db[key]
 
     def _get_string(self, name, default=b''):
         value = self._db.get(name, default)
@@ -767,6 +787,7 @@ class FakeStrictRedis(object):
     def llen(self, name):
         return len(self._get_list(name))
 
+    @_remove_empty
     def lrem(self, name, count, value):
         value = to_bytes(value)
         a_list = self._get_list(name)
@@ -790,6 +811,7 @@ class FakeStrictRedis(object):
         self._setdefault_list(name).extend([to_bytes(x) for x in values])
         return len(self._db[name])
 
+    @_remove_empty
     def lpop(self, name):
         try:
             return self._get_list(name).pop(0)
@@ -827,6 +849,7 @@ class FakeStrictRedis(object):
     def lpushx(self, name, value):
         self._get_list(name).insert(0, to_bytes(value))
 
+    @_remove_empty
     def rpop(self, name):
         try:
             return self._get_list(name).pop()
@@ -875,7 +898,9 @@ class FakeStrictRedis(object):
         for key in keys:
             lst = self._get_list(key)
             if lst:
-                return (key, lst.pop(0))
+                ret = (key, lst.pop(0))
+                self._remove_if_empty(key)
+                return ret
 
     def brpop(self, keys, timeout=0):
         if isinstance(keys, string_types):
@@ -885,7 +910,9 @@ class FakeStrictRedis(object):
         for key in keys:
             lst = self._get_list(key)
             if lst:
-                return (key, lst.pop())
+                ret = (key, lst.pop())
+                self._remove_if_empty(key)
+                return ret
 
     def brpoplpush(self, src, dst, timeout=0):
         return self.rpoplpush(src, dst)
@@ -902,6 +929,7 @@ class FakeStrictRedis(object):
             raise redis.ResponseError(_WRONGTYPE_MSG)
         return value
 
+    @_remove_empty
     def hdel(self, name, *keys):
         h = self._get_hash(name)
         rem = 0
@@ -1030,6 +1058,7 @@ class FakeStrictRedis(object):
             diff -= self._get_set(key)
         return diff
 
+    @_remove_empty
     def sdiffstore(self, dest, keys, *args):
         """
         Store the difference of sets specified by ``keys`` into a new
@@ -1047,6 +1076,7 @@ class FakeStrictRedis(object):
             intersect.intersection_update(self._get_set(key))
         return intersect
 
+    @_remove_empty
     def sinterstore(self, dest, keys, *args):
         """
         Store the intersection of sets specified by ``keys`` into a new
@@ -1064,6 +1094,7 @@ class FakeStrictRedis(object):
         "Return all members of the set ``name``"
         return self._get_set(name)
 
+    @_remove_empty
     def smove(self, src, dst, value):
         value = to_bytes(value)
         src_set = self._get_set(src)
@@ -1075,6 +1106,7 @@ class FakeStrictRedis(object):
         except KeyError:
             return False
 
+    @_remove_empty
     def spop(self, name):
         "Remove and return a random member of set ``name``"
         try:
@@ -1111,6 +1143,7 @@ class FakeStrictRedis(object):
                 in sorted(random.sample(range(len(members)), number))
             ]
 
+    @_remove_empty
     def srem(self, name, *values):
         "Remove ``value`` from set ``name``"
         a_set = self._setdefault_set(name)
@@ -1287,6 +1320,7 @@ class FakeStrictRedis(object):
         d[value] = score
         return score
 
+    @_remove_empty
     def zinterstore(self, dest, keys, aggregate=None):
         """
         Intersect multiple sorted sets specified by ``keys`` into
@@ -1422,6 +1456,7 @@ class FakeStrictRedis(object):
         except ValueError:
             return None
 
+    @_remove_empty
     def zrem(self, name, *values):
         "Remove member ``value`` from sorted set ``name``"
         z = self._get_zset(name)
@@ -1432,6 +1467,7 @@ class FakeStrictRedis(object):
                 rem += 1
         return rem
 
+    @_remove_empty
     def zremrangebyrank(self, name, min, max):
         """
         Remove all elements in the sorted set ``name`` with ranks between
@@ -1451,6 +1487,7 @@ class FakeStrictRedis(object):
             num_deleted += 1
         return num_deleted
 
+    @_remove_empty
     def zremrangebyscore(self, name, min, max):
         """
         Remove all elements in the sorted set ``name`` with scores
@@ -1465,6 +1502,7 @@ class FakeStrictRedis(object):
                 removed += 1
         return removed
 
+    @_remove_empty
     def zremrangebylex(self, name, min, max):
         """
         Remove all elements in the sorted set ``name``
