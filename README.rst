@@ -266,6 +266,13 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.9.3
+-----
+This is a minor bugfix release:
+- `#6 <https://github.com/ska-sa/fakenewsredis/pull/6>`_ Fix iteration over pubsub list
+- `#3 <https://github.com/ska-sa/fakenewsredis/pull/3>`_ Preserve expiry time when mutating keys
+- Fixes to typos and broken links in documentation
+
 0.9.2
 -----
 This is the first release of fakenewsredis, based on `fakeredis`_ 0.9.0, with the following features and fixes:
