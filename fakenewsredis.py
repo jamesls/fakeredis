@@ -510,26 +510,25 @@ class FakeStrictRedis(object):
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) or (nx and self._db.get(name, None) is None) \
                 or (xx and not self._db.get(name, None) is None):
-            self._db[name] = to_bytes(value)
             if ex is not None:
                 if isinstance(ex, timedelta):
                     ex = ex.seconds + ex.days * 24 * 3600
-                if ex < 0:
+                if ex <= 0:
                     raise ResponseError('invalid expire time in SETEX')
-                if ex > 0:
-                    self._db.expire(name, datetime.now() +
-                                    timedelta(seconds=ex))
+                self._db[name] = to_bytes(value)
+                self._db.expire(name, datetime.now() +
+                                timedelta(seconds=ex))
             elif px is not None:
                 if isinstance(px, timedelta):
                     ms = int(px.microseconds / 1000)
                     px = (px.seconds + px.days * 24 * 3600) * 1000 + ms
-                if px < 0:
+                if px <= 0:
                     raise ResponseError('invalid expire time in SETEX')
-                if px > 0:
-                    self._db.expire(name, datetime.now() +
-                                    timedelta(milliseconds=px))
+                self._db[name] = to_bytes(value)
+                self._db.expire(name, datetime.now() +
+                                timedelta(milliseconds=px))
             else:
-                self._db.persist(name)
+                self._db[name] = to_bytes(value)
             return True
         else:
             return None

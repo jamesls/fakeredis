@@ -501,26 +501,44 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_set_raises_wrong_ex(self):
         with self.assertRaises(ResponseError):
             self.redis.set('foo', 'bar', ex=-100)
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', ex=0)
+        self.assertFalse(self.redis.exists('foo'))
 
     def test_set_using_timedelta_raises_wrong_ex(self):
         with self.assertRaises(ResponseError):
             self.redis.set('foo', 'bar', ex=timedelta(seconds=-100))
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', ex=timedelta(seconds=0))
+        self.assertFalse(self.redis.exists('foo'))
 
     def test_set_raises_wrong_px(self):
         with self.assertRaises(ResponseError):
             self.redis.set('foo', 'bar', px=-100)
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', px=0)
+        self.assertFalse(self.redis.exists('foo'))
 
     def test_set_using_timedelta_raises_wrong_px(self):
         with self.assertRaises(ResponseError):
             self.redis.set('foo', 'bar', px=timedelta(milliseconds=-100))
+        with self.assertRaises(ResponseError):
+            self.redis.set('foo', 'bar', px=timedelta(milliseconds=0))
+        self.assertFalse(self.redis.exists('foo'))
 
     def test_setex_raises_wrong_ex(self):
         with self.assertRaises(ResponseError):
             self.redis.setex('foo', -100, 'bar')
+        with self.assertRaises(ResponseError):
+            self.redis.setex('foo', 0, 'bar')
+        self.assertFalse(self.redis.exists('foo'))
 
     def test_setex_using_timedelta_raises_wrong_ex(self):
         with self.assertRaises(ResponseError):
             self.redis.setex('foo', timedelta(seconds=-100), 'bar')
+        with self.assertRaises(ResponseError):
+            self.redis.setex('foo', timedelta(seconds=-100), 'bar')
+        self.assertFalse(self.redis.exists('foo'))
 
     def test_setnx(self):
         self.assertEqual(self.redis.setnx('foo', 'bar'), True)
@@ -3142,7 +3160,7 @@ class TestFakeRedis(unittest.TestCase):
 
     @attr('slow')
     def test_set_ex_should_expire_value(self):
-        self.redis.set('foo', 'bar', ex=0)
+        self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
         self.redis.set('foo', 'bar', ex=1)
         sleep(2)
