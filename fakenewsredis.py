@@ -120,15 +120,10 @@ class _StrKeyDict(MutableMapping):
         self._dict = dict(*args, **kwargs)
 
     def __getitem__(self, key):
-        now = datetime.now()
-        value, expiration = self._dict[to_bytes(key)]
-        if expiration is not None and now > expiration:
-            del self._dict[to_bytes(key)]
-            raise KeyError(key)
-        return value
+        return self._dict[to_bytes(key)]
 
     def __setitem__(self, key, value):
-        self._dict[to_bytes(key)] = (value, None)
+        self._dict[to_bytes(key)] = value
 
     def __delitem__(self, key):
         del self._dict[to_bytes(key)]
@@ -139,9 +134,28 @@ class _StrKeyDict(MutableMapping):
     def __iter__(self):
         return iter(self._dict)
 
+    def copy(self):
+        new_copy = self.__class__()
+        new_copy.update(self._dict)
+        return new_copy
+
+
+class _ExpiringDict(_StrKeyDict):
+    def __getitem__(self, key):
+        bytes_key = to_bytes(key)
+        value, expiration = self._dict[bytes_key]
+        if expiration is not None and datetime.now() > expiration:
+            del self._dict[bytes_key]
+            raise KeyError(key)
+        return value
+
+    def __setitem__(self, key, value):
+        self._dict[to_bytes(key)] = (value, None)
+
     def expire(self, key, timestamp):
-        value = self._dict[to_bytes(key)][0]
-        self._dict[to_bytes(key)] = (value, timestamp)
+        bytes_key = to_bytes(key)
+        value = self._dict[bytes_key][0]
+        self._dict[bytes_key] = (value, timestamp)
 
     def setx(self, key, value, src=None):
         """Set a value, keeping the existing expiry time if any. If
@@ -156,24 +170,15 @@ class _StrKeyDict(MutableMapping):
         self._dict[to_bytes(key)] = (value, expiration)
 
     def persist(self, key):
+        bytes_key = to_bytes(key)
         try:
-            value, _ = self._dict[to_bytes(key)]
+            value, _ = self._dict[bytes_key]
         except KeyError:
             return
-        self[key] = value
+        self._dict[bytes_key] = (value, None)
 
     def expiring(self, key):
         return self._dict[to_bytes(key)][1]
-
-    def copy(self):
-        new_copy = _StrKeyDict()
-        new_copy.update(self._dict)
-        return new_copy
-
-    def to_bare_dict(self):
-        # TODO transform to dict comprehension after droping support
-        # of python2.6
-        return dict((k, v[0]) for k, v in self._dict.items())
 
 
 class _ZSet(_StrKeyDict):
@@ -265,7 +270,7 @@ class FakeStrictRedis(object):
     def __init__(self, db=0, charset='utf-8', errors='strict',
                  decode_responses=False, **kwargs):
         if db not in DATABASES:
-            DATABASES[db] = _StrKeyDict()
+            DATABASES[db] = _ExpiringDict()
         self._db = DATABASES[db]
         self._db_num = db
         self._encoding = charset
@@ -952,9 +957,8 @@ class FakeStrictRedis(object):
 
     def hgetall(self, name):
         "Return a Python dict of the hash's name/value pairs"
-        all_items = self._get_hash(name)
-        if hasattr(all_items, 'to_bare_dict'):
-            all_items = all_items.to_bare_dict()
+        all_items = dict()
+        all_items.update(self._get_hash(name))
         return all_items
 
     def hincrby(self, name, key, amount=1):
