@@ -266,6 +266,14 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.9.4
+-----
+This is a minor bugfix and optimization release:
+- `#5 <https://github.com/ska-sa/fakenewsredis/issues/5>`_ Update to match redis-py 2.10.6
+- `#7 <https://github.com/ska-sa/fakenewsredis/issues/7>`_ Set with invalid expiry time should not set key
+- Avoid storing useless expiry times in hashes and sorted sets
+- Improve the performance of bulk zadd
+
 0.9.3
 -----
 This is a minor bugfix release:
