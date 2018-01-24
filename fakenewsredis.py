@@ -1284,22 +1284,18 @@ class FakeStrictRedis(object):
             raise redis.RedisError("ZADD requires an equal number of "
                                    "values and scores")
         zset = self._setdefault_zset(name)
-        added = 0
+        old_len = len(zset)
         for score, value in zip(*[args[i::2] for i in range(2)]):
-            if value not in zset:
-                added += 1
             try:
                 zset[value] = float(score)
             except ValueError:
                 raise redis.ResponseError("value is not a valid float")
         for value, score in kwargs.items():
-            if value not in zset:
-                added += 1
             try:
                 zset[value] = float(score)
             except ValueError:
                 raise redis.ResponseError("value is not a valid float")
-        return added
+        return len(zset) - old_len
 
     def zcard(self, name):
         "Return the number of elements in the sorted set ``name``"
