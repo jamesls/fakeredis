@@ -2625,7 +2625,7 @@ class TestFakeRedis(unittest.TestCase):
 
     @attr('slow')
     def test_set_ex_should_expire_value(self):
-        self.redis.set('foo', 'bar', ex=0)
+        self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
         self.redis.set('foo', 'bar', ex=1)
         sleep(2)
