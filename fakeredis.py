@@ -13,6 +13,8 @@ import time
 import types
 import re
 
+from lupa import LuaRuntime
+
 import redis
 from redis.exceptions import ResponseError
 import redis.client
@@ -632,6 +634,43 @@ class FakeStrictRedis(object):
                 return self._retrive_data_from_sort(data, get)
         except KeyError:
             return []
+
+    def eval(self, script, numkeys, *keys_and_args):
+        """
+        Execute the Lua ``script``, specifying the ``numkeys`` the script
+        will touch and the key names and argument values in ``keys_and_args``.
+        Returns the result of the script.
+        In practice, use the object returned by ``register_script``. This
+        function exists purely for Redis API completion.
+        """
+        lua_runtime = LuaRuntime(unpack_returned_tuples=True)
+
+        raw_lua = """
+        function(KEYS, ARGV, callback)
+            redis = {{}}
+            redis.call = callback
+            {body}
+        end
+        """.format(body=script)
+        keys = (None,) + keys_and_args[:numkeys]
+        args = (None,) + keys_and_args[numkeys:]
+
+        lua_func = lua_runtime.eval(raw_lua)
+        lua_func(
+            keys,
+            args,
+            self._lua_callback
+        )
+
+    def _lua_callback(self, op, *args):
+        special_cases = {
+            'del': self.delete,
+            'decrby': self.decr,
+            'incrby': self.incr
+        }
+        op = op.lower()
+        func = special_cases[op] if op in special_cases else getattr(self, op)
+        return func(*args)
 
     def _retrive_data_from_sort(self, data, get):
         if get is not None:

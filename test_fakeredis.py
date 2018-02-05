@@ -2821,6 +2821,33 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.expire('some_unused_key', 1.2)
             self.redis.pexpire('some_unused_key', 1000.2)
 
+    def test_eval_delete(self):
+        self.redis.set('foo', 'bar')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'bar')
+        val = self.redis.eval('redis.call("DEL", KEYS[1])', 1, 'foo')
+        self.assertIsNone(val)
+
+    def test_eval_set_value_to_arg(self):
+        self.redis.eval('redis.call("SET", KEYS[1], ARGV[1])', 1, 'foo', 'bar')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'bar')
+
+    def test_eval_conditional(self):
+        lua = """
+        local val = redis.call("GET", KEYS[1])
+        if val == ARGV[1] then
+            redis.call("SET", KEYS[1], ARGV[2])
+        else
+            redis.call("SET", KEYS[1], ARGV[1])
+        end
+        """
+        self.redis.eval(lua, 1, 'foo', 'bar', 'baz')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'bar')
+        self.redis.eval(lua, 1, 'foo', 'bar', 'baz')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'baz')
 
 class DecodeMixin(object):
     decode_responses = True
