@@ -656,7 +656,7 @@ class FakeStrictRedis(object):
         args = (None,) + keys_and_args[numkeys:]
 
         lua_func = lua_runtime.eval(raw_lua)
-        lua_func(
+        return lua_func(
             keys,
             args,
             self._lua_callback
