@@ -2553,7 +2553,16 @@ class TestFakeStrictRedis(unittest.TestCase):
         return a
         """
         val = self.redis.eval(lua, 0)
-        self.assertEqual(val, [u'foo', u'bar'])
+        self.assertEqual(val, [b'foo', b'bar'])
+
+    def test_eval_table_with_numbers(self):
+        lua = """
+        local a = {}
+        a[1] = 42
+        return a
+        """
+        val = self.redis.eval(lua, 0)
+        self.assertEqual(val, [42])
 
 
 class TestFakeRedis(unittest.TestCase):

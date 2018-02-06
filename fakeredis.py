@@ -668,7 +668,10 @@ class FakeStrictRedis(object):
             for index in count(1):
                 if index not in result:
                     break
-                result_list.append(result[index])
+                item = result[index]
+                result_list.append(
+                    item.encode() if isinstance(item, str) and not isinstance(item, bytes) else item
+                )
             return result_list
         return result
 
