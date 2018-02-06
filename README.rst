@@ -266,6 +266,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.9.5
+-----
+Add support for StrictRedis.eval for Lua scripts
+- `#9 <https://github.com/ska-sa/fakenewsredis/pull/9>`_ 
+
 0.9.4
 -----
 This is a minor bugfix and optimization release:
