@@ -14,6 +14,9 @@ import time
 import types
 import re
 import functools
+from itertools import count
+
+from lupa import LuaRuntime, lua_type
 
 import redis
 from redis.exceptions import ResponseError
@@ -700,6 +703,55 @@ class FakeStrictRedis(object):
                 return self._retrive_data_from_sort(data, get)
         except KeyError:
             return []
+
+    def eval(self, script, numkeys, *keys_and_args):
+        """
+        Execute the Lua ``script``, specifying the ``numkeys`` the script
+        will touch and the key names and argument values in ``keys_and_args``.
+        Returns the result of the script.
+        In practice, use the object returned by ``register_script``. This
+        function exists purely for Redis API completion.
+        """
+        lua_runtime = LuaRuntime(unpack_returned_tuples=True)
+
+        raw_lua = """
+        function(KEYS, ARGV, callback)
+            redis = {{}}
+            redis.call = callback
+            {body}
+        end
+        """.format(body=script)
+        keys = (None,) + keys_and_args[:numkeys]
+        args = (None,) + keys_and_args[numkeys:]
+
+        lua_func = lua_runtime.eval(raw_lua)
+        result = lua_func(
+            keys,
+            args,
+            self._lua_callback
+        )
+        if lua_type(result) == 'table':
+            # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
+            result_list = []
+            for index in count(1):
+                if index not in result:
+                    break
+                item = result[index]
+                result_list.append(
+                    item.encode() if isinstance(item, str) and not isinstance(item, bytes) else item
+                )
+            return result_list
+        return result
+
+    def _lua_callback(self, op, *args):
+        special_cases = {
+            'del': self.delete,
+            'decrby': self.decr,
+            'incrby': self.incr
+        }
+        op = op.lower()
+        func = special_cases[op] if op in special_cases else getattr(self, op)
+        return func(*args)
 
     def _retrive_data_from_sort(self, data, get):
         if get is not None:
