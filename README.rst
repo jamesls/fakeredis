@@ -203,7 +203,6 @@ scripting
  * script kill
  * script load
  * evalsha
- * eval
  * script exists
 
 
