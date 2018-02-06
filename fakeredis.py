@@ -12,8 +12,9 @@ import sys
 import time
 import types
 import re
+from itertools import count
 
-from lupa import LuaRuntime
+from lupa import LuaRuntime, lua_type
 
 import redis
 from redis.exceptions import ResponseError
@@ -656,11 +657,20 @@ class FakeStrictRedis(object):
         args = (None,) + keys_and_args[numkeys:]
 
         lua_func = lua_runtime.eval(raw_lua)
-        return lua_func(
+        result = lua_func(
             keys,
             args,
             self._lua_callback
         )
+        if lua_type(result) == 'table':
+            # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
+            result_list = []
+            for index in count(1):
+                if index not in result:
+                    break
+                result_list.append(result[index])
+            return result_list
+        return result
 
     def _lua_callback(self, op, *args):
         special_cases = {

@@ -2849,6 +2849,23 @@ class TestFakeRedis(unittest.TestCase):
         val = self.redis.get('foo')
         self.assertEqual(val, b'baz')
 
+    def test_eval_lrange(self):
+        self.redis.lpush("foo", "bar")
+        val = self.redis.eval('return redis.call("LRANGE", KEYS[1], 0, 1)', 1, 'foo')
+        self.assertEqual(val, [b'bar'])
+
+    def test_eval_table(self):
+        lua = """
+        local a = {}
+        a[1] = "foo"
+        a[2] = "bar"
+        a[17] = "baz"
+        return a
+        """
+        val = self.redis.eval(lua, 0)
+        self.assertEqual(val, ["foo", "bar"])
+
+
 class DecodeMixin(object):
     decode_responses = True
 
