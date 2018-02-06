@@ -2545,18 +2545,15 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(val, [b'bar'])
 
     def test_eval_table(self):
-        self.redis.set("k1", "foo")
-        self.redis.set("k2", "bar")
-        self.redis.set("k3", "baz")
         lua = """
         local a = {}
-        a[1] = redis.call('GET', 'k1')
-        a[2] = redis.call('GET', 'k2')
-        a[17] = redis.call('GET', 'k3')
+        a[1] = "foo"
+        a[2] = "bar"
+        a[17] = "baz"
         return a
         """
         val = self.redis.eval(lua, 0)
-        self.assertEqual(val, [b'foo', b'bar'])
+        self.assertEqual(val, [u'foo', u'bar'])
 
 
 class TestFakeRedis(unittest.TestCase):
