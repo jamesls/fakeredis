@@ -2564,6 +2564,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         val = self.redis.eval(lua, 0)
         self.assertEqual(val, [42])
 
+    def test_eval_invalid_command(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval(
+                'return redis.call("FOO")',
+                0
+            )
+
+
 
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False
