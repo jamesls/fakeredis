@@ -3107,7 +3107,6 @@ class TestFakeStrictRedis(unittest.TestCase):
             )
 
 
-
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False
 
