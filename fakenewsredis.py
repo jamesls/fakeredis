@@ -16,8 +16,6 @@ import re
 import functools
 from itertools import count
 
-from lupa import LuaRuntime, lua_type
-
 import redis
 from redis.exceptions import ResponseError
 import redis.client
@@ -712,6 +710,8 @@ class FakeStrictRedis(object):
         In practice, use the object returned by ``register_script``. This
         function exists purely for Redis API completion.
         """
+        from lupa import LuaRuntime, lua_type
+
         lua_runtime = LuaRuntime(unpack_returned_tuples=True)
 
         raw_lua = """
@@ -744,14 +744,35 @@ class FakeStrictRedis(object):
         return result
 
     def _lua_callback(self, op, *args):
+        # These commands aren't necessarily all implemented, but if op is not one of these commands, we expect a
+        # ResponseError for consistency with Redis
+        commands = [
+            'APPEND', 'AUTH', 'BITCOUNT', 'BITFIELD', 'BITOP', 'BITPOS', 'BLPOP', 'BRPOP', 'BRPOPLPUSH', 'DECR',
+            'DECRBY', 'DEL', 'DUMP', 'ECHO', 'EVAL', 'EVALSHA', 'EXISTS', 'EXPIRE', 'EXPIREAT', 'FLUSHALL', 'FLUSHDB',
+            'GEOADD', 'GEODIST', 'GEOHASH', 'GEOPOS', 'GEORADIUS', 'GEORADIUSBYMEMBER', 'GET', 'GETBIT', 'GETRANGE',
+            'GETSET', 'HDEL', 'HEXISTS', 'HGET', 'HGETALL', 'HINCRBY', 'HINCRBYFLOAT', 'HKEYS', 'HLEN', 'HMGET',
+            'HMSET', 'HSCAN', 'HSET', 'HSETNX', 'HSTRLEN', 'HVALS', 'INCR', 'INCRBY', 'INCRBYFLOAT', 'INFO', 'KEYS',
+            'LINDEX', 'LINSERT', 'LLEN', 'LPOP', 'LPUSH', 'LPUSHX', 'LRANGE', 'LREM', 'LSET', 'LTRIM', 'MGET',
+            'MIGRATE', 'MOVE', 'MSET', 'MSETNX', 'OBJECT', 'PERSIST', 'PEXPIRE', 'PEXPIREAT', 'PFADD', 'PFCOUNT',
+            'PFMERGE', 'PING', 'PSETEX', 'PSUBSCRIBE', 'PTTL', 'PUBLISH', 'PUBSUB', 'PUNSUBSCRIBE', 'RENAME',
+            'RENAMENX', 'RESTORE', 'RPOP', 'RPOPLPUSH', 'RPUSH', 'RPUSHX', 'SADD', 'SCAN', 'SCARD', 'SDIFF',
+            'SDIFFSTORE', 'SELECT', 'SET', 'SETBIT', 'SETEX', 'SETNX', 'SETRANGE', 'SHUTDOWN', 'SINTER', 'SINTERSTORE',
+            'SISMEMBER', 'SLAVEOF', 'SLOWLOG', 'SMEMBERS', 'SMOVE', 'SORT', 'SPOP', 'SRANDMEMBER', 'SREM', 'SSCAN',
+            'STRLEN', 'SUBSCRIBE', 'SUNION', 'SUNIONSTORE', 'SWAPDB', 'TOUCH', 'TTL', 'TYPE', 'UNLINK', 'UNSUBSCRIBE',
+            'WAIT', 'WATCH', 'ZADD', 'ZCARD', 'ZCOUNT', 'ZINCRBY', 'ZINTERSTORE', 'ZLEXCOUNT', 'ZRANGE', 'ZRANGEBYLEX',
+            'ZRANGEBYSCORE', 'ZRANK', 'ZREM', 'ZREMRANGEBYLEX', 'ZREMRANGEBYRANK', 'ZREMRANGEBYSCORE', 'ZREVRANGE',
+            'ZREVRANGEBYLEX', 'ZREVRANGEBYSCORE', 'ZREVRANK', 'ZSCAN', 'ZSCORE', 'ZUNIONSTORE'
+        ]
+        if op.upper() not in commands:
+            raise ResponseError("Unknown Redis command called from Lua script")
         special_cases = {
-            'del': self.delete,
-            'decrby': self.decr,
-            'incrby': self.incr
+            'del': FakeStrictRedis.delete,
+            'decrby': FakeStrictRedis.decr,
+            'incrby': FakeStrictRedis.incr
         }
         op = op.lower()
-        func = special_cases[op] if op in special_cases else getattr(self, op)
-        return func(*args)
+        func = special_cases[op] if op in special_cases else getattr(FakeStrictRedis, op)
+        return func(self, *args)
 
     def _retrive_data_from_sort(self, data, get):
         if get is not None:
