@@ -684,16 +684,15 @@ class FakeStrictRedis(object):
         if lua_type(result) == 'table':
             for key in ('ok', 'err'):
                 if key in result:
-                    msg = result[key]
+                    msg = self._decode_lua_result(result[key])
                     if not isinstance(msg, bytes):
                         raise ResponseError("wrong number or type of arguments")
-                    decoded = self._decode_lua_result(msg)
                     if key == 'ok':
-                        return decoded
+                        return msg
                     elif nested:
-                        return ResponseError(decoded)
+                        return ResponseError(msg)
                     else:
-                        raise ResponseError(decoded)
+                        raise ResponseError(msg)
             # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
             result_list = []
             for index in count(1):
