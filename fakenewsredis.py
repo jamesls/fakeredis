@@ -768,7 +768,7 @@ class FakeStrictRedis(object):
                 item = result[index]
                 result_list.append(self._decode_lua_result(item))
             return result_list
-        elif isinstance(result, type(u'')):
+        elif isinstance(result, getattr(__builtins__, 'unicode', str)):
             return result.encode()
         elif isinstance(result, float):
             return int(result)
