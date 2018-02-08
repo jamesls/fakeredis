@@ -2632,6 +2632,17 @@ class TestFakeStrictRedis(unittest.TestCase):
         val = self.redis.eval('return redis.status_reply("Testing")', 0)
         self.assertEqual(val, b'Testing')
 
+    def test_eval_return_ok_nested(self):
+        val = self.redis.eval(
+            '''
+            local a = {}
+            a[1] = {ok="Testing"}
+            return a
+            ''',
+            0
+        )
+        self.assertEqual(val, [b'Testing'])
+
     def test_eval_return_ok_wrong_type(self):
         with self.assertRaises(redis.ResponseError):
             self.redis.eval('return redis.status_reply(123)', 0)
