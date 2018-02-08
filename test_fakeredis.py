@@ -2636,6 +2636,22 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.eval('return redis.status_reply(123)', 0)
 
+    def test_pcall(self):
+        val = self.redis.eval(
+            '''
+            local a = {}
+            a[1] = redis.pcall("foo")
+            return a
+            ''',
+            0
+        )
+        self.assertIsInstance(val, list)
+        self.assertEqual(len(val), 1)
+        self.assertIsInstance(val[0], ResponseError)
+
+    def test_pcall_return_value(self):
+        with self.assertRaises(ResponseError):
+            val = self.redis.eval('return redis.pcall("foo")', 0)
 
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False

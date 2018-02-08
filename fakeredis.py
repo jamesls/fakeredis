@@ -648,9 +648,10 @@ class FakeStrictRedis(object):
 
         set_globals = lua_runtime.eval(
             """
-            function(keys, argv, callback)
+            function(keys, argv, redis_call, redis_pcall)
                 redis = {{}}
-                redis.call = callback
+                redis.call = redis_call
+                redis.pcall = redis_pcall
                 redis.error_reply = function(msg) return {err=msg} end
                 redis.status_reply = function(msg) return {ok=msg} end
                 KEYS = keys
@@ -662,7 +663,8 @@ class FakeStrictRedis(object):
         set_globals(
             (None,) + keys_and_args[:numkeys],
             (None,) + keys_and_args[numkeys:],
-            functools.partial(self._lua_callback, lua_runtime, expected_globals)
+            functools.partial(self._lua_redis_call, lua_runtime, expected_globals),
+            functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals)
         )
         expected_globals.update(lua_runtime.globals().keys())
 
@@ -679,17 +681,18 @@ class FakeStrictRedis(object):
         from lupa import lua_type
 
         if lua_type(result) == 'table':
-            if not nested:
-                for key in ('ok', 'err'):
-                    if key in result:
-                        msg = result[key]
-                        if not isinstance(msg, str):
-                            raise ResponseError("wrong number or type of arguments")
-                        decoded = self._decode_lua_result(msg)
-                        if key == 'ok':
-                            return decoded
-                        else:
-                            raise ResponseError(decoded)
+            for key in ('ok', 'err'):
+                if key in result:
+                    msg = result[key]
+                    if not isinstance(msg, str):
+                        raise ResponseError("wrong number or type of arguments")
+                    decoded = self._decode_lua_result(msg)
+                    if key == 'ok':
+                        return decoded
+                    elif nested:
+                        return ResponseError(decoded)
+                    else:
+                        raise ResponseError(decoded)
             # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
             result_list = []
             for index in count(1):
@@ -715,7 +718,15 @@ class FakeStrictRedis(object):
                 )
             )
 
-    def _lua_callback(self, lua_runtime, expected_globals, op, *args):
+    def _lua_redis_pcall(self, lua_runtime, expected_globals, op, *args):
+        try:
+            return self._lua_redis_call(lua_runtime, expected_globals, op, *args)
+        except Exception as ex:
+            return lua_runtime.table_from(
+                {"err": str(ex)}
+            )
+
+    def _lua_redis_call(self, lua_runtime, expected_globals, op, *args):
         # Check if we've set any global variables before making any change.
         self._check_for_lua_globals(lua_runtime, expected_globals)
         # These commands aren't necessarily all implemented, but if op is not one of these commands, we expect a
