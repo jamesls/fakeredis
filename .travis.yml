@@ -15,7 +15,6 @@ install:
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install -r requirements-26.txt; fi
   - pip install -r requirements.txt
   - pip install coverage python-coveralls
-  - pip install .[lua]
 script:
   - coverage erase
   - coverage run --source fakeredis.py test_fakeredis.py
