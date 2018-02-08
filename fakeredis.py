@@ -642,7 +642,7 @@ class FakeStrictRedis(object):
         In practice, use the object returned by ``register_script``. This
         function exists purely for Redis API completion.
         """
-        from lupa import LuaRuntime, lua_type, LuaSyntaxError
+        from lupa import LuaRuntime, LuaSyntaxError
 
         lua_runtime = LuaRuntime(unpack_returned_tuples=True)
 
