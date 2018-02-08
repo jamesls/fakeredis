@@ -680,7 +680,6 @@ class FakeStrictRedis(object):
 
     def _decode_lua_result(self, result, nested=True):
         from lupa import lua_type
-
         if lua_type(result) == 'table':
             for key in ('ok', 'err'):
                 if key in result:
@@ -701,7 +700,7 @@ class FakeStrictRedis(object):
                 item = result[index]
                 result_list.append(self._decode_lua_result(item))
             return result_list
-        elif isinstance(result, getattr(__builtins__, 'unicode', str)):
+        elif isinstance(result, type(u'')):
             return result.encode()
         elif isinstance(result, float):
             return int(result)
