@@ -3197,7 +3197,8 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_pcall_return_value(self):
         with self.assertRaises(ResponseError):
-            val = self.redis.eval('return redis.pcall("foo")', 0)
+            self.redis.eval('return redis.pcall("foo")', 0)
+
 
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False
