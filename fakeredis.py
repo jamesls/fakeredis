@@ -642,40 +642,82 @@ class FakeStrictRedis(object):
         In practice, use the object returned by ``register_script``. This
         function exists purely for Redis API completion.
         """
-        from lupa import LuaRuntime, lua_type
+        from lupa import LuaRuntime, lua_type, LuaSyntaxError
 
         lua_runtime = LuaRuntime(unpack_returned_tuples=True)
 
-        raw_lua = """
-        function(KEYS, ARGV, callback)
-            redis = {{}}
-            redis.call = callback
-            {body}
-        end
-        """.format(body=script)
-        keys = (None,) + keys_and_args[:numkeys]
-        args = (None,) + keys_and_args[numkeys:]
-
-        lua_func = lua_runtime.eval(raw_lua)
-        result = lua_func(
-            keys,
-            args,
-            self._lua_callback
+        set_globals = lua_runtime.eval(
+            """
+            function(keys, argv, callback)
+                redis = {{}}
+                redis.call = callback
+                redis.error_reply = function(msg) return {err=msg} end
+                redis.status_reply = function(msg) return {ok=msg} end
+                KEYS = keys
+                ARGV = argv
+            end
+            """
         )
+        expected_globals = set()
+        set_globals(
+            (None,) + keys_and_args[:numkeys],
+            (None,) + keys_and_args[numkeys:],
+            functools.partial(self._lua_callback, lua_runtime, expected_globals)
+        )
+        expected_globals.update(lua_runtime.globals().keys())
+
+        try:
+            result = lua_runtime.execute(script)
+        except LuaSyntaxError as ex:
+            raise ResponseError(ex)
+
+        self._check_for_lua_globals(lua_runtime, expected_globals)
+
+        return self._decode_lua_result(result, nested=False)
+
+    def _decode_lua_result(self, result, nested=True):
+        from lupa import lua_type
+
         if lua_type(result) == 'table':
+            if not nested:
+                for key in ('ok', 'err'):
+                    if key in result:
+                        msg = result[key]
+                        if not isinstance(msg, str):
+                            raise ResponseError("wrong number or type of arguments")
+                        decoded = self._decode_lua_result(msg)
+                        if key == 'ok':
+                            return decoded
+                        else:
+                            raise ResponseError(decoded)
             # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
             result_list = []
             for index in count(1):
                 if index not in result:
                     break
                 item = result[index]
-                result_list.append(
-                    item.encode() if isinstance(item, str) and not isinstance(item, bytes) else item
-                )
+                result_list.append(self._decode_lua_result(item))
             return result_list
+        elif isinstance(result, str) and not isinstance(result, bytes):
+            return result.encode()
+        elif isinstance(result, float):
+            return int(result)
+        elif isinstance(result, bool):
+            return result and 1 or None
         return result
 
-    def _lua_callback(self, op, *args):
+    def _check_for_lua_globals(self, lua_runtime, expected_globals):
+        actual_globals = set(lua_runtime.globals().keys())
+        if actual_globals != expected_globals:
+            raise ResponseError(
+                "Script attempted to set a global variables: %s" % ", ".join(
+                    actual_globals - expected_globals
+                )
+            )
+
+    def _lua_callback(self, lua_runtime, expected_globals, op, *args):
+        # Check if we've set any global variables before making any change.
+        self._check_for_lua_globals(lua_runtime, expected_globals)
         # These commands aren't necessarily all implemented, but if op is not one of these commands, we expect a
         # ResponseError for consistency with Redis
         commands = [
@@ -704,7 +746,10 @@ class FakeStrictRedis(object):
         }
         op = op.lower()
         func = special_cases[op] if op in special_cases else getattr(FakeStrictRedis, op)
-        return func(self, *args)
+        try:
+            return func(self, *args)
+        except Exception as ex:
+            raise ResponseError(ex)
 
     def _retrive_data_from_sort(self, data, get):
         if get is not None:

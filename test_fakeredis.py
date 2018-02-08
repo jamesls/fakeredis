@@ -2564,12 +2564,62 @@ class TestFakeStrictRedis(unittest.TestCase):
         val = self.redis.eval(lua, 0)
         self.assertEqual(val, [42])
 
+    def test_eval_nested_table(self):
+        lua = """
+        local a = {}
+        a[1] = {}
+        a[1][1] = "foo"
+        return a
+        """
+        val = self.redis.eval(lua, 0)
+        self.assertEqual(val, [[b'foo']])
+
     def test_eval_invalid_command(self):
         with self.assertRaises(ResponseError):
             self.redis.eval(
                 'return redis.call("FOO")',
                 0
             )
+
+    def test_eval_syntax_error(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return "', 0)
+
+    def test_eval_global_variable(self):
+        # Redis doesn't allow script to define global variables
+        with self.assertRaises(ResponseError):
+            self.redis.eval('a=10', 0)
+
+    def test_eval_convert_number(self):
+        # Redis forces all Lua numbers to integer
+        val = self.redis.eval('return 3.2', 0)
+        self.assertEqual(val, 3)
+        val = self.redis.eval('return 3.8', 0)
+        self.assertEqual(val, 3)
+        val = self.redis.eval('return -3.8', 0)
+        self.assertEqual(val, -3)
+
+    def test_eval_convert_bool(self):
+        # Redis converts true to 1 and false to nil (which redis-py converts to None)
+        val = self.redis.eval('return false', 0)
+        self.assertIsNone(val)
+        val = self.redis.eval('return true', 0)
+        self.assertEqual(val, 1)
+        self.assertNotIsInstance(val, bool)
+
+    def test_eval_return_error(self):
+        with self.assertRaises(redis.ResponseError) as cm:
+            self.redis.eval('return {err="Testing"}', 0)
+        self.assertIn('Testing', str(cm.exception))
+        with self.assertRaises(redis.ResponseError) as cm:
+            self.redis.eval('return redis.error_reply("Testing")', 0)
+        self.assertIn('Testing', str(cm.exception))
+
+    def test_eval_return_ok(self):
+        val = self.redis.eval('return {ok="Testing"}', 0)
+        self.assertEqual(val, b'Testing')
+        val = self.redis.eval('return redis.status_reply("Testing")', 0)
+        self.assertEqual(val, b'Testing')
 
 
 class TestFakeRedis(unittest.TestCase):

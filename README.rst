@@ -227,7 +227,6 @@ db=10 in order to minimize collisions with an existing redis instance.
 To run all the tests, install the requirements file::
 
     pip install -r requirements.txt
-    pip install .[lua]
 
 If you just want to run the unittests::
 

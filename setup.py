@@ -29,7 +29,7 @@ setup(
     install_requires=[
         'redis',
     ],
-    extras_require=dict(
-        lua=['lupa==1.6']
-    )
+    extras_require={
+        "lua": ['lupa']
+    }
 )
