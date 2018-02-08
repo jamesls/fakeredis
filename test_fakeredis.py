@@ -2555,6 +2555,17 @@ class TestFakeStrictRedis(unittest.TestCase):
         val = self.redis.eval(lua, 0)
         self.assertEqual(val, [b'foo', b'bar'])
 
+    def test_eval_table_with_nil(self):
+        lua = """
+        local a = {}
+        a[1] = "foo"
+        a[2] = nil
+        a[3] = "bar"
+        return a
+        """
+        val = self.redis.eval(lua, 0)
+        self.assertEqual(val, [b'foo'])
+
     def test_eval_table_with_numbers(self):
         lua = """
         local a = {}
@@ -2647,7 +2658,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.eval('return redis.status_reply(123)', 0)
 
-    def test_pcall(self):
+    def test_eval_pcall(self):
         val = self.redis.eval(
             '''
             local a = {}
@@ -2660,7 +2671,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(len(val), 1)
         self.assertIsInstance(val[0], ResponseError)
 
-    def test_pcall_return_value(self):
+    def test_eval_pcall_return_value(self):
         with self.assertRaises(ResponseError):
             self.redis.eval('return redis.pcall("foo")', 0)
 
