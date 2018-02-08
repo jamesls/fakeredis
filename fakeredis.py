@@ -685,7 +685,7 @@ class FakeStrictRedis(object):
             for key in ('ok', 'err'):
                 if key in result:
                     msg = result[key]
-                    if not isinstance(msg, str):
+                    if not isinstance(msg, bytes):
                         raise ResponseError("wrong number or type of arguments")
                     decoded = self._decode_lua_result(msg)
                     if key == 'ok':
