@@ -3125,6 +3125,17 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(ResponseError):
             self.redis.eval('a=10', 0)
 
+    def test_eval_global_and_return_ok(self):
+        # Redis doesn't allow script to define global variables
+        with self.assertRaises(ResponseError):
+            self.redis.eval(
+                '''
+                a=10
+                return redis.status_reply("Everything is awesome")
+                ''',
+                0
+            )
+
     def test_eval_convert_number(self):
         # Redis forces all Lua numbers to integer
         val = self.redis.eval('return 3.2', 0)
@@ -3155,6 +3166,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(val, b'Testing')
         val = self.redis.eval('return redis.status_reply("Testing")', 0)
         self.assertEqual(val, b'Testing')
+
+    def test_eval_return_ok_wrong_type(self):
+        with self.assertRaises(redis.ResponseError):
+            self.redis.eval('return redis.status_reply(123)', 0)
 
 
 class TestFakeRedis(unittest.TestCase):
