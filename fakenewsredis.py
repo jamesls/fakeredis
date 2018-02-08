@@ -717,7 +717,7 @@ class FakeStrictRedis(object):
         set_globals = lua_runtime.eval(
             """
             function(keys, argv, redis_call, redis_pcall)
-                redis = {{}}
+                redis = {}
                 redis.call = redis_call
                 redis.pcall = redis_pcall
                 redis.error_reply = function(msg) return {err=msg} end
