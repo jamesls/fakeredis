@@ -832,10 +832,7 @@ class FakeStrictRedis(object):
         }
         op = op.lower()
         func = special_cases[op] if op in special_cases else getattr(FakeStrictRedis, op)
-        try:
-            return self._convert_redis_result(func(self, *args))
-        except Exception as ex:
-            raise ResponseError(ex)
+        return self._convert_redis_result(func(self, *args))
 
     def _retrive_data_from_sort(self, data, get):
         if get is not None:
