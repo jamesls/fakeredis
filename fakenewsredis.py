@@ -743,14 +743,23 @@ class FakeStrictRedis(object):
 
         self._check_for_lua_globals(lua_runtime, expected_globals)
 
-        return self._decode_lua_result(result, nested=False)
+        return self._convert_lua_result(result, nested=False)
 
-    def _decode_lua_result(self, result, nested=True):
+    def _convert_redis_result(self, result):
+        if isinstance(result, dict):
+            return [
+                i
+                for item in result.items()
+                for i in item
+            ]
+        return result
+
+    def _convert_lua_result(self, result, nested=True):
         from lupa import lua_type
         if lua_type(result) == 'table':
             for key in ('ok', 'err'):
                 if key in result:
-                    msg = self._decode_lua_result(result[key])
+                    msg = self._convert_lua_result(result[key])
                     if not isinstance(msg, bytes):
                         raise ResponseError("wrong number or type of arguments")
                     if key == 'ok':
@@ -765,7 +774,7 @@ class FakeStrictRedis(object):
                 if index not in result:
                     break
                 item = result[index]
-                result_list.append(self._decode_lua_result(item))
+                result_list.append(self._convert_lua_result(item))
             return result_list
         elif isinstance(result, type(u'')):
             return result.encode()
@@ -824,7 +833,7 @@ class FakeStrictRedis(object):
         op = op.lower()
         func = special_cases[op] if op in special_cases else getattr(FakeStrictRedis, op)
         try:
-            return func(self, *args)
+            return self._convert_redis_result(func(self, *args))
         except Exception as ex:
             raise ResponseError(ex)
 

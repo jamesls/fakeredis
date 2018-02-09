@@ -3120,6 +3120,41 @@ class TestFakeStrictRedis(unittest.TestCase):
         val = self.redis.eval(lua, 0)
         self.assertEqual(val, [[b'foo']])
 
+    def test_eval_mget(self):
+        self.redis.set('{foo}1', 'bar1')
+        self.redis.set('{foo}2', 'bar2')
+        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, 'foo1', 'foo2')
+        self.assertEqual(val, [b'bar1', b'bar2'])
+
+    def test_eval_mget_none(self):
+        self.redis.set('{foo}1', None)
+        self.redis.set('{foo}2', None)
+        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, 'foo1', 'foo2')
+        self.assertEqual(val, [b'None', b'None'])
+
+    def test_eval_mget_not_set(self):
+        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, 'foo1', 'foo2')
+        self.assertEqual(val, [None, None])
+
+    def test_eval_hgetall(self):
+        self.redis.hset('foo', 'k1', 'bar')
+        self.redis.hset('foo', 'k2', 'baz')
+        val = self.redis.eval('return redis.call("hgetall", "foo")', 1, 'foo')
+        self.assertIn(
+            val,
+            [
+                [b'k1', b'bar', b'k2', b'baz'],
+                [b'k2', b'baz', b'k1', b'bar']
+            ]
+        )
+
+    def test_eval_list_with_nil(self):
+        self.redis.lpush('foo', 'bar')
+        self.redis.lpush('foo', None)
+        self.redis.lpush('foo', 'baz')
+        val = self.redis.eval('return redis.call("lrange", KEYS[1], 0, 2)', 1, 'foo')
+        self.assertEqual(val, [b'baz', b'None', b'bar'])
+
     def test_eval_invalid_command(self):
         with self.assertRaises(ResponseError):
             self.redis.eval(
@@ -3163,6 +3198,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         val = self.redis.eval('return true', 0)
         self.assertEqual(val, 1)
         self.assertNotIsInstance(val, bool)
+
+    def test_eval_convert_nil_to_false(self):
+        val = self.redis.eval('return ARGV[1] == false', 0, None)
+        self.assertFalse(val)
 
     def test_eval_return_error(self):
         with self.assertRaises(redis.ResponseError) as cm:
