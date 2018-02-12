@@ -797,40 +797,41 @@ class FakeStrictRedis(object):
         try:
             return self._lua_redis_call(lua_runtime, expected_globals, op, *args)
         except Exception as ex:
-            return lua_runtime.table_from(
-                {"err": str(ex)}
-            )
+            return lua_runtime.table_from({"err": str(ex)})
 
     def _lua_redis_call(self, lua_runtime, expected_globals, op, *args):
         # Check if we've set any global variables before making any change.
         self._check_for_lua_globals(lua_runtime, expected_globals)
-        # These commands aren't necessarily all implemented, but if op is not one of these commands, we expect a
-        # ResponseError for consistency with Redis
+        # These commands aren't necessarily all implemented, but if op is not one of these commands, we expect
+        # a ResponseError for consistency with Redis
         commands = [
-            'APPEND', 'AUTH', 'BITCOUNT', 'BITFIELD', 'BITOP', 'BITPOS', 'BLPOP', 'BRPOP', 'BRPOPLPUSH', 'DECR',
-            'DECRBY', 'DEL', 'DUMP', 'ECHO', 'EVAL', 'EVALSHA', 'EXISTS', 'EXPIRE', 'EXPIREAT', 'FLUSHALL', 'FLUSHDB',
-            'GEOADD', 'GEODIST', 'GEOHASH', 'GEOPOS', 'GEORADIUS', 'GEORADIUSBYMEMBER', 'GET', 'GETBIT', 'GETRANGE',
-            'GETSET', 'HDEL', 'HEXISTS', 'HGET', 'HGETALL', 'HINCRBY', 'HINCRBYFLOAT', 'HKEYS', 'HLEN', 'HMGET',
-            'HMSET', 'HSCAN', 'HSET', 'HSETNX', 'HSTRLEN', 'HVALS', 'INCR', 'INCRBY', 'INCRBYFLOAT', 'INFO', 'KEYS',
-            'LINDEX', 'LINSERT', 'LLEN', 'LPOP', 'LPUSH', 'LPUSHX', 'LRANGE', 'LREM', 'LSET', 'LTRIM', 'MGET',
-            'MIGRATE', 'MOVE', 'MSET', 'MSETNX', 'OBJECT', 'PERSIST', 'PEXPIRE', 'PEXPIREAT', 'PFADD', 'PFCOUNT',
-            'PFMERGE', 'PING', 'PSETEX', 'PSUBSCRIBE', 'PTTL', 'PUBLISH', 'PUBSUB', 'PUNSUBSCRIBE', 'RENAME',
-            'RENAMENX', 'RESTORE', 'RPOP', 'RPOPLPUSH', 'RPUSH', 'RPUSHX', 'SADD', 'SCAN', 'SCARD', 'SDIFF',
-            'SDIFFSTORE', 'SELECT', 'SET', 'SETBIT', 'SETEX', 'SETNX', 'SETRANGE', 'SHUTDOWN', 'SINTER', 'SINTERSTORE',
-            'SISMEMBER', 'SLAVEOF', 'SLOWLOG', 'SMEMBERS', 'SMOVE', 'SORT', 'SPOP', 'SRANDMEMBER', 'SREM', 'SSCAN',
-            'STRLEN', 'SUBSCRIBE', 'SUNION', 'SUNIONSTORE', 'SWAPDB', 'TOUCH', 'TTL', 'TYPE', 'UNLINK', 'UNSUBSCRIBE',
-            'WAIT', 'WATCH', 'ZADD', 'ZCARD', 'ZCOUNT', 'ZINCRBY', 'ZINTERSTORE', 'ZLEXCOUNT', 'ZRANGE', 'ZRANGEBYLEX',
-            'ZRANGEBYSCORE', 'ZRANK', 'ZREM', 'ZREMRANGEBYLEX', 'ZREMRANGEBYRANK', 'ZREMRANGEBYSCORE', 'ZREVRANGE',
-            'ZREVRANGEBYLEX', 'ZREVRANGEBYSCORE', 'ZREVRANK', 'ZSCAN', 'ZSCORE', 'ZUNIONSTORE'
+            'append', 'auth', 'bitcount', 'bitfield', 'bitop', 'bitpos', 'blpop', 'brpop', 'brpoplpush',
+            'decr', 'decrby', 'del', 'dump', 'echo', 'eval', 'evalsha', 'exists', 'expire', 'expireat',
+            'flushall', 'flushdb', 'geoadd', 'geodist', 'geohash', 'geopos', 'georadius', 'georadiusbymember',
+            'get', 'getbit', 'getrange', 'getset', 'hdel', 'hexists', 'hget', 'hgetall', 'hincrby',
+            'hincrbyfloat', 'hkeys', 'hlen', 'hmget', 'hmset', 'hscan', 'hset', 'hsetnx', 'hstrlen', 'hvals',
+            'incr', 'incrby', 'incrbyfloat', 'info', 'keys', 'lindex', 'linsert', 'llen', 'lpop', 'lpush',
+            'lpushx', 'lrange', 'lrem', 'lset', 'ltrim', 'mget', 'migrate', 'move', 'mset', 'msetnx',
+            'object', 'persist', 'pexpire', 'pexpireat', 'pfadd', 'pfcount', 'pfmerge', 'ping', 'psetex',
+            'psubscribe', 'pttl', 'publish', 'pubsub', 'punsubscribe', 'rename', 'renamenx', 'restore',
+            'rpop', 'rpoplpush', 'rpush', 'rpushx', 'sadd', 'scan', 'scard', 'sdiff', 'sdiffstore', 'select',
+            'set', 'setbit', 'setex', 'setnx', 'setrange', 'shutdown', 'sinter', 'sinterstore', 'sismember',
+            'slaveof', 'slowlog', 'smembers', 'smove', 'sort', 'spop', 'srandmember', 'srem', 'sscan',
+            'strlen', 'subscribe', 'sunion', 'sunionstore', 'swapdb', 'touch', 'ttl', 'type', 'unlink',
+            'unsubscribe', 'wait', 'watch', 'zadd', 'zcard', 'zcount', 'zincrby', 'zinterstore', 'zlexcount',
+            'zrange', 'zrangebylex', 'zrangebyscore', 'zrank', 'zrem', 'zremrangebylex', 'zremrangebyrank',
+            'zremrangebyscore', 'zrevrange', 'zrevrangebylex', 'zrevrangebyscore', 'zrevrank', 'zscan',
+            'zscore', 'zunionstore'
         ]
-        if op.upper() not in commands:
+
+        op = op.lower()
+        if op not in commands:
             raise ResponseError("Unknown Redis command called from Lua script")
         special_cases = {
             'del': FakeStrictRedis.delete,
             'decrby': FakeStrictRedis.decr,
             'incrby': FakeStrictRedis.incr
         }
-        op = op.lower()
         func = special_cases[op] if op in special_cases else getattr(FakeStrictRedis, op)
         return self._convert_redis_result(func(self, *args))
 
