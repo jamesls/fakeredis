@@ -720,6 +720,7 @@ class FakeStrictRedis(object):
         elif numkeys < 0:
             raise ResponseError("Number of keys can't be negative")
 
+        keys_and_args = [to_bytes(v) for v in keys_and_args]
         lua_runtime = LuaRuntime(unpack_returned_tuples=True)
 
         set_globals = lua_runtime.eval(
@@ -737,8 +738,8 @@ class FakeStrictRedis(object):
         )
         expected_globals = set()
         set_globals(
-            (None,) + keys_and_args[:numkeys],
-            (None,) + keys_and_args[numkeys:],
+            [None] + keys_and_args[:numkeys],
+            [None] + keys_and_args[numkeys:],
             functools.partial(self._lua_redis_call, lua_runtime, expected_globals),
             functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals)
         )

@@ -3178,7 +3178,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_numkeys_integer_string(self):
         val = self.redis.eval('return KEYS[1]', "1", "foo")
-        self.assertEqual(val, "foo")
+        self.assertEqual(val, b'foo')
 
     def test_numkeys_negative(self):
         with self.assertRaises(ResponseError):
@@ -3221,9 +3221,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(val, 1)
         self.assertNotIsInstance(val, bool)
 
-    def test_eval_convert_nil_to_false(self):
-        val = self.redis.eval('return ARGV[1] == false', 0, None)
-        self.assertFalse(val)
+    def test_eval_none_arg(self):
+        val = self.redis.eval('return ARGV[1] == "None"', 0, None)
+        self.assertTrue(val)
 
     def test_eval_return_error(self):
         with self.assertRaises(redis.ResponseError) as cm:
