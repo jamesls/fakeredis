@@ -705,6 +705,9 @@ class FakeStrictRedis(object):
     def eval(self, script, numkeys, *keys_and_args):
         from lupa import LuaRuntime, LuaError
 
+        if numkeys > len(keys_and_args):
+            raise ResponseError("Number of keys can't be greater than number of args")
+
         lua_runtime = LuaRuntime(unpack_returned_tuples=True)
 
         set_globals = lua_runtime.eval(
