@@ -703,7 +703,7 @@ class FakeStrictRedis(object):
             return []
 
     def eval(self, script, numkeys, *keys_and_args):
-        from lupa import LuaRuntime, LuaSyntaxError
+        from lupa import LuaRuntime, LuaError
 
         lua_runtime = LuaRuntime(unpack_returned_tuples=True)
 
@@ -731,7 +731,7 @@ class FakeStrictRedis(object):
 
         try:
             result = lua_runtime.execute(script)
-        except LuaSyntaxError as ex:
+        except LuaError as ex:
             raise ResponseError(ex)
 
         self._check_for_lua_globals(lua_runtime, expected_globals)

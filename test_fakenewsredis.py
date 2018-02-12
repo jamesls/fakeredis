@@ -3164,6 +3164,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(ResponseError):
             self.redis.eval('return "', 0)
 
+    def test_eval_runtime_error(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('error("CRASH")', 0)
+
     def test_eval_global_variable(self):
         # Redis doesn't allow script to define global variables
         with self.assertRaises(ResponseError):
