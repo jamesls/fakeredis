@@ -772,12 +772,12 @@ class FakeStrictRedis(object):
                 item = result[index]
                 result_list.append(self._convert_lua_result(item))
             return result_list
-        elif isinstance(result, type(u'')):
+        elif isinstance(result, text_type):
             return to_bytes(result)
         elif isinstance(result, float):
             return int(result)
         elif isinstance(result, bool):
-            return result and 1 or None
+            return 1 if result else None
         return result
 
     def _check_for_lua_globals(self, lua_runtime, expected_globals):
