@@ -3140,12 +3140,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.hset('foo', 'k1', 'bar')
         self.redis.hset('foo', 'k2', 'baz')
         val = self.redis.eval('return redis.call("hgetall", "foo")', 1, 'foo')
-        sorted_val = sorted(
-            [
-                val[:2],
-                val[2:]
-            ]
-        )
+        sorted_val = sorted([val[:2], val[2:]])
         self.assertEqual(
             sorted_val,
             [[b'k1', b'bar'], [b'k2', b'baz']]
