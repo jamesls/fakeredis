@@ -3123,17 +3123,17 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_eval_mget(self):
         self.redis.set('{foo}1', 'bar1')
         self.redis.set('{foo}2', 'bar2')
-        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, 'foo1', 'foo2')
+        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, '{foo}1', '{foo}2')
         self.assertEqual(val, [b'bar1', b'bar2'])
 
     def test_eval_mget_none(self):
         self.redis.set('{foo}1', None)
         self.redis.set('{foo}2', None)
-        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, 'foo1', 'foo2')
+        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, '{foo}1', '{foo}2')
         self.assertEqual(val, [b'None', b'None'])
 
     def test_eval_mget_not_set(self):
-        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, 'foo1', 'foo2')
+        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, '{foo}1', '{foo}2')
         self.assertEqual(val, [None, None])
 
     def test_eval_hgetall(self):
@@ -3171,6 +3171,22 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_more_keys_than_args(self):
         with self.assertRaises(ResponseError):
             self.redis.eval('return 1', 42)
+
+    def test_numkeys_float_string(self):
+        with self.assertRaises(ResponseError):
+            val = self.redis.eval('return KEYS[1]', '0.7', 'foo')
+
+    def test_numkeys_integer_string(self):
+        val = self.redis.eval('return KEYS[1]', "1", "foo")
+        self.assertEqual(val, "foo")
+
+    def test_numkeys_negative(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return KEYS[1]', -1, "foo")
+
+    def test_numkeys_float(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return KEYS[1]', 0.7, "foo")
 
     def test_eval_global_variable(self):
         # Redis doesn't allow script to define global variables

@@ -705,8 +705,20 @@ class FakeStrictRedis(object):
     def eval(self, script, numkeys, *keys_and_args):
         from lupa import LuaRuntime, LuaError
 
-        if numkeys > len(keys_and_args):
+        if any(
+            isinstance(numkeys, t) for t in (text_type, str, bytes)
+        ):
+            try:
+                numkeys = int(numkeys)
+            except ValueError:
+                # Non-numeric string will be handled below.
+                pass
+        if not(isinstance(numkeys, int)):
+            raise ResponseError("value is not an integer or out of range")
+        elif numkeys > len(keys_and_args):
             raise ResponseError("Number of keys can't be greater than number of args")
+        elif numkeys < 0:
+            raise ResponseError("Number of keys can't be negative")
 
         lua_runtime = LuaRuntime(unpack_returned_tuples=True)
 
