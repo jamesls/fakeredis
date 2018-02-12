@@ -3121,19 +3121,19 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(val, [[b'foo']])
 
     def test_eval_mget(self):
-        self.redis.set('{foo}1', 'bar1')
-        self.redis.set('{foo}2', 'bar2')
-        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, '{foo}1', '{foo}2')
+        self.redis.set('foo1', 'bar1')
+        self.redis.set('foo2', 'bar2')
+        val = self.redis.eval('return redis.call("mget", "foo1", "foo2")', 2, 'foo1', 'foo2')
         self.assertEqual(val, [b'bar1', b'bar2'])
 
     def test_eval_mget_none(self):
-        self.redis.set('{foo}1', None)
-        self.redis.set('{foo}2', None)
-        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, '{foo}1', '{foo}2')
+        self.redis.set('foo1', None)
+        self.redis.set('foo2', None)
+        val = self.redis.eval('return redis.call("mget", "foo1", "foo2")', 2, 'foo1', 'foo2')
         self.assertEqual(val, [b'None', b'None'])
 
     def test_eval_mget_not_set(self):
-        val = self.redis.eval('return redis.call("mget", "{foo}1", "{foo}2")', 2, '{foo}1', '{foo}2')
+        val = self.redis.eval('return redis.call("mget", "foo1", "foo2")', 2, 'foo1', 'foo2')
         self.assertEqual(val, [None, None])
 
     def test_eval_hgetall(self):
