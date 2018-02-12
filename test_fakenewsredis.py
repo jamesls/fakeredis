@@ -3174,7 +3174,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_numkeys_float_string(self):
         with self.assertRaises(ResponseError):
-            val = self.redis.eval('return KEYS[1]', '0.7', 'foo')
+            self.redis.eval('return KEYS[1]', '0.7', 'foo')
 
     def test_numkeys_integer_string(self):
         val = self.redis.eval('return KEYS[1]', "1", "foo")
