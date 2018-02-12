@@ -703,13 +703,6 @@ class FakeStrictRedis(object):
             return []
 
     def eval(self, script, numkeys, *keys_and_args):
-        """
-        Execute the Lua ``script``, specifying the ``numkeys`` the script
-        will touch and the key names and argument values in ``keys_and_args``.
-        Returns the result of the script.
-        In practice, use the object returned by ``register_script``. This
-        function exists purely for Redis API completion.
-        """
         from lupa import LuaRuntime, LuaSyntaxError
 
         lua_runtime = LuaRuntime(unpack_returned_tuples=True)
