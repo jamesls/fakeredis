@@ -266,7 +266,7 @@ Revision history
 ================
 
 Development version
------
+-------------------
 - `#9 <https://github.com/ska-sa/fakenewsredis/pull/9>`_ Add support for StrictRedis.eval for Lua scripts
 
 0.9.4
