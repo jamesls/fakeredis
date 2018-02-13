@@ -3046,6 +3046,231 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'foo')
         self.assertEqual(self.redis.ttl('foo'), -1)
 
+    def test_eval_delete(self):
+        self.redis.set('foo', 'bar')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'bar')
+        val = self.redis.eval('redis.call("DEL", KEYS[1])', 1, 'foo')
+        self.assertIsNone(val)
+
+    def test_eval_set_value_to_arg(self):
+        self.redis.eval('redis.call("SET", KEYS[1], ARGV[1])', 1, 'foo', 'bar')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'bar')
+
+    def test_eval_conditional(self):
+        lua = """
+        local val = redis.call("GET", KEYS[1])
+        if val == ARGV[1] then
+            redis.call("SET", KEYS[1], ARGV[2])
+        else
+            redis.call("SET", KEYS[1], ARGV[1])
+        end
+        """
+        self.redis.eval(lua, 1, 'foo', 'bar', 'baz')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'bar')
+        self.redis.eval(lua, 1, 'foo', 'bar', 'baz')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'baz')
+
+    def test_eval_lrange(self):
+        self.redis.lpush("foo", "bar")
+        val = self.redis.eval('return redis.call("LRANGE", KEYS[1], 0, 1)', 1, 'foo')
+        self.assertEqual(val, [b'bar'])
+
+    def test_eval_table(self):
+        lua = """
+        local a = {}
+        a[1] = "foo"
+        a[2] = "bar"
+        a[17] = "baz"
+        return a
+        """
+        val = self.redis.eval(lua, 0)
+        self.assertEqual(val, [b'foo', b'bar'])
+
+    def test_eval_table_with_nil(self):
+        lua = """
+        local a = {}
+        a[1] = "foo"
+        a[2] = nil
+        a[3] = "bar"
+        return a
+        """
+        val = self.redis.eval(lua, 0)
+        self.assertEqual(val, [b'foo'])
+
+    def test_eval_table_with_numbers(self):
+        lua = """
+        local a = {}
+        a[1] = 42
+        return a
+        """
+        val = self.redis.eval(lua, 0)
+        self.assertEqual(val, [42])
+
+    def test_eval_nested_table(self):
+        lua = """
+        local a = {}
+        a[1] = {}
+        a[1][1] = "foo"
+        return a
+        """
+        val = self.redis.eval(lua, 0)
+        self.assertEqual(val, [[b'foo']])
+
+    def test_eval_mget(self):
+        self.redis.set('foo1', 'bar1')
+        self.redis.set('foo2', 'bar2')
+        val = self.redis.eval('return redis.call("mget", "foo1", "foo2")', 2, 'foo1', 'foo2')
+        self.assertEqual(val, [b'bar1', b'bar2'])
+
+    def test_eval_mget_none(self):
+        self.redis.set('foo1', None)
+        self.redis.set('foo2', None)
+        val = self.redis.eval('return redis.call("mget", "foo1", "foo2")', 2, 'foo1', 'foo2')
+        self.assertEqual(val, [b'None', b'None'])
+
+    def test_eval_mget_not_set(self):
+        val = self.redis.eval('return redis.call("mget", "foo1", "foo2")', 2, 'foo1', 'foo2')
+        self.assertEqual(val, [None, None])
+
+    def test_eval_hgetall(self):
+        self.redis.hset('foo', 'k1', 'bar')
+        self.redis.hset('foo', 'k2', 'baz')
+        val = self.redis.eval('return redis.call("hgetall", "foo")', 1, 'foo')
+        sorted_val = sorted([val[:2], val[2:]])
+        self.assertEqual(
+            sorted_val,
+            [[b'k1', b'bar'], [b'k2', b'baz']]
+        )
+
+    def test_eval_list_with_nil(self):
+        self.redis.lpush('foo', 'bar')
+        self.redis.lpush('foo', None)
+        self.redis.lpush('foo', 'baz')
+        val = self.redis.eval('return redis.call("lrange", KEYS[1], 0, 2)', 1, 'foo')
+        self.assertEqual(val, [b'baz', b'None', b'bar'])
+
+    def test_eval_invalid_command(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval(
+                'return redis.call("FOO")',
+                0
+            )
+
+    def test_eval_syntax_error(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return "', 0)
+
+    def test_eval_runtime_error(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('error("CRASH")', 0)
+
+    def test_more_keys_than_args(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return 1', 42)
+
+    def test_numkeys_float_string(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return KEYS[1]', '0.7', 'foo')
+
+    def test_numkeys_integer_string(self):
+        val = self.redis.eval('return KEYS[1]', "1", "foo")
+        self.assertEqual(val, b'foo')
+
+    def test_numkeys_negative(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return KEYS[1]', -1, "foo")
+
+    def test_numkeys_float(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return KEYS[1]', 0.7, "foo")
+
+    def test_eval_global_variable(self):
+        # Redis doesn't allow script to define global variables
+        with self.assertRaises(ResponseError):
+            self.redis.eval('a=10', 0)
+
+    def test_eval_global_and_return_ok(self):
+        # Redis doesn't allow script to define global variables
+        with self.assertRaises(ResponseError):
+            self.redis.eval(
+                '''
+                a=10
+                return redis.status_reply("Everything is awesome")
+                ''',
+                0
+            )
+
+    def test_eval_convert_number(self):
+        # Redis forces all Lua numbers to integer
+        val = self.redis.eval('return 3.2', 0)
+        self.assertEqual(val, 3)
+        val = self.redis.eval('return 3.8', 0)
+        self.assertEqual(val, 3)
+        val = self.redis.eval('return -3.8', 0)
+        self.assertEqual(val, -3)
+
+    def test_eval_convert_bool(self):
+        # Redis converts true to 1 and false to nil (which redis-py converts to None)
+        val = self.redis.eval('return false', 0)
+        self.assertIsNone(val)
+        val = self.redis.eval('return true', 0)
+        self.assertEqual(val, 1)
+        self.assertNotIsInstance(val, bool)
+
+    def test_eval_none_arg(self):
+        val = self.redis.eval('return ARGV[1] == "None"', 0, None)
+        self.assertTrue(val)
+
+    def test_eval_return_error(self):
+        with self.assertRaises(redis.ResponseError) as cm:
+            self.redis.eval('return {err="Testing"}', 0)
+        self.assertIn('Testing', str(cm.exception))
+        with self.assertRaises(redis.ResponseError) as cm:
+            self.redis.eval('return redis.error_reply("Testing")', 0)
+        self.assertIn('Testing', str(cm.exception))
+
+    def test_eval_return_ok(self):
+        val = self.redis.eval('return {ok="Testing"}', 0)
+        self.assertEqual(val, b'Testing')
+        val = self.redis.eval('return redis.status_reply("Testing")', 0)
+        self.assertEqual(val, b'Testing')
+
+    def test_eval_return_ok_nested(self):
+        val = self.redis.eval(
+            '''
+            local a = {}
+            a[1] = {ok="Testing"}
+            return a
+            ''',
+            0
+        )
+        self.assertEqual(val, [b'Testing'])
+
+    def test_eval_return_ok_wrong_type(self):
+        with self.assertRaises(redis.ResponseError):
+            self.redis.eval('return redis.status_reply(123)', 0)
+
+    def test_eval_pcall(self):
+        val = self.redis.eval(
+            '''
+            local a = {}
+            a[1] = redis.pcall("foo")
+            return a
+            ''',
+            0
+        )
+        self.assertIsInstance(val, list)
+        self.assertEqual(len(val), 1)
+        self.assertIsInstance(val[0], ResponseError)
+
+    def test_eval_pcall_return_value(self):
+        with self.assertRaises(ResponseError):
+            self.redis.eval('return redis.pcall("foo")', 0)
+
 
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False

@@ -203,7 +203,6 @@ scripting
  * script kill
  * script load
  * evalsha
- * eval
  * script exists
 
 
@@ -265,6 +264,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 
 Revision history
 ================
+
+Development version
+-----
+- `#9 <https://github.com/ska-sa/fakenewsredis/pull/9>`_ Add support for StrictRedis.eval for Lua scripts
 
 0.9.4
 -----

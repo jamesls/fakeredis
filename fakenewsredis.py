@@ -14,6 +14,7 @@ import time
 import types
 import re
 import functools
+from itertools import count
 
 import redis
 from redis.exceptions import ResponseError
@@ -700,6 +701,148 @@ class FakeStrictRedis(object):
                 return self._retrive_data_from_sort(data, get)
         except KeyError:
             return []
+
+    def eval(self, script, numkeys, *keys_and_args):
+        from lupa import LuaRuntime, LuaError
+
+        if any(
+            isinstance(numkeys, t) for t in (text_type, str, bytes)
+        ):
+            try:
+                numkeys = int(numkeys)
+            except ValueError:
+                # Non-numeric string will be handled below.
+                pass
+        if not(isinstance(numkeys, int)):
+            raise ResponseError("value is not an integer or out of range")
+        elif numkeys > len(keys_and_args):
+            raise ResponseError("Number of keys can't be greater than number of args")
+        elif numkeys < 0:
+            raise ResponseError("Number of keys can't be negative")
+
+        keys_and_args = [to_bytes(v) for v in keys_and_args]
+        lua_runtime = LuaRuntime(unpack_returned_tuples=True)
+
+        set_globals = lua_runtime.eval(
+            """
+            function(keys, argv, redis_call, redis_pcall)
+                redis = {}
+                redis.call = redis_call
+                redis.pcall = redis_pcall
+                redis.error_reply = function(msg) return {err=msg} end
+                redis.status_reply = function(msg) return {ok=msg} end
+                KEYS = keys
+                ARGV = argv
+            end
+            """
+        )
+        expected_globals = set()
+        set_globals(
+            [None] + keys_and_args[:numkeys],
+            [None] + keys_and_args[numkeys:],
+            functools.partial(self._lua_redis_call, lua_runtime, expected_globals),
+            functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals)
+        )
+        expected_globals.update(lua_runtime.globals().keys())
+
+        try:
+            result = lua_runtime.execute(script)
+        except LuaError as ex:
+            raise ResponseError(ex)
+
+        self._check_for_lua_globals(lua_runtime, expected_globals)
+
+        return self._convert_lua_result(result, nested=False)
+
+    def _convert_redis_result(self, result):
+        if isinstance(result, dict):
+            return [
+                i
+                for item in result.items()
+                for i in item
+            ]
+        return result
+
+    def _convert_lua_result(self, result, nested=True):
+        from lupa import lua_type
+        if lua_type(result) == 'table':
+            for key in ('ok', 'err'):
+                if key in result:
+                    msg = self._convert_lua_result(result[key])
+                    if not isinstance(msg, bytes):
+                        raise ResponseError("wrong number or type of arguments")
+                    if key == 'ok':
+                        return msg
+                    elif nested:
+                        return ResponseError(msg)
+                    else:
+                        raise ResponseError(msg)
+            # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
+            result_list = []
+            for index in count(1):
+                if index not in result:
+                    break
+                item = result[index]
+                result_list.append(self._convert_lua_result(item))
+            return result_list
+        elif isinstance(result, text_type):
+            return to_bytes(result)
+        elif isinstance(result, float):
+            return int(result)
+        elif isinstance(result, bool):
+            return 1 if result else None
+        return result
+
+    def _check_for_lua_globals(self, lua_runtime, expected_globals):
+        actual_globals = set(lua_runtime.globals().keys())
+        if actual_globals != expected_globals:
+            raise ResponseError(
+                "Script attempted to set a global variables: %s" % ", ".join(
+                    actual_globals - expected_globals
+                )
+            )
+
+    def _lua_redis_pcall(self, lua_runtime, expected_globals, op, *args):
+        try:
+            return self._lua_redis_call(lua_runtime, expected_globals, op, *args)
+        except Exception as ex:
+            return lua_runtime.table_from({"err": str(ex)})
+
+    def _lua_redis_call(self, lua_runtime, expected_globals, op, *args):
+        # Check if we've set any global variables before making any change.
+        self._check_for_lua_globals(lua_runtime, expected_globals)
+        # These commands aren't necessarily all implemented, but if op is not one of these commands, we expect
+        # a ResponseError for consistency with Redis
+        commands = [
+            'append', 'auth', 'bitcount', 'bitfield', 'bitop', 'bitpos', 'blpop', 'brpop', 'brpoplpush',
+            'decr', 'decrby', 'del', 'dump', 'echo', 'eval', 'evalsha', 'exists', 'expire', 'expireat',
+            'flushall', 'flushdb', 'geoadd', 'geodist', 'geohash', 'geopos', 'georadius', 'georadiusbymember',
+            'get', 'getbit', 'getrange', 'getset', 'hdel', 'hexists', 'hget', 'hgetall', 'hincrby',
+            'hincrbyfloat', 'hkeys', 'hlen', 'hmget', 'hmset', 'hscan', 'hset', 'hsetnx', 'hstrlen', 'hvals',
+            'incr', 'incrby', 'incrbyfloat', 'info', 'keys', 'lindex', 'linsert', 'llen', 'lpop', 'lpush',
+            'lpushx', 'lrange', 'lrem', 'lset', 'ltrim', 'mget', 'migrate', 'move', 'mset', 'msetnx',
+            'object', 'persist', 'pexpire', 'pexpireat', 'pfadd', 'pfcount', 'pfmerge', 'ping', 'psetex',
+            'psubscribe', 'pttl', 'publish', 'pubsub', 'punsubscribe', 'rename', 'renamenx', 'restore',
+            'rpop', 'rpoplpush', 'rpush', 'rpushx', 'sadd', 'scan', 'scard', 'sdiff', 'sdiffstore', 'select',
+            'set', 'setbit', 'setex', 'setnx', 'setrange', 'shutdown', 'sinter', 'sinterstore', 'sismember',
+            'slaveof', 'slowlog', 'smembers', 'smove', 'sort', 'spop', 'srandmember', 'srem', 'sscan',
+            'strlen', 'subscribe', 'sunion', 'sunionstore', 'swapdb', 'touch', 'ttl', 'type', 'unlink',
+            'unsubscribe', 'wait', 'watch', 'zadd', 'zcard', 'zcount', 'zincrby', 'zinterstore', 'zlexcount',
+            'zrange', 'zrangebylex', 'zrangebyscore', 'zrank', 'zrem', 'zremrangebylex', 'zremrangebyrank',
+            'zremrangebyscore', 'zrevrange', 'zrevrangebylex', 'zrevrangebyscore', 'zrevrank', 'zscan',
+            'zscore', 'zunionstore'
+        ]
+
+        op = op.lower()
+        if op not in commands:
+            raise ResponseError("Unknown Redis command called from Lua script")
+        special_cases = {
+            'del': FakeStrictRedis.delete,
+            'decrby': FakeStrictRedis.decr,
+            'incrby': FakeStrictRedis.incr
+        }
+        func = special_cases[op] if op in special_cases else getattr(FakeStrictRedis, op)
+        return self._convert_redis_result(func(self, *args))
 
     def _retrive_data_from_sort(self, data, get):
         if get is not None:

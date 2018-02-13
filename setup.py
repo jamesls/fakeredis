@@ -30,5 +30,8 @@ setup(
     ],
     install_requires=[
         'redis',
-    ]
+    ],
+    extras_require={
+        "lua": ['lupa']
+    }
 )
