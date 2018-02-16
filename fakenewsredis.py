@@ -698,7 +698,7 @@ class FakeStrictRedis(object):
                 self._db[store] = data
                 return len(data)
             else:
-                return self._retrive_data_from_sort(data, get)
+                return self._retrieve_data_from_sort(data, get)
         except KeyError:
             return []
 
@@ -844,7 +844,7 @@ class FakeStrictRedis(object):
         func = special_cases[op] if op in special_cases else getattr(FakeStrictRedis, op)
         return self._convert_redis_result(func(self, *args))
 
-    def _retrive_data_from_sort(self, data, get):
+    def _retrieve_data_from_sort(self, data, get):
         if get is not None:
             if isinstance(get, string_types):
                 get = [get]
