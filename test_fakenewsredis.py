@@ -3291,6 +3291,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             ''', 0
         )
 
+        self.assertEqual(val, 1)
         self.assertNotIn('r1', r1)
         self.assertNotIn('r2', r2)
 
@@ -3305,9 +3306,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(val, 1)
 
     def test_eval_lrange(self):
-        self.redis.lpush("foo", "bar")
-        val = self.redis.eval('return redis.call("LRANGE", KEYS[1], 0, 1)', 1, 'foo')
-        self.assertEqual(val, [b'bar'])
+        self.redis.rpush('foo', 'a', 'b')
+        val = self.redis.eval(
+            '''
+            local value = redis.call("LRANGE", KEYS[1], 0, -1);
+            return type(value) == "table" and value[1] == "a" and value[2] == "b";
+            ''', 1, 'foo'
+        )
+        self.assertEqual(val, 1)
 
     def test_eval_ltrim(self):
         self.redis.rpush('foo', 'a', 'b', 'c', 'd')
@@ -3319,16 +3325,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         )
         self.assertEqual(val, 1)
         self.assertEqual(self.redis.lrange('foo', 0, -1), [b'b', b'c'])
-
-    def test_eval_lrange(self):
-        self.redis.rpush('foo', 'a', 'b')
-        val = self.redis.eval(
-            '''
-            local value = redis.call("LRANGE", KEYS[1], 0, -1);
-            return type(value) == "table" and value[1] == "a" and value[2] == "b";
-            ''', 1, 'foo'
-        )
-        self.assertEqual(val, 1)
 
     def test_eval_lset(self):
         self.redis.rpush('foo', 'a', 'b')
