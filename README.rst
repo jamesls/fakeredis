@@ -75,6 +75,8 @@ test you run, be sure to call `r.flushall()` in your
         # Clear data in fakenewsredis.
         self.r.flushall()
 
+Alternatively, you can create an instance that does not share data with other
+instances, by passing `singleton=False` to the constructor.
 
 Fakenewsredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
