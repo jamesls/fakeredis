@@ -781,6 +781,12 @@ class FakeStrictRedis(object):
                 for item in result.items()
                 for i in item
             ]
+        elif isinstance(result, set):
+            converted = sorted(
+                self._convert_redis_result(lua_runtime, item)
+                for item in result
+            )
+            return lua_runtime.table_from(converted)
         elif isinstance(result, (list, set, tuple)):
             converted = [
                 self._convert_redis_result(lua_runtime, item)

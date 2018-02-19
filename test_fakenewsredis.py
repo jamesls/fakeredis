@@ -3338,7 +3338,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrange('foo', 0, -1), [b'z', b'b'])
 
     def test_eval_sdiff(self):
-        self.redis.sadd('foo', 'a', 'b', 'c')
+        self.redis.sadd('foo', 'a', 'b', 'c', 'f', 'e', 'd')
         self.redis.sadd('bar', 'b')
         val = self.redis.eval(
             '''
@@ -3349,7 +3349,8 @@ class TestFakeStrictRedis(unittest.TestCase):
                 return value;
             end
             ''', 2, 'foo', 'bar')
-        self.assertEqual(set(val), set([b'a', b'c']))
+        # Lua must receive the set *sorted*
+        self.assertEqual(val, [b'a', b'c', b'd', b'e', b'f'])
 
 
 class TestFakeRedis(unittest.TestCase):
