@@ -267,6 +267,13 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.10.0
+------
+- `#14 <https://github.com/ska-sa/fakenewsredis/pull/14>`_ Add option to create an instance with non-shared data
+- `#13 <https://github.com/ska-sa/fakenewsredis/pull/13>`_ Improve emulation of redis -> Lua returns
+- `#12 <https://github.com/ska-sa/fakenewsredis/pull/12>`_ Update tox.ini: py35/py36 and extras for eval tests
+- `#11 <https://github.com/ska-sa/fakenewsredis/pull/11>`_ Fix typo in private method name
+
 0.9.5
 -----
 This release makes a start on supporting Lua scripting:
