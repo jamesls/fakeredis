@@ -3644,6 +3644,24 @@ class TestInitArgs(unittest.TestCase):
         fakenewsredis.FakeRedis(foo='bar', bar='baz')
         fakenewsredis.FakeStrictRedis(foo='bar', bar='baz')
 
+    def test_singleton(self):
+        r1 = fakenewsredis.FakeStrictRedis(singleton=False)
+        r2 = fakenewsredis.FakeStrictRedis(singleton=False)
+        r3 = fakenewsredis.FakeStrictRedis()
+        r4 = fakenewsredis.FakeStrictRedis()
+        r3.flushall()
+
+        r1.set('foo', 'bar')
+        r3.set('bar', 'baz')
+
+        self.assertIn('foo', r1)
+        self.assertNotIn('foo', r2)
+        self.assertNotIn('foo', r3)
+
+        self.assertIn('bar', r3)
+        self.assertIn('bar', r4)
+        self.assertNotIn('bar', r1)
+
     def test_from_url(self):
         db = fakenewsredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/0')

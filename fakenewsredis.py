@@ -269,10 +269,14 @@ class FakeStrictRedis(object):
         return cls(db=db, **kwargs)
 
     def __init__(self, db=0, charset='utf-8', errors='strict',
-                 decode_responses=False, **kwargs):
-        if db not in DATABASES:
-            DATABASES[db] = _ExpiringDict()
-        self._db = DATABASES[db]
+                 decode_responses=False, singleton=True, **kwargs):
+        if singleton:
+            self._dbs = DATABASES
+        else:
+            self._dbs = {}
+        if db not in self._dbs:
+            self._dbs[db] = _ExpiringDict()
+        self._db = self._dbs[db]
         self._db_num = db
         self._encoding = charset
         self._encoding_errors = errors
@@ -282,12 +286,12 @@ class FakeStrictRedis(object):
             _patch_responses(self)
 
     def flushdb(self):
-        DATABASES[self._db_num].clear()
+        self._db.clear()
         return True
 
     def flushall(self):
-        for db in DATABASES:
-            DATABASES[db].clear()
+        for db in self._dbs.values():
+            db.clear()
 
         del self._pubsubs[:]
 
