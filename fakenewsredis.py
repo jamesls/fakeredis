@@ -225,6 +225,19 @@ def _patch_responses(obj):
         setattr(obj, attr_name, func)
 
 
+def _lua_bool_ok(lua_runtime, value):
+    # Inverse of bool_ok wrapper from redis-py
+    return lua_runtime.table(ok='OK')
+
+
+def _lua_reply(converter):
+    def decorator(func):
+        func._lua_reply = converter
+        return func
+
+    return decorator
+
+
 def _remove_empty(func):
     @functools.wraps(func)
     def wrapper(self, key, *args, **kwargs):
@@ -285,15 +298,18 @@ class FakeStrictRedis(object):
         if decode_responses:
             _patch_responses(self)
 
+    @_lua_reply(_lua_bool_ok)
     def flushdb(self):
         self._db.clear()
         return True
 
+    @_lua_reply(_lua_bool_ok)
     def flushall(self):
         for db in self._dbs.values():
             db.clear()
 
         del self._pubsubs[:]
+        return True
 
     def _remove_if_empty(self, key):
         try:
@@ -464,6 +480,7 @@ class FakeStrictRedis(object):
             found.append(value)
         return found
 
+    @_lua_reply(_lua_bool_ok)
     def mset(self, *args, **kwargs):
         if args:
             if len(args) != 1 or not isinstance(args[0], dict):
@@ -497,6 +514,7 @@ class FakeStrictRedis(object):
     def randomkey(self):
         pass
 
+    @_lua_reply(_lua_bool_ok)
     def rename(self, src, dst):
         try:
             value = self._db[src]
@@ -640,9 +658,11 @@ class FakeStrictRedis(object):
             assert key is None
             return b'none'
 
+    @_lua_reply(_lua_bool_ok)
     def watch(self, *names):
         pass
 
+    @_lua_reply(_lua_bool_ok)
     def unwatch(self):
         pass
 
@@ -758,14 +778,33 @@ class FakeStrictRedis(object):
 
         return self._convert_lua_result(result, nested=False)
 
-    def _convert_redis_result(self, result):
+    def _convert_redis_result(self, lua_runtime, result):
         if isinstance(result, dict):
             return [
                 i
                 for item in result.items()
                 for i in item
             ]
-        return result
+        elif isinstance(result, set):
+            converted = sorted(
+                self._convert_redis_result(lua_runtime, item)
+                for item in result
+            )
+            return lua_runtime.table_from(converted)
+        elif isinstance(result, (list, set, tuple)):
+            converted = [
+                self._convert_redis_result(lua_runtime, item)
+                for item in result
+            ]
+            return lua_runtime.table_from(converted)
+        elif isinstance(result, bool):
+            return int(result)
+        elif isinstance(result, float):
+            return to_bytes(result)
+        elif result is None:
+            return False
+        else:
+            return result
 
     def _convert_lua_result(self, result, nested=True):
         from lupa import lua_type
@@ -846,7 +885,9 @@ class FakeStrictRedis(object):
             'incrby': FakeStrictRedis.incr
         }
         func = special_cases[op] if op in special_cases else getattr(FakeStrictRedis, op)
-        return self._convert_redis_result(func(self, *args))
+        result = func(self, *args)
+        converter = getattr(func, '_lua_reply', self._convert_redis_result)
+        return converter(lua_runtime, result)
 
     def _retrieve_data_from_sort(self, data, get):
         if get is not None:
@@ -969,6 +1010,7 @@ class FakeStrictRedis(object):
         except IndexError:
             return None
 
+    @_lua_reply(_lua_bool_ok)
     def lset(self, name, index, value):
         try:
             lst = self._get_list_or_none(name)
@@ -977,10 +1019,12 @@ class FakeStrictRedis(object):
             lst[index] = to_bytes(value)
         except IndexError:
             raise redis.ResponseError("index out of range")
+        return True
 
     def rpushx(self, name, value):
         self._get_list(name).append(to_bytes(value))
 
+    @_lua_reply(_lua_bool_ok)
     def ltrim(self, name, start, end):
         val = self._get_list_or_none(name)
         if val is not None:
@@ -1886,6 +1930,7 @@ class FakeStrictRedis(object):
         """
         return len(self.sunion(*sources))
 
+    @_lua_reply(_lua_bool_ok)
     def pfmerge(self, dest, *sources):
         "Merge N different HyperLogLogs into a single one."
         self.sunionstore(dest, sources)

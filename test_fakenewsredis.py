@@ -588,7 +588,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrange(
             'foo', 0, -1), ['[12345L, 6789L]', '[54321L, 9876L]'] if PY2 else
                            [b'[12345, 6789]', b'[54321, 9876]'])
-        self.redis.flushall()
 
     def test_rpush_then_lrange_with_nested_list2(self):
         self.assertEqual(self.redis.rpush('foo', [long(12345), 'banana']), 1)
@@ -597,7 +596,6 @@ class TestFakeStrictRedis(unittest.TestCase):
             'foo', 0, -1),
             ['[12345L, \'banana\']', '[54321L, \'elephant\']'] if PY2 else
             [b'[12345, \'banana\']', b'[54321, \'elephant\']'])
-        self.redis.flushall()
 
     def test_rpush_then_lrange_with_nested_list3(self):
         self.assertEqual(self.redis.rpush('foo', [long(12345), []]), 1)
@@ -606,7 +604,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrange(
             'foo', 0, -1), ['[12345L, []]', '[54321L, []]'] if PY2 else
                            [b'[12345, []]', b'[54321, []]'])
-        self.redis.flushall()
 
     def test_lpush_then_lrange_all(self):
         self.assertEqual(self.redis.lpush('foo', 'bar'), 1)
@@ -2309,7 +2306,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(r1['r1'], b'r1')
         self.assertEqual(r2['r2'], b'r2')
 
-        r1.flushall()
+        self.assertEqual(r1.flushall(), True)
 
         self.assertTrue('r1' not in r1)
         self.assertTrue('r2' not in r2)
@@ -3046,13 +3043,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'foo')
         self.assertEqual(self.redis.ttl('foo'), -1)
 
-    def test_eval_delete(self):
-        self.redis.set('foo', 'bar')
-        val = self.redis.get('foo')
-        self.assertEqual(val, b'bar')
-        val = self.redis.eval('redis.call("DEL", KEYS[1])', 1, 'foo')
-        self.assertIsNone(val)
-
     def test_eval_set_value_to_arg(self):
         self.redis.eval('redis.call("SET", KEYS[1], ARGV[1])', 1, 'foo', 'bar')
         val = self.redis.get('foo')
@@ -3073,11 +3063,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.eval(lua, 1, 'foo', 'bar', 'baz')
         val = self.redis.get('foo')
         self.assertEqual(val, b'baz')
-
-    def test_eval_lrange(self):
-        self.redis.lpush("foo", "bar")
-        val = self.redis.eval('return redis.call("LRANGE", KEYS[1], 0, 1)', 1, 'foo')
-        self.assertEqual(val, [b'bar'])
 
     def test_eval_table(self):
         lua = """
@@ -3168,23 +3153,23 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(ResponseError):
             self.redis.eval('error("CRASH")', 0)
 
-    def test_more_keys_than_args(self):
+    def test_eval_more_keys_than_args(self):
         with self.assertRaises(ResponseError):
             self.redis.eval('return 1', 42)
 
-    def test_numkeys_float_string(self):
+    def test_eval_numkeys_float_string(self):
         with self.assertRaises(ResponseError):
             self.redis.eval('return KEYS[1]', '0.7', 'foo')
 
-    def test_numkeys_integer_string(self):
+    def test_eval_numkeys_integer_string(self):
         val = self.redis.eval('return KEYS[1]', "1", "foo")
         self.assertEqual(val, b'foo')
 
-    def test_numkeys_negative(self):
+    def test_eval_numkeys_negative(self):
         with self.assertRaises(ResponseError):
             self.redis.eval('return KEYS[1]', -1, "foo")
 
-    def test_numkeys_float(self):
+    def test_eval_numkeys_float(self):
         with self.assertRaises(ResponseError):
             self.redis.eval('return KEYS[1]', 0.7, "foo")
 
@@ -3270,6 +3255,102 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_eval_pcall_return_value(self):
         with self.assertRaises(ResponseError):
             self.redis.eval('return redis.pcall("foo")', 0)
+
+    def test_eval_delete(self):
+        self.redis.set('foo', 'bar')
+        val = self.redis.get('foo')
+        self.assertEqual(val, b'bar')
+        val = self.redis.eval('redis.call("DEL", KEYS[1])', 1, 'foo')
+        self.assertIsNone(val)
+
+    def test_eval_exists(self):
+        val = self.redis.eval('return redis.call("exists", KEYS[1]) == 0', 1, 'foo')
+        self.assertEqual(val, 1)
+
+    def test_eval_flushdb(self):
+        self.redis.set('foo', 'bar')
+        val = self.redis.eval(
+            '''
+            local value = redis.call("FLUSHDB");
+            return type(value) == "table" and value.ok == "OK";
+            ''', 0
+        )
+        self.assertEqual(val, 1)
+
+    def test_eval_flushall(self):
+        r1 = self.create_redis(db=0)
+        r2 = self.create_redis(db=1)
+
+        r1['r1'] = 'r1'
+        r2['r2'] = 'r2'
+
+        val = self.redis.eval(
+            '''
+            local value = redis.call("FLUSHALL");
+            return type(value) == "table" and value.ok == "OK";
+            ''', 0
+        )
+
+        self.assertEqual(val, 1)
+        self.assertNotIn('r1', r1)
+        self.assertNotIn('r2', r2)
+
+    def test_eval_incrbyfloat(self):
+        self.redis.set('foo', 0.5)
+        val = self.redis.eval(
+            '''
+            local value = redis.call("INCRBYFLOAT", KEYS[1], 2.0);
+            return type(value) == "string" and tonumber(value) == 2.5;
+            ''', 1, 'foo'
+        )
+        self.assertEqual(val, 1)
+
+    def test_eval_lrange(self):
+        self.redis.rpush('foo', 'a', 'b')
+        val = self.redis.eval(
+            '''
+            local value = redis.call("LRANGE", KEYS[1], 0, -1);
+            return type(value) == "table" and value[1] == "a" and value[2] == "b";
+            ''', 1, 'foo'
+        )
+        self.assertEqual(val, 1)
+
+    def test_eval_ltrim(self):
+        self.redis.rpush('foo', 'a', 'b', 'c', 'd')
+        val = self.redis.eval(
+            '''
+            local value = redis.call("LTRIM", KEYS[1], 1, 2);
+            return type(value) == "table" and value.ok == "OK";
+            ''', 1, 'foo'
+        )
+        self.assertEqual(val, 1)
+        self.assertEqual(self.redis.lrange('foo', 0, -1), [b'b', b'c'])
+
+    def test_eval_lset(self):
+        self.redis.rpush('foo', 'a', 'b')
+        val = self.redis.eval(
+            '''
+            local value = redis.call("LSET", KEYS[1], 0, "z");
+            return type(value) == "table" and value.ok == "OK";
+            ''', 1, 'foo'
+        )
+        self.assertEqual(val, 1)
+        self.assertEqual(self.redis.lrange('foo', 0, -1), [b'z', b'b'])
+
+    def test_eval_sdiff(self):
+        self.redis.sadd('foo', 'a', 'b', 'c', 'f', 'e', 'd')
+        self.redis.sadd('bar', 'b')
+        val = self.redis.eval(
+            '''
+            local value = redis.call("SDIFF", KEYS[1], KEYS[2]);
+            if type(value) ~= "table" then
+                return redis.error_reply(type(value) .. ", should be table");
+            else
+                return value;
+            end
+            ''', 2, 'foo', 'bar')
+        # Lua must receive the set *sorted*
+        self.assertEqual(val, [b'a', b'c', b'd', b'e', b'f'])
 
 
 class TestFakeRedis(unittest.TestCase):
