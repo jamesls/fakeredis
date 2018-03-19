@@ -9,6 +9,7 @@ from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
 import sys
+import threading
 import time
 import types
 import re
@@ -209,6 +210,28 @@ def _patch_responses(obj):
             continue
         func = _make_decode_func(attr)
         setattr(obj, attr_name, func)
+
+
+class _Lock(object):
+    def __init__(self, redis, name, timeout):
+        self.redis = redis
+        self.name = name
+        self.lock = threading.Lock()
+        redis.set(name, self, ex=timeout)
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.release()
+
+    def acquire(self, blocking=True, blocking_timeout=None):
+        return self.lock.acquire(blocking)
+
+    def release(self):
+        self.lock.release()
+        self.redis.delete(self.name)
 
 
 class FakeStrictRedis(object):
@@ -1534,6 +1557,10 @@ class FakeStrictRedis(object):
                 except redis.WatchError:
                     continue
         raise redis.WatchError('Could not run transaction after 5 tries')
+
+    def lock(self, name, timeout=None, sleep=0.1, blocking_timeout=None,
+             lock_class=None, thread_local=True):
+        return _Lock(self, name, timeout)
 
     def pubsub(self, ignore_subscribe_messages=False):
         """

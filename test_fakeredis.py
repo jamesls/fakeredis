@@ -2835,6 +2835,16 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.expire('some_unused_key', 1.2)
             self.redis.pexpire('some_unused_key', 1000.2)
 
+    def test_lock(self):
+        lock = self.redis.lock('foo')
+        lock.acquire()
+        self.assertTrue(self.redis.exists('foo'))
+        lock.release()
+        self.assertFalse(self.redis.exists('foo'))
+        with self.redis.lock('bar'):
+            self.assertTrue(self.redis.exists('bar'))
+        self.assertFalse(self.redis.exists('bar'))
+
 
 class DecodeMixin(object):
     decode_responses = True
