@@ -263,36 +263,47 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
-0.10.0
+0.10.1
 ------
+This release merges the fakenewsredis_ fork back into fakeredis. The version
+number is chosen to be larger than any fakenewsredis release, so version
+numbers between the forks are comparable. All the features listed under
+fakenewsredis version numbers below are thus included in fakeredis for the
+first time in this release.
+
+Additionally, the following was added:
+- `#169 <https://github.com/jamesls/pull/169>`_ Fix set-bit
+
+fakenewsredis 0.10.0
+--------------------
 - `#14 <https://github.com/ska-sa/fakenewsredis/pull/14>`_ Add option to create an instance with non-shared data
 - `#13 <https://github.com/ska-sa/fakenewsredis/pull/13>`_ Improve emulation of redis -> Lua returns
 - `#12 <https://github.com/ska-sa/fakenewsredis/pull/12>`_ Update tox.ini: py35/py36 and extras for eval tests
 - `#11 <https://github.com/ska-sa/fakenewsredis/pull/11>`_ Fix typo in private method name
 
-0.9.5
------
+fakenewsredis 0.9.5
+-------------------
 This release makes a start on supporting Lua scripting:
 - `#9 <https://github.com/ska-sa/fakenewsredis/pull/9>`_ Add support for StrictRedis.eval for Lua scripts
 
-0.9.4
------
+fakenewsredis 0.9.4
+-------------------
 This is a minor bugfix and optimization release:
 - `#5 <https://github.com/ska-sa/fakenewsredis/issues/5>`_ Update to match redis-py 2.10.6
 - `#7 <https://github.com/ska-sa/fakenewsredis/issues/7>`_ Set with invalid expiry time should not set key
 - Avoid storing useless expiry times in hashes and sorted sets
 - Improve the performance of bulk zadd
 
-0.9.3
------
+fakenewsredis 0.9.3
+-------------------
 This is a minor bugfix release:
 - `#6 <https://github.com/ska-sa/fakenewsredis/pull/6>`_ Fix iteration over pubsub list
 - `#3 <https://github.com/ska-sa/fakenewsredis/pull/3>`_ Preserve expiry time when mutating keys
 - Fixes to typos and broken links in documentation
 
-0.9.2
------
-This is the first release of fakenewsredis, based on `fakeredis`_ 0.9.0, with the following features and fixes:
+fakenewsredis 0.9.2
+-------------------
+This is the first release of fakenewsredis, based on fakeredis 0.9.0, with the following features and fixes:
 
 - fakeredis `#78 <https://github.com/jamesls/fakeredis/issues/78>`_ Behaviour of transaction() does not match redis-py
 - fakeredis `#79 <https://github.com/jamesls/fakeredis/issues/79>`_ Implement redis-py's .lock()
@@ -306,7 +317,7 @@ This is the first release of fakenewsredis, based on `fakeredis`_ 0.9.0, with th
 - fakeredis `#166 <https://github.com/jamesls/fakeredis/pull/166>`_ Add type checking
 - fakeredis `#168 <https://github.com/jamesls/fakeredis/pull/168>`_ Use repr to encode floats in to_bytes
 
-.. _fakeredis: https://github.com/jamesls/fakeredis
+.. _fakenewsredis: https://github.com/ska-sa/fakenewsredis
 .. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
 .. _contributing guide: https://github.com/jamesls/fakeredis/blob/master/CONTRIBUTING.rst
 .. _HelpWanted: https://github.com/jamesls/fakeredis/issues?q=is%3Aissue+is%3Aopen+label%3AHelpWanted
