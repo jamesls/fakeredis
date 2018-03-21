@@ -1,11 +1,11 @@
 import os
 
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 setup(
     name='fakeredis',
-    version='0.9.0',
+    version='0.10.1',
     description="Fake implementation of redis API for testing purposes.",
     long_description=open(os.path.join(os.path.dirname(__file__),
                                        'README.rst')).read(),
@@ -13,6 +13,8 @@ setup(
     url="https://github.com/jamesls/fakeredis",
     author='James Saryerwinnie',
     author_email='js@jamesls.com',
+    maintainer='Bruce Merry',
+    maintainer_email='bmerry@ska.ac.za',
     py_modules=['fakeredis'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
@@ -28,5 +30,8 @@ setup(
     ],
     install_requires=[
         'redis',
-    ]
+    ],
+    extras_require={
+        "lua": ['lupa']
+    }
 )
