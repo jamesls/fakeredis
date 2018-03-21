@@ -24,4 +24,5 @@ script:
 notifications:
   email:
     - js@jamesls.com
+    - bmerry@ska.ac.za
 after_success: coveralls
