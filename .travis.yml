@@ -6,7 +6,8 @@ python:
   - 3.4
   - 3.5
   - 3.6
-  - nightly
+  # Disabled because PyYAML is failing to compile against it
+  # - nightly
 sudo: false
 cache:
   - pip
