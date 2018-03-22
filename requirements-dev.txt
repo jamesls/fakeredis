@@ -1,4 +1,4 @@
-invoke==0.9.0
-wheel==0.24.0
-tox==1.4.2
-twine==1.5.0
+invoke==0.22.1
+wheel==0.30.0
+tox==2.9.1
+twine==1.11.0
