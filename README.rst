@@ -85,10 +85,128 @@ All of the redis commands are implemented in fakeredis with
 these exceptions:
 
 
-sorted_set
+connection
 ----------
 
- * zscan
+ * auth
+ * quit
+ * select
+ * swapdb
+
+
+server
+------
+
+ * bgrewriteaof
+ * bgsave
+ * client kill
+ * client list
+ * client getname
+ * client pause
+ * client reply
+ * client setname
+ * command
+ * command count
+ * command getkeys
+ * command info
+ * config get
+ * config rewrite
+ * config set
+ * config resetstat
+ * dbsize
+ * debug object
+ * debug segfault
+ * info
+ * lastsave
+ * memory doctor
+ * memory help
+ * memory malloc-stats
+ * memory purge
+ * memory stats
+ * memory usage
+ * monitor
+ * role
+ * save
+ * shutdown
+ * slaveof
+ * slowlog
+ * sync
+ * time
+
+
+string
+------
+
+ * bitfield
+ * bitop
+ * bitpos
+
+
+cluster
+-------
+
+ * cluster addslots
+ * cluster count-failure-reports
+ * cluster countkeysinslot
+ * cluster delslots
+ * cluster failover
+ * cluster forget
+ * cluster getkeysinslot
+ * cluster info
+ * cluster keyslot
+ * cluster meet
+ * cluster nodes
+ * cluster replicate
+ * cluster reset
+ * cluster saveconfig
+ * cluster set-config-epoch
+ * cluster setslot
+ * cluster slaves
+ * cluster slots
+ * readonly
+ * readwrite
+
+
+transactions
+------------
+
+ * discard
+ * exec
+ * multi
+
+
+generic
+-------
+
+ * dump
+ * migrate
+ * object
+ * restore
+ * touch
+ * unlink
+ * wait
+
+
+scripting
+---------
+
+ * evalsha
+ * script debug
+ * script exists
+ * script flush
+ * script kill
+ * script load
+
+
+geo
+---
+
+ * geoadd
+ * geohash
+ * geopos
+ * geodist
+ * georadius
+ * georadiusbymember
 
 
 hash
@@ -97,111 +215,10 @@ hash
  * hstrlen
 
 
-string
-------
-
- * bitop
- * bitpos
-
-
-geo
----
-
- * geoadd
- * geopos
- * georadius
- * geohash
- * georadiusbymember
- * geodist
-
-
-generic
--------
-
- * restore
- * dump
- * migrate
- * object
- * wait
-
-
-server
-------
-
- * client list
- * lastsave
- * slowlog
- * debug object
- * shutdown
- * debug segfault
- * command count
- * monitor
- * client kill
- * cluster slots
- * role
- * config resetstat
- * time
- * config get
- * config set
- * save
- * client setname
- * command getkeys
- * config rewrite
- * sync
- * client getname
- * bgrewriteaof
- * slaveof
- * info
- * client pause
- * bgsave
- * command
- * dbsize
- * command info
-
-
-
-cluster
--------
-
- * cluster getkeysinslot
- * cluster info
- * readwrite
- * cluster slots
- * cluster keyslot
- * cluster addslots
- * readonly
- * cluster saveconfig
- * cluster forget
- * cluster meet
- * cluster slaves
- * cluster nodes
- * cluster countkeysinslot
- * cluster setslot
- * cluster count-failure-reports
- * cluster reset
- * cluster failover
- * cluster set-config-epoch
- * cluster delslots
- * cluster replicate
-
-
-connection
+sorted_set
 ----------
 
- * echo
- * select
- * quit
- * auth
-
-
-scripting
----------
-
- * script flush
- * script kill
- * script load
- * evalsha
- * script exists
+ * zscan
 
 
 Contributing
