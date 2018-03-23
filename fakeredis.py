@@ -35,7 +35,7 @@ __version__ = '0.10.1'
 
 if PY2:
     DEFAULT_ENCODING = 'utf-8'
-    int_types = (int, long)
+    int_types = (int, long)  # noqa: F821
     text_type = unicode  # noqa: F821
     string_types = (str, unicode)  # noqa: F821
     redis_string_types = (str, unicode, bytes)  # noqa: F821
