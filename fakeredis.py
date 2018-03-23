@@ -35,6 +35,7 @@ __version__ = '0.10.1'
 
 if PY2:
     DEFAULT_ENCODING = 'utf-8'
+    int_types = (int, long)
     text_type = unicode  # noqa: F821
     string_types = (str, unicode)  # noqa: F821
     redis_string_types = (str, unicode, bytes)  # noqa: F821
@@ -63,6 +64,7 @@ if PY2:
 else:
     DEFAULT_ENCODING = sys.getdefaultencoding()
     long = int
+    int_types = (int,)
     basestring = str
     text_type = str
     string_types = (str,)
@@ -372,7 +374,7 @@ class FakeStrictRedis(object):
     def _expire(self, name, time, multiplier=1):
         if isinstance(time, timedelta):
             time = int(timedelta_total_seconds(time) * multiplier)
-        if not isinstance(time, int):
+        if not isinstance(time, int_types):
             raise redis.ResponseError("value is not an integer or out of "
                                       "range.")
         if self.exists(name):
@@ -437,7 +439,7 @@ class FakeStrictRedis(object):
         the value will be initialized as ``amount``
         """
         try:
-            if not isinstance(amount, int):
+            if not isinstance(amount, int_types):
                 raise redis.ResponseError("value is not an integer or out "
                                           "of range.")
             value = int(self._get_string(name, b'0')) + amount
@@ -576,7 +578,7 @@ class FakeStrictRedis(object):
     def setex(self, name, time, value):
         if isinstance(time, timedelta):
             time = int(timedelta_total_seconds(time))
-        if not isinstance(time, int):
+        if not isinstance(time, int_types):
             raise ResponseError(
                 'value is not an integer or out of range')
         return self.set(name, value, ex=time)
@@ -734,7 +736,7 @@ class FakeStrictRedis(object):
             except ValueError:
                 # Non-numeric string will be handled below.
                 pass
-        if not(isinstance(numkeys, int)):
+        if not isinstance(numkeys, int_types):
             raise ResponseError("value is not an integer or out of range")
         elif numkeys > len(keys_and_args):
             raise ResponseError("Number of keys can't be greater than number of args")

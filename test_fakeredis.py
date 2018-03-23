@@ -3529,6 +3529,10 @@ class TestFakeRedis(unittest.TestCase):
         rv = self.redis.expire('missing', 1)
         self.assertIs(rv, False)
 
+    def test_expire_long(self):
+        self.redis.set('foo', 'bar')
+        self.redis.expire('foo', long(1))
+
     @attr('slow')
     def test_expire_should_expire_key_using_timedelta(self):
         self.redis.set('foo', 'bar')
