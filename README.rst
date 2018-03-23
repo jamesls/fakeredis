@@ -180,7 +180,9 @@ generic
 
  * dump
  * migrate
+ * move
  * object
+ * randomkey
  * restore
  * touch
  * unlink

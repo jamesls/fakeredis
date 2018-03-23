@@ -502,17 +502,11 @@ class FakeStrictRedis(object):
             return True
         return False
 
-    def move(self, name, db):
-        pass
-
     def persist(self, name):
         self._db.persist(name)
 
     def ping(self):
         return True
-
-    def randomkey(self):
-        pass
 
     @_lua_reply(_lua_bool_ok)
     def rename(self, src, dst):
