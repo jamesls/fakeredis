@@ -318,6 +318,6 @@ This is the first release of fakenewsredis, based on fakeredis 0.9.0, with the f
 - fakeredis `#168 <https://github.com/jamesls/fakeredis/pull/168>`_ Use repr to encode floats in to_bytes
 
 .. _fakenewsredis: https://github.com/ska-sa/fakenewsredis
-.. _redis-py: http://redis-py.readthedocs.org/en/latest/index.html
+.. _redis-py: http://redis-py.readthedocs.io/
 .. _contributing guide: https://github.com/jamesls/fakeredis/blob/master/CONTRIBUTING.rst
 .. _HelpWanted: https://github.com/jamesls/fakeredis/issues?q=is%3Aissue+is%3Aopen+label%3AHelpWanted
