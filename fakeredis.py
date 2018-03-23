@@ -1477,6 +1477,8 @@ class FakeStrictRedis(object):
         The following example would add four values to the 'my-key' key:
         redis.zadd('my-key', 1.1, 'name1', 2.2, 'name2', name3=3.3, name4=4.4)
         """
+        if not args and not kwargs:
+            raise redis.ResponseError("wrong number of arguments for 'zadd' command")
         if len(args) % 2 != 0:
             raise redis.RedisError("ZADD requires an equal number of "
                                    "values and scores")

@@ -1560,6 +1560,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         # It's expected an equal number of values and scores
         with self.assertRaises(redis.RedisError):
             self.redis.zadd('foo', 'two')
+        # Have to add at least one key/value pair
+        with self.assertRaises(redis.ResponseError):
+            self.redis.zadd('foo')
 
     def test_zadd_wrong_type(self):
         self.redis.sadd('foo', 'bar')
