@@ -2002,7 +2002,7 @@ class FakeStrictRedis(object):
         else:
             regex = None
         for val in data[cursor:result_cursor]:
-            if not regex or regex.match(val):
+            if not regex or regex.match(to_bytes(val)):
                 result_data.append(val)
         if result_cursor >= len(data):
             result_cursor = 0

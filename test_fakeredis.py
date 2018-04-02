@@ -415,7 +415,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.keys('a*de'), [b'abcde'])
         # positive groups
         self.assertEqual(sorted(self.redis.keys('abc[d\n]*')),
-                         [b'abc\n', 'abcde'])
+                         [b'abc\n', b'abcde'])
         self.assertEqual(self.redis.keys('abc[c-e]?'), [b'abcde'])
         self.assertEqual(self.redis.keys('abc[e-c]?'), [b'abcde'])
         self.assertEqual(self.redis.keys('abc[e-e]?'), [])
