@@ -4,7 +4,6 @@ import warnings
 import copy
 from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
-import fnmatch
 from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
@@ -52,11 +51,6 @@ if PY2:
             return unicode(x).encode(charset, errors)  # noqa: F821
         raise TypeError('expected bytes or unicode, not ' + type(x).__name__)
 
-    def to_native(x, charset=sys.getdefaultencoding(), errors='strict'):
-        if x is None or isinstance(x, str):
-            return x
-        return x.encode(charset, errors)
-
     def iteritems(d):
         return d.iteritems()
 
@@ -85,11 +79,6 @@ else:
         if hasattr(x, '__str__'):
             return str(x).encode(charset, errors)
         raise TypeError('expected bytes or str, not ' + type(x).__name__)
-
-    def to_native(x, charset=sys.getdefaultencoding(), errors='strict'):
-        if x is None or isinstance(x, str):
-            return x
-        return x.decode(charset, errors)
 
     def iteritems(d):
         return iter(d.items())
@@ -248,6 +237,62 @@ def _remove_empty(func):
         return ret
 
     return wrapper
+
+
+def _compile_pattern(pattern):
+    """Compile a glob pattern (e.g. for keys) to a bytes regex.
+
+    fnmatch.fnmatchcase doesn't work for this, because it uses different
+    escaping rules to redis, uses ! instead of ^ to negate a character set,
+    and handles invalid cases (such as a [ without a ]) differently. This
+    implementation was written by studying the redis implementation.
+    """
+    # It's easier to work with text than bytes, because indexing bytes
+    # doesn't behave the same in Python 3. Latin-1 will round-trip safely.
+    pattern = pattern.decode('latin-1')
+    parts = ['^']
+    i = 0
+    L = len(pattern)
+    while i < L:
+        c = pattern[i]
+        if c == '?':
+            parts.append('.')
+        elif c == '*':
+            parts.append('.*')
+        elif c == '\\':
+            if i < L - 1:
+                i += 1
+            parts.append(re.escape(pattern[i]))
+        elif c == '[':
+            parts.append('[')
+            i += 1
+            if i < L and pattern[i] == '^':
+                i += 1
+                parts.append('^')
+            while i < L:
+                if pattern[i] == '\\':
+                    i += 1
+                    if i < L:
+                        parts.append(re.escape(pattern[i]))
+                elif pattern[i] == ']':
+                    break
+                elif i + 2 <= L and pattern[i + 1] == '-':
+                    start = pattern[i]
+                    end = pattern[i + 2]
+                    if start > end:
+                        start, end = end, start
+                    parts.append(re.escape(start) + '-' + re.escape(end))
+                    i += 2
+                else:
+                    parts.append(re.escape(pattern[i]))
+                i += 1
+            parts.append(']')
+        else:
+            parts.append(re.escape(pattern[i]))
+        i += 1
+    parts.append('\\Z')
+    regex = ''.join(parts).encode('latin-1')
+    return re.compile(regex, re.S)
 
 
 class _Lock(object):
@@ -464,9 +509,10 @@ class FakeStrictRedis(object):
         return value
 
     def keys(self, pattern=None):
+        if pattern is not None:
+            regex = _compile_pattern(to_bytes(pattern))
         return [key for key in self._db
-                if not key or not pattern or
-                fnmatch.fnmatch(to_native(key), to_native(pattern))]
+                if pattern is None or regex.match(key)]
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
@@ -1951,8 +1997,12 @@ class FakeStrictRedis(object):
         result_cursor = cursor + count
         result_data = []
         # subset =
+        if match is not None:
+            regex = _compile_pattern(to_bytes(match))
+        else:
+            regex = None
         for val in data[cursor:result_cursor]:
-            if not match or fnmatch.fnmatch(to_native(val), to_native(match)):
+            if not regex or regex.match(val):
                 result_data.append(val)
         if result_cursor >= len(data):
             result_cursor = 0

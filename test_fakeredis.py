@@ -390,6 +390,43 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.decr('foo2', 15)
 
+    def test_keys(self):
+        self.redis.set('', 'empty')
+        self.redis.set('abc\n', '')
+        self.redis.set('abc\\', '')
+        self.redis.set('abcde', '')
+        if self.decode_responses:
+            self.assertEqual(sorted(self.redis.keys()),
+                             [b'', b'abc\n', b'abc\\', b'abcde'])
+        else:
+            self.redis.set(b'\xfe\xcd', '')
+            self.assertEqual(sorted(self.redis.keys()),
+                             [b'', b'abc\n', b'abc\\', b'abcde', b'\xfe\xcd'])
+            self.assertEqual(self.redis.keys('??'), [b'\xfe\xcd'])
+        # empty pattern not the same as no pattern
+        self.assertEqual(self.redis.keys(''), [b''])
+        # ? must match \n
+        self.assertEqual(sorted(self.redis.keys('abc?')),
+                         [b'abc\n', b'abc\\'])
+        # must be anchored at both ends
+        self.assertEqual(self.redis.keys('abc'), [])
+        self.assertEqual(self.redis.keys('bcd'), [])
+        # wildcard test
+        self.assertEqual(self.redis.keys('a*de'), [b'abcde'])
+        # positive groups
+        self.assertEqual(sorted(self.redis.keys('abc[d\n]*')),
+                         [b'abc\n', 'abcde'])
+        self.assertEqual(self.redis.keys('abc[c-e]?'), [b'abcde'])
+        self.assertEqual(self.redis.keys('abc[e-c]?'), [b'abcde'])
+        self.assertEqual(self.redis.keys('abc[e-e]?'), [])
+        self.assertEqual(self.redis.keys('abcd[ef'), [b'abcde'])
+        # negative groups
+        self.assertEqual(self.redis.keys('abc[^d\\\\]*'), [b'abc\n'])
+        # some escaping cases that redis handles strangely
+        self.assertEqual(self.redis.keys('abc\\'), [b'abc\\'])
+        self.assertEqual(self.redis.keys(r'abc[\c-e]e'), [])
+        self.assertEqual(self.redis.keys(r'abc[c-\e]e'), [])
+
     def test_exists(self):
         self.assertFalse('foo' in self.redis)
         self.redis.set('foo', 'bar')
@@ -1258,6 +1295,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo2', 'bar2')
         self.assertEqual(set(self.redis.scan_iter(match="foo*")),
                          set([b'foo1', b'foo2']))
+        self.assertEqual(set(self.redis.scan_iter()),
+                         set([b'foo1', b'foo2']))
+        self.assertEqual(set(self.redis.scan_iter(match="")),
+                         set([]))
 
     def test_scan_iter_multiple_pages(self):
         all_keys = key_val_dict(size=100)
