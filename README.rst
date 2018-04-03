@@ -282,6 +282,22 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.10.2
+------
+This is a bug-fix release.
+
+- `#181 <https://github.com/jamesls/fakeredis/issues/181>`_ Upgrade twine & other packaging dependencies
+- `#106 <https://github.com/jamesls/fakeredis/issues/106>`_ randomkey method is not implemented, but is not in the list of unimplemented commands
+- `#170 <https://github.com/jamesls/fakeredis/pull/170>`_ Prefer readthedocs.io instead of readthedocs.org for doc links
+- `#180 <https://github.com/jamesls/fakeredis/issues/180>`_ zadd with no member-score pairs should fail
+- `#145 <https://github.com/jamesls/fakeredis/issues/145>`_ expire / _expire: accept 'long' also as time
+- `#182 <https://github.com/jamesls/fakeredis/issues/182>`_ Pattern matching does not match redis behaviour
+- `#135 <https://github.com/jamesls/fakeredis/issues/135>`_ Scan includes expired keys
+- `#185 <https://github.com/jamesls/fakeredis/issues/185>`_ flushall() doesn't clean everything
+- `#186 <https://github.com/jamesls/fakeredis/pull/186>`_ Fix psubscribe with handlers
+- Run CI on PyPy
+- Fix coverage measurement
+
 0.10.1
 ------
 This release merges the fakenewsredis_ fork back into fakeredis. The version
