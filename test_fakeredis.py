@@ -1294,6 +1294,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(set(actual[1]), set(all_keys))
         self.assertEqual(actual[0], 0)
 
+    @attr('slow')
+    def test_scan_expired_key(self):
+        self.redis.set('expiringkey', 'value')
+        self.redis.pexpire('expiringkey', 1)
+        sleep(1)
+        self.assertEqual(self.redis.scan()[1], [])
+
     def test_scard(self):
         self.redis.sadd('foo', 'member1')
         self.redis.sadd('foo', 'member2')

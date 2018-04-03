@@ -142,6 +142,11 @@ class _StrKeyDict(MutableMapping):
         new_copy.update(self._dict)
         return new_copy
 
+    # Not strictly necessary, but MutableMapping implements it by popping one
+    # item at a time, which may have odd effects in _ExpiringDict.
+    def clear(self):
+        self._dict.clear()
+
 
 class _ExpiringDict(_StrKeyDict):
     def __getitem__(self, key):
@@ -182,6 +187,15 @@ class _ExpiringDict(_StrKeyDict):
 
     def expiring(self, key):
         return self._dict[to_bytes(key)][1]
+
+    def __iter__(self):
+        def generator():
+            for key, (value, expiration) in iteritems(self._dict):
+                if expiration is not None and datetime.now() > expiration:
+                    continue
+                yield key
+
+        return generator()
 
 
 class _ZSet(_StrKeyDict):
