@@ -2868,6 +2868,36 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertIn(msg4['channel'], bpatterns)
 
     @attr('slow')
+    def test_pubsub_listen_handler(self):
+        def _handler(message):
+            calls.append(message)
+
+        channel = 'ch1'
+        patterns = {'ch?': _handler}
+        calls = []
+
+        pubsub = self.redis.pubsub()
+        pubsub.subscribe(ch1=_handler)
+        pubsub.psubscribe(**patterns)
+        sleep(1)
+        msg1 = pubsub.get_message()
+        msg2 = pubsub.get_message()
+        self.assertEqual(msg1['type'], 'subscribe')
+        self.assertEqual(msg2['type'], 'psubscribe')
+        msg = 'hello world'
+        self.redis.publish(channel, msg)
+        sleep(1)
+        for i in range(2):
+            msg = pubsub.get_message()
+            self.assertIsNone(msg)   # get_message returns None when handler is used
+        pubsub.close()
+        calls.sort(key=lambda call: call['type'])
+        self.assertEqual(calls, [
+            {'pattern': None, 'channel': b'ch1', 'data': b'hello world', 'type': 'message'},
+            {'pattern': b'ch?', 'channel': b'ch1', 'data': b'hello world', 'type': 'pmessage'}
+        ])
+
+    @attr('slow')
     def test_pubsub_ignore_sub_messages_listen(self):
         def _listen(pubsub, q):
             count = 0

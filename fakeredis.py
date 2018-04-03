@@ -1968,7 +1968,7 @@ class FakeStrictRedis(object):
                 del self._pubsubs[i]
                 continue
 
-            count += ps.put(channel, to_bytes(message), 'message')
+            count += ps.put(channel, message, 'message')
 
         return count
 
@@ -2209,9 +2209,9 @@ class FakePubSub(object):
         self.ignore_subscribe_messages = kwargs.get(
             'ignore_subscribe_messages', False)
 
-    def _normalize(self, channel):
-        channel = to_bytes(channel)
-        return _decode(channel) if self._decode_responses else channel
+    def _normalize(self, value):
+        value = to_bytes(value)
+        return _decode(value) if self._decode_responses else value
 
     def _normalize_keys(self, data):
         """
@@ -2232,6 +2232,7 @@ class FakePubSub(object):
             return self._send(message_type, None, channel, message)
 
         count = 0
+        message = self._normalize(message)
 
         # Send the message on the given channel
         if channel in self.channels:
@@ -2305,7 +2306,7 @@ class FakePubSub(object):
                 new_channels[arg] = subscriber(arg, None)
 
         for channel, handler in iteritems(kwargs):
-            new_channels[channel] = handler
+            new_channels[channel] = subscriber(channel, handler)
 
         subscribed_dict.update(self._normalize_keys(new_channels))
         self.subscribed = True
