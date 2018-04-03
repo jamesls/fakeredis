@@ -249,7 +249,7 @@ def _compile_pattern(pattern):
     """
     # It's easier to work with text than bytes, because indexing bytes
     # doesn't behave the same in Python 3. Latin-1 will round-trip safely.
-    pattern = pattern.decode('latin-1')
+    pattern = to_bytes(pattern).decode('latin-1')
     parts = ['^']
     i = 0
     L = len(pattern)
@@ -510,9 +510,8 @@ class FakeStrictRedis(object):
 
     def keys(self, pattern=None):
         if pattern is not None:
-            regex = _compile_pattern(to_bytes(pattern))
-        return [key for key in self._db
-                if pattern is None or regex.match(key)]
+            regex = _compile_pattern(pattern)
+        return [key for key in self._db if pattern is None or regex.match(key)]
 
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
@@ -1998,7 +1997,7 @@ class FakeStrictRedis(object):
         result_data = []
         # subset =
         if match is not None:
-            regex = _compile_pattern(to_bytes(match))
+            regex = _compile_pattern(match)
         else:
             regex = None
         for val in data[cursor:result_cursor]:
@@ -2192,14 +2191,28 @@ class FakePubSub(object):
         self.subscribed = False
         if decode_responses:
             _patch_responses(self)
+        self._decode_responses = decode_responses
         self.ignore_subscribe_messages = kwargs.get(
             'ignore_subscribe_messages', False)
 
-    def put(self, channel, message, message_type, pattern=None):
+    def _normalize(self, channel):
+        channel = to_bytes(channel)
+        return _decode(channel) if self._decode_responses else channel
+
+    def _normalize_keys(self, data):
+        """
+        normalize channel/pattern names to be either bytes or strings
+        based on whether responses are automatically decoded. this saves us
+        from coercing the value for each message coming in.
+        """
+        return dict([(self._normalize(k), v) for k, v in iteritems(data)])
+
+    def put(self, channel, message, message_type):
         """
         Utility function to be used as the publishing entrypoint for this
         pubsub object
         """
+        channel = self._normalize(channel)
         if message_type in self.SUBSCRIBE_MESSAGE_TYPES or\
                 message_type in self.UNSUBSCRIBE_MESSAGE_TYPES:
             return self._send(message_type, None, channel, message)
@@ -2212,7 +2225,7 @@ class FakePubSub(object):
 
         # See if any of the patterns match the given channel
         for pattern, pattern_obj in iteritems(self.patterns):
-            match = re.match(pattern_obj['regex'], channel)
+            match = pattern_obj['regex'].match(to_bytes(channel))
             if match:
                 count += self._send('pmessage', pattern, channel, message)
 
@@ -2222,7 +2235,7 @@ class FakePubSub(object):
         msg = {
             'type': message_type,
             'pattern': pattern,
-            'channel': channel.encode(),
+            'channel': channel,
             'data': data
         }
 
@@ -2232,11 +2245,11 @@ class FakePubSub(object):
 
     def psubscribe(self, *args, **kwargs):
         """
-        Subcribe to channel patterns.
+        Subscribe to channel patterns.
         """
 
         def _subscriber(pattern, handler):
-            regex = self._parse_pattern(pattern)
+            regex = _compile_pattern(pattern)
             return {
                 'regex': regex,
                 'handler': handler
@@ -2255,19 +2268,6 @@ class FakePubSub(object):
             len(self.channels.keys()) + len(self.patterns.keys())
         self._usubscribe(self.patterns, 'punsubscribe', total_subscriptions,
                          *args)
-
-    def _parse_pattern(self, pattern):
-        temp_pattern = pattern
-        if '?' in temp_pattern:
-            temp_pattern = temp_pattern.replace('?', '.')
-
-        if '*' in temp_pattern:
-            temp_pattern = temp_pattern.replace('*', '.*')
-
-        if ']' in temp_pattern:
-            temp_pattern = temp_pattern.replace(']', ']?')
-
-        return temp_pattern
 
     def subscribe(self, *args, **kwargs):
         """
@@ -2293,7 +2293,7 @@ class FakePubSub(object):
         for channel, handler in iteritems(kwargs):
             new_channels[channel] = handler
 
-        subscribed_dict.update(new_channels)
+        subscribed_dict.update(self._normalize_keys(new_channels))
         self.subscribed = True
 
         for channel in new_channels:
@@ -2314,7 +2314,7 @@ class FakePubSub(object):
 
         if args:
             for channel in args:
-                if channel in subscribed_dict:
+                if self._normalize(channel) in subscribed_dict:
                     total_subscriptions -= 1
                     self.put(channel, long(total_subscriptions), message_type)
         else:
@@ -2359,7 +2359,7 @@ class FakePubSub(object):
     def handle_message(self, message, ignore_subscribe_messages=False):
         """
         Parses a pubsub message. It invokes the handler of a message type,
-        if the handler is avaialble. If the message is of type ``subscribe``
+        if the handler is available. If the message is of type ``subscribe``
         and ignore_subscribe_messages if True, then it returns None. Otherwise,
         it returns the message.
         """
@@ -2372,7 +2372,7 @@ class FakePubSub(object):
                 subscribed_dict = self.channels
 
             try:
-                channel = message['channel'].decode('utf-8')
+                channel = message['channel']
                 del subscribed_dict[channel]
             except:
                 pass

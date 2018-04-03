@@ -2905,7 +2905,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertIn(msg4['channel'], bpatterns)
 
     @attr('slow')
-    def test_pubsub_binary_message(self):
+    def test_pubsub_binary(self):
         if self.decode_responses:
             # Reading the non-UTF-8 message will break if decoding
             # responses.
@@ -2917,14 +2917,14 @@ class TestFakeStrictRedis(unittest.TestCase):
                 pubsub.close()
 
         pubsub = self.redis.pubsub(ignore_subscribe_messages=True)
-        pubsub.subscribe('channel')
+        pubsub.subscribe('channel\r\n\xff')
         sleep(1)
 
         q = Queue()
         t = threading.Thread(target=_listen, args=(pubsub, q))
         t.start()
         msg = b'\x00hello world\r\n\xff'
-        self.redis.publish('channel', msg)
+        self.redis.publish('channel\r\n\xff', msg)
         t.join()
 
         received = q.get()
