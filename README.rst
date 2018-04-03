@@ -307,7 +307,7 @@ fakenewsredis version numbers below are thus included in fakeredis for the
 first time in this release.
 
 Additionally, the following was added:
-- `#169 <https://github.com/jamesls/pull/169>`_ Fix set-bit
+- `#169 <https://github.com/jamesls/fakeredis/pull/169>`_ Fix set-bit
 
 fakenewsredis 0.10.0
 --------------------
