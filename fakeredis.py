@@ -88,7 +88,7 @@ else:
 
 DATABASES = {}
 
-_libc_library = find_library('c') or find_library('msvcrt')
+_libc_library = find_library('c') or find_library('msvcrt') or find_library('System')
 
 if not _libc_library:
     raise ImportError('fakeredis: unable to find libc or equivalent')

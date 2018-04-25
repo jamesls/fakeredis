@@ -3880,7 +3880,7 @@ class TestInitArgs(unittest.TestCase):
 class TestImportation(unittest.TestCase):
     def test_searches_for_c_stdlib_and_raises_if_missing(self):
         """
-        Verifies that fakeredis checks for both libc and msvcrt when
+        Verifies that fakeredis checks for multiple C library implementations
         looking for a strtod implementation and that it fails fast when neither
         is found.
         """
@@ -3898,7 +3898,7 @@ class TestImportation(unittest.TestCase):
             with self.assertRaises(ImportError):
                 reload(fakeredis)
 
-            self.assertEqual(set(['c', 'msvcrt']), searched_libraries)
+            self.assertEqual(set(['c', 'msvcrt', 'System']), searched_libraries)
         finally:
             ctypes.util.find_library = old_find_library
 
