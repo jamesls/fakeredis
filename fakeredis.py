@@ -469,7 +469,10 @@ class FakeStrictRedis(object):
             return to_bytes(value)
 
     def __getitem__(self, name):
-        return self.get(name)
+        value = self.get(name)
+        if value is not None:
+            return value
+        raise KeyError(name)
 
     def getbit(self, name, offset):
         """Returns a boolean indicating the value of ``offset`` in ``name``"""

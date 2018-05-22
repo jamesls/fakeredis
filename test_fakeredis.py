@@ -260,6 +260,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis['foo'] = 'bar'
         self.assertEqual(self.redis['foo'], b'bar')
 
+    def test_getitem_non_existent_key(self):
+        self.assertEqual(self.redis.keys(), [])
+        with self.assertRaises(KeyError):
+            self.redis['noexists']
+
     def test_strlen(self):
         self.redis['foo'] = 'bar'
 
