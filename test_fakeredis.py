@@ -1716,6 +1716,20 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.zrange('foo', 0, -1)
 
+    def test_zrange_score_cast(self):
+        self.redis.zadd('foo', one=1.2)
+        self.redis.zadd('foo', two=2.2)
+
+        def round_str(x):
+            return round(float(x))
+
+        expected_without_cast_round = [(b'one', 1.2), (b'two', 2.2)]
+        expected_with_cast_round = [(b'one', 1.0), (b'two', 2.0)]
+        self.assertEqual(self.redis.zrange('foo', 0, 2, withscores=True),
+                         expected_without_cast_round)
+        self.assertEqual(self.redis.zrange('foo', 0, 2, withscores=True, score_cast_func=round_str),
+                         expected_with_cast_round)
+
     def test_zrank(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -1810,6 +1824,21 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
             self.redis.zrevrange('foo', 0, 2)
+
+    def test_zrevrange_score_cast(self):
+        self.redis.zadd('foo', one=1.2)
+        self.redis.zadd('foo', two=2.2)
+
+        def round_str(x):
+            return round(float(x))
+
+        expected_without_cast_round = [(b'two', 2.2), (b'one', 1.2)]
+        expected_with_cast_round = [(b'two', 2.0), (b'one', 1.0)]
+        self.assertEqual(self.redis.zrevrange('foo', 0, 2, withscores=True),
+                         expected_without_cast_round)
+        self.assertEqual(self.redis.zrevrange('foo', 0, 2, withscores=True,
+                                              score_cast_func=round_str),
+                         expected_with_cast_round)
 
     def test_zrangebyscore(self):
         self.redis.zadd('foo', zero=0)
@@ -1944,6 +1973,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
             self.redis.zrevrangebyscore('foo', '(3', '(1')
+
+    def test_zrevrangebyscore_cast_scores(self):
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', two_a_also=2.2)
+
+        def round_str(x):
+            return round(float(x))
+
+        expected_without_cast_round = [(b'two_a_also', 2.2), (b'two', 2.0)]
+        expected_with_cast_round = [(b'two_a_also', 2.0), (b'two', 2.0)]
+        self.assertEqual(
+            self.redis.zrevrangebyscore('foo', 3, 2, withscores=True),
+            expected_without_cast_round
+        )
+        self.assertEqual(
+            self.redis.zrevrangebyscore('foo', 3, 2, withscores=True, score_cast_func=round_str),
+            expected_with_cast_round
+        )
 
     def test_zrangebylex(self):
         self.redis.zadd('foo', one_a=0)
