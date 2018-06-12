@@ -1621,7 +1621,8 @@ class FakeStrictRedis(object):
         if not withscores:
             return items
         else:
-            return [(k, score_cast_func(all_items[k])) for k in items]
+            return [(k, score_cast_func(to_bytes(all_items[k])))
+                    for k in items]
 
     def _get_zelements_in_order(self, all_items, reverse=False):
         by_keyname = sorted(
@@ -1661,7 +1662,8 @@ class FakeStrictRedis(object):
         if start is not None:
             matches = matches[start:start + num]
         if withscores:
-            return [(k, score_cast_func(all_items[k])) for k in matches]
+            return [(k, score_cast_func(to_bytes(all_items[k])))
+                    for k in matches]
         return matches
 
     def zrangebylex(self, name, min, max,

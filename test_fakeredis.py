@@ -74,6 +74,13 @@ def key_val_dict(size=100):
                  for i in range(size)])
 
 
+def round_str(x):
+    if not (isinstance(x, str) or hasattr(x, 'decode')):
+        raise AssertionError('Cast argument should be str or bytes.')
+
+    return round(float(x))
+
+
 class TestFakeStrictRedis(unittest.TestCase):
     decode_responses = False
 
@@ -1720,9 +1727,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zadd('foo', one=1.2)
         self.redis.zadd('foo', two=2.2)
 
-        def round_str(x):
-            return round(float(x))
-
         expected_without_cast_round = [(b'one', 1.2), (b'two', 2.2)]
         expected_with_cast_round = [(b'one', 1.0), (b'two', 2.0)]
         self.assertEqual(self.redis.zrange('foo', 0, 2, withscores=True),
@@ -1829,9 +1833,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zadd('foo', one=1.2)
         self.redis.zadd('foo', two=2.2)
 
-        def round_str(x):
-            return round(float(x))
-
         expected_without_cast_round = [(b'two', 2.2), (b'one', 1.2)]
         expected_with_cast_round = [(b'two', 2.0), (b'one', 1.0)]
         self.assertEqual(self.redis.zrevrange('foo', 0, 2, withscores=True),
@@ -1912,9 +1913,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zadd('foo', two=2)
         self.redis.zadd('foo', two_a_also=2.2)
 
-        def round_str(x):
-            return round(float(x))
-
         expected_without_cast_round = [(b'two', 2.0), (b'two_a_also', 2.2)]
         expected_with_cast_round = [(b'two', 2.0), (b'two_a_also', 2.0)]
         self.assertItemsEqual(
@@ -1977,9 +1975,6 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zrevrangebyscore_cast_scores(self):
         self.redis.zadd('foo', two=2)
         self.redis.zadd('foo', two_a_also=2.2)
-
-        def round_str(x):
-            return round(float(x))
 
         expected_without_cast_round = [(b'two_a_also', 2.2), (b'two', 2.0)]
         expected_with_cast_round = [(b'two_a_also', 2.0), (b'two', 2.0)]
