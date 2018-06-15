@@ -1593,6 +1593,17 @@ class FakeStrictRedis(object):
                                 lambda x: x in
                                 valid_keys)
 
+    def _apply_score_cast_func(self, items, all_items, withscores, score_cast_func):
+        if not withscores:
+            return items
+        elif score_cast_func is float:
+            # Fast path for common case
+            return [(k, all_items[k]) for k in items]
+        elif self._decode_responses:
+            return [(k, score_cast_func(_decode(to_bytes(all_items[k])))) for k in items]
+        else:
+            return [(k, score_cast_func(to_bytes(all_items[k]))) for k in items]
+
     def zrange(self, name, start, end, desc=False, withscores=False, score_cast_func=float):
         """
         Return a range of values from sorted set ``name`` between
@@ -1618,11 +1629,7 @@ class FakeStrictRedis(object):
             reverse = False
         in_order = self._get_zelements_in_order(all_items, reverse)
         items = in_order[start:end]
-        if not withscores:
-            return items
-        else:
-            return [(k, score_cast_func(to_bytes(all_items[k])))
-                    for k in items]
+        return self._apply_score_cast_func(items, all_items, withscores, score_cast_func)
 
     def _get_zelements_in_order(self, all_items, reverse=False):
         by_keyname = sorted(
@@ -1661,10 +1668,7 @@ class FakeStrictRedis(object):
                 matches.append(item)
         if start is not None:
             matches = matches[start:start + num]
-        if withscores:
-            return [(k, score_cast_func(to_bytes(all_items[k])))
-                    for k in matches]
-        return matches
+        return self._apply_score_cast_func(matches, all_items, withscores, score_cast_func)
 
     def zrangebylex(self, name, min, max,
                     start=None, num=None):
