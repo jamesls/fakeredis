@@ -91,6 +91,10 @@ class TestFakeStrictRedis(unittest.TestCase):
     def create_redis(self, db=0):
         return fakeredis.FakeStrictRedis(db=db)
 
+    def _round_str(self, x):
+        self.assertIsInstance(x, bytes)
+        return round(float(x))
+
     def test_flushdb(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.keys(), [b'foo'])
@@ -1716,6 +1720,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.zrange('foo', 0, -1)
 
+    def test_zrange_score_cast(self):
+        self.redis.zadd('foo', one=1.2)
+        self.redis.zadd('foo', two=2.2)
+
+        expected_without_cast_round = [(b'one', 1.2), (b'two', 2.2)]
+        expected_with_cast_round = [(b'one', 1.0), (b'two', 2.0)]
+        self.assertEqual(self.redis.zrange('foo', 0, 2, withscores=True),
+                         expected_without_cast_round)
+        self.assertEqual(self.redis.zrange('foo', 0, 2, withscores=True,
+                                           score_cast_func=self._round_str),
+                         expected_with_cast_round)
+
     def test_zrank(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -1811,6 +1827,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.zrevrange('foo', 0, 2)
 
+    def test_zrevrange_score_cast(self):
+        self.redis.zadd('foo', one=1.2)
+        self.redis.zadd('foo', two=2.2)
+
+        expected_without_cast_round = [(b'two', 2.2), (b'one', 1.2)]
+        expected_with_cast_round = [(b'two', 2.0), (b'one', 1.0)]
+        self.assertEqual(self.redis.zrevrange('foo', 0, 2, withscores=True),
+                         expected_without_cast_round)
+        self.assertEqual(self.redis.zrevrange('foo', 0, 2, withscores=True,
+                                              score_cast_func=self._round_str),
+                         expected_with_cast_round)
+
     def test_zrangebyscore(self):
         self.redis.zadd('foo', zero=0)
         self.redis.zadd('foo', two=2)
@@ -1879,6 +1907,22 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrangebyscore('foo', 1, 3, 0, 2, True),
                          [(b'one', 1), (b'two', 2)])
 
+    def test_zrangebyscore_cast_scores(self):
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', two_a_also=2.2)
+
+        expected_without_cast_round = [(b'two', 2.0), (b'two_a_also', 2.2)]
+        expected_with_cast_round = [(b'two', 2.0), (b'two_a_also', 2.0)]
+        self.assertItemsEqual(
+            self.redis.zrangebyscore('foo', 2, 3, withscores=True),
+            expected_without_cast_round
+        )
+        self.assertItemsEqual(
+            self.redis.zrangebyscore('foo', 2, 3, withscores=True,
+                                     score_cast_func=self._round_str),
+            expected_with_cast_round
+        )
+
     def test_zrevrangebyscore(self):
         self.redis.zadd('foo', one=1)
         self.redis.zadd('foo', two=2)
@@ -1926,6 +1970,22 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
             self.redis.zrevrangebyscore('foo', '(3', '(1')
+
+    def test_zrevrangebyscore_cast_scores(self):
+        self.redis.zadd('foo', two=2)
+        self.redis.zadd('foo', two_a_also=2.2)
+
+        expected_without_cast_round = [(b'two_a_also', 2.2), (b'two', 2.0)]
+        expected_with_cast_round = [(b'two_a_also', 2.0), (b'two', 2.0)]
+        self.assertEqual(
+            self.redis.zrevrangebyscore('foo', 3, 2, withscores=True),
+            expected_without_cast_round
+        )
+        self.assertEqual(
+            self.redis.zrevrangebyscore('foo', 3, 2, withscores=True,
+                                        score_cast_func=self._round_str),
+            expected_with_cast_round
+        )
 
     def test_zrangebylex(self):
         self.redis.zadd('foo', one_a=0)
@@ -3779,6 +3839,10 @@ class TestFakeRedis(unittest.TestCase):
 
 class DecodeMixin(object):
     decode_responses = True
+
+    def _round_str(self, x):
+        self.assertIsInstance(x, fakeredis.text_type)
+        return round(float(x))
 
     def assertEqual(self, a, b, msg=None):
         super(DecodeMixin, self).assertEqual(a, fakeredis._decode(b), msg)
