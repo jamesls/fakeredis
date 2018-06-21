@@ -282,6 +282,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.11.0
+------
+- `#194 <https://github.com/jamesls/fakeredis/pull/194>`_ Support ``score_cast_func`` in zset functions
+- `#192 <https://github.com/jamesls/fakeredis/pull/192>`_ Make ``__getitem__`` raise a KeyError for missing keys
+
 0.10.3
 ------
 This is a minor bug-fix release.
