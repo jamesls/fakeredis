@@ -2162,6 +2162,9 @@ class FakePipeline(object):
     def __exit__(self, exc_type, exc_value, traceback):
         self.reset()
 
+    def __len__(self):
+        return len(self.commands)
+
     def execute(self, raise_on_error=True):
         """Run all the commands in the pipeline and return the results."""
         try:
