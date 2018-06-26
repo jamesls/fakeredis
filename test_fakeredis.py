@@ -2766,6 +2766,15 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         self.assertEqual('OUR-RETURN-VALUE', res)
 
+    def test_pipeline_empty(self):
+        p = self.redis.pipeline()
+        self.assertFalse(p)
+
+    def test_pipeline_length(self):
+        p = self.redis.pipeline()
+        p.set('baz', 'quux').get('baz')
+        self.assertEqual(2, len(p))
+
     def test_key_patterns(self):
         self.redis.mset({'one': 1, 'two': 2, 'three': 3, 'four': 4})
         self.assertItemsEqual(self.redis.keys('*o*'),
