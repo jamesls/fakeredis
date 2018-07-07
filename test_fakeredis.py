@@ -4253,7 +4253,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_smove(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.smove('src','dest', 20)
+            self.redis.smove('src', 'dest', 20)
 
     def test_spop(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4306,10 +4306,6 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     def test_rangebylex(self):
         with self.assertRaises(redis.ConnectionError):
             self.redis.zrangebylex('name', 1, 4)
-
-    def test_zrange(self):
-        with self.assertRaises(redis.ConnectionError):
-            self.redis.zrank('name', 1)
 
     def test_zrem(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4405,8 +4401,6 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     def test_hscan_iter(self):
         with self.assertRaises(redis.ConnectionError):
             self.redis.hscan_iter('name')
-
-
 
 
 if __name__ == '__main__':
