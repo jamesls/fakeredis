@@ -594,6 +594,7 @@ class FakeStrictRedis(object):
             return True
         return False
 
+    @check_conn
     def persist(self, name):
         self._db.persist(name)
 
