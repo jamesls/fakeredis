@@ -333,6 +333,8 @@ class _Lock(object):
 
 def check_conn(func):
     """Used to mock connection errors"""
+
+    @functools.wraps(func)
     def func_wrapper(*args, **kwargs):
         if not args[0]._connected:
             raise redis.ConnectionError
@@ -369,14 +371,14 @@ class FakeStrictRedis(object):
         if decode_responses:
             _patch_responses(self)
 
-    @check_conn
     @_lua_reply(_lua_bool_ok)
+    @check_conn
     def flushdb(self):
         self._db.clear()
         return True
 
-    @check_conn
     @_lua_reply(_lua_bool_ok)
+    @check_conn
     def flushall(self):
         for db in self._dbs.values():
             db.clear()
@@ -572,8 +574,8 @@ class FakeStrictRedis(object):
             found.append(value)
         return found
 
-    @check_conn
     @_lua_reply(_lua_bool_ok)
+    @check_conn
     def mset(self, *args, **kwargs):
         if args:
             if len(args) != 1 or not isinstance(args[0], dict):
@@ -603,8 +605,8 @@ class FakeStrictRedis(object):
     def ping(self):
         return True
 
-    @check_conn
     @_lua_reply(_lua_bool_ok)
+    @check_conn
     def rename(self, src, dst):
         try:
             value = self._db[src]
@@ -760,13 +762,13 @@ class FakeStrictRedis(object):
             assert key is None
             return b'none'
 
-    @check_conn
     @_lua_reply(_lua_bool_ok)
+    @check_conn
     def watch(self, *names):
         pass
 
-    @check_conn
     @_lua_reply(_lua_bool_ok)
+    @check_conn
     def unwatch(self):
         pass
 
@@ -1123,8 +1125,8 @@ class FakeStrictRedis(object):
         except IndexError:
             return None
 
-    @check_conn
     @_lua_reply(_lua_bool_ok)
+    @check_conn
     def lset(self, name, index, value):
         try:
             lst = self._get_list_or_none(name)
@@ -1139,8 +1141,8 @@ class FakeStrictRedis(object):
     def rpushx(self, name, value):
         self._get_list(name).append(to_bytes(value))
 
-    @check_conn
     @_lua_reply(_lua_bool_ok)
+    @check_conn
     def ltrim(self, name, start, end):
         val = self._get_list_or_none(name)
         if val is not None:
