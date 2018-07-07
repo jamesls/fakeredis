@@ -440,13 +440,14 @@ class FakeStrictRedis(object):
         return name in self._db
     __contains__ = exists
 
+    @check_conn
     def expire(self, name, time):
         return self._expire(name, time)
 
+    @check_conn
     def pexpire(self, name, millis):
         return self._expire(name, millis, 1000)
 
-    @check_conn
     def _expire(self, name, time, multiplier=1):
         if isinstance(time, timedelta):
             time = int(timedelta_total_seconds(time) * multiplier)
@@ -460,13 +461,14 @@ class FakeStrictRedis(object):
         else:
             return False
 
+    @check_conn
     def expireat(self, name, when):
         return self._expireat(name, when)
 
+    @check_conn
     def pexpireat(self, name, when):
         return self._expireat(name, when, 1000)
 
-    @check_conn
     def _expireat(self, name, when, multiplier=1):
         if not isinstance(when, datetime):
             when = datetime.fromtimestamp(when / float(multiplier))
@@ -719,13 +721,14 @@ class FakeStrictRedis(object):
     # according to the docs.
     getrange = substr
 
+    @check_conn
     def ttl(self, name):
         return self._ttl(name)
 
+    @check_conn
     def pttl(self, name):
         return self._ttl(name, 1000)
 
-    @check_conn
     def _ttl(self, name, multiplier=1):
         if name not in self._db:
             return -2
@@ -757,10 +760,12 @@ class FakeStrictRedis(object):
             assert key is None
             return b'none'
 
+    @check_conn
     @_lua_reply(_lua_bool_ok)
     def watch(self, *names):
         pass
 
+    @check_conn
     @_lua_reply(_lua_bool_ok)
     def unwatch(self):
         pass
@@ -827,6 +832,7 @@ class FakeStrictRedis(object):
         except KeyError:
             return []
 
+    @check_conn
     def eval(self, script, numkeys, *keys_and_args):
         from lupa import LuaRuntime, LuaError
 
@@ -1002,7 +1008,6 @@ class FakeStrictRedis(object):
             data = new_data
         return data
 
-    @check_conn
     def _get_single_item(self, k, g):
         g = to_bytes(g)
         if b'*' in g:
@@ -1018,7 +1023,6 @@ class FakeStrictRedis(object):
             single_item = None
         return single_item
 
-    @check_conn
     def _strtod_key_func(self, arg):
         # str()'ing the arg is important! Don't ever remove this.
         arg = to_bytes(arg)
@@ -1549,7 +1553,6 @@ class FakeStrictRedis(object):
                     right_comparator(x, actual_max))
         return _matches
 
-    @check_conn
     def _get_comparator_and_val(self, value):
         try:
             if isinstance(value, string_types) and value.startswith('('):
@@ -1587,7 +1590,6 @@ class FakeStrictRedis(object):
                     right_comparator(x, actual_max))
         return _matches
 
-    @check_conn
     def _get_lexcomp_and_str(self, value):
         if value.startswith(b'('):
             comparator = operator.lt
@@ -1665,6 +1667,7 @@ class FakeStrictRedis(object):
         d[value] = score
         return score
 
+    @check_conn
     @_remove_empty
     def zinterstore(self, dest, keys, aggregate=None):
         """
@@ -1696,6 +1699,7 @@ class FakeStrictRedis(object):
         else:
             return [(k, score_cast_func(to_bytes(all_items[k]))) for k in items]
 
+    @check_conn
     def zrange(self, name, start, end, desc=False, withscores=False, score_cast_func=float):
         """
         Return a range of values from sorted set ``name`` between
@@ -1723,13 +1727,13 @@ class FakeStrictRedis(object):
         items = in_order[start:end]
         return self._apply_score_cast_func(items, all_items, withscores, score_cast_func)
 
-    @check_conn
     def _get_zelements_in_order(self, all_items, reverse=False):
         by_keyname = sorted(
             all_items.items(), key=lambda x: x[0], reverse=reverse)
         in_order = sorted(by_keyname, key=lambda x: x[1], reverse=reverse)
         return [el[0] for el in in_order]
 
+    @check_conn
     def zrangebyscore(self, name, min, max, start=None, num=None,
                       withscores=False, score_cast_func=float):
         """
@@ -1747,7 +1751,6 @@ class FakeStrictRedis(object):
         return self._zrangebyscore(name, min, max, start, num, withscores, score_cast_func,
                                    reverse=False)
 
-    @check_conn
     def _zrangebyscore(self, name, min, max, start, num, withscores, score_cast_func, reverse):
         if (start is not None and num is None) or \
                 (num is not None and start is None):
@@ -1764,6 +1767,7 @@ class FakeStrictRedis(object):
             matches = matches[start:start + num]
         return self._apply_score_cast_func(matches, all_items, withscores, score_cast_func)
 
+    @check_conn
     def zrangebylex(self, name, min, max,
                     start=None, num=None):
         """
@@ -1783,7 +1787,6 @@ class FakeStrictRedis(object):
         return self._zrangebylex(name, min, max, start, num,
                                  reverse=False)
 
-    @check_conn
     def _zrangebylex(self, name, min, max, start, num, reverse):
         if (start is not None and num is None) or \
                 (num is not None and start is None):
@@ -1827,6 +1830,7 @@ class FakeStrictRedis(object):
                 rem += 1
         return rem
 
+    @check_conn
     @_remove_empty
     def zremrangebyrank(self, name, min, max):
         """
@@ -1863,6 +1867,7 @@ class FakeStrictRedis(object):
                 removed += 1
         return removed
 
+    @check_conn
     @_remove_empty
     def zremrangebylex(self, name, min, max):
         """
@@ -1884,6 +1889,7 @@ class FakeStrictRedis(object):
                 removed += 1
         return removed
 
+    @check_conn
     def zlexcount(self, name, min, max):
         """
         Returns a count of elements in the sorted set ``name``
@@ -1903,6 +1909,7 @@ class FakeStrictRedis(object):
                 found += 1
         return found
 
+    @check_conn
     def zrevrange(self, name, start, num, withscores=False, score_cast_func=float):
         """
         Return a range of values from sorted set ``name`` between
@@ -1917,6 +1924,7 @@ class FakeStrictRedis(object):
         """
         return self.zrange(name, start, num, True, withscores, score_cast_func)
 
+    @check_conn
     def zrevrangebyscore(self, name, max, min, start=None, num=None,
                          withscores=False, score_cast_func=float):
         """
@@ -1934,6 +1942,7 @@ class FakeStrictRedis(object):
         return self._zrangebyscore(name, min, max, start, num, withscores, score_cast_func,
                                    reverse=True)
 
+    @check_conn
     def zrevrangebylex(self, name, max, min,
                        start=None, num=None):
         """
@@ -1953,6 +1962,7 @@ class FakeStrictRedis(object):
         return self._zrangebylex(name, min, max, start, num,
                                  reverse=True)
 
+    # TODO: left off here
     def zrevrank(self, name, value):
         """
         Returns a 0-based value indicating the descending rank of
@@ -1982,7 +1992,6 @@ class FakeStrictRedis(object):
                                       "for ZINTERSTORE/ZUNIONSTORE")
         self._zaggregate(dest, keys, aggregate, lambda x: True)
 
-    @check_conn
     def _zaggregate(self, dest, keys, aggregate, should_include):
         new_zset = _ZSet()
         if aggregate is None:
