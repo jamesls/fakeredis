@@ -5,3 +5,4 @@ extras/*
 .tox
 *.pyc
 .idea
+venv/
