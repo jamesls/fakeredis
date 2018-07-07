@@ -6,7 +6,9 @@ python:
   - 3.4
   - 3.5
   - 3.6
-  - nightly
+  - pypy
+  # Disabled because PyYAML is failing to compile against it
+  # - nightly
 sudo: false
 cache:
   - pip
@@ -16,10 +18,13 @@ install:
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then pip install -r requirements-26.txt; fi
   - pip install -r requirements.txt
   - pip install coverage python-coveralls
+before_script:
+  - flake8
 script:
   - coverage erase
-  - coverage run --source fakeredis.py test_fakeredis.py
+  - coverage run --source fakeredis test_fakeredis.py
 notifications:
   email:
     - js@jamesls.com
+    - bmerry@ska.ac.za
 after_success: coveralls

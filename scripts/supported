@@ -10,6 +10,7 @@
 import os
 import json
 import inspect
+from collections import OrderedDict
 from urllib2 import urlopen
 
 import fakeredis
@@ -21,14 +22,15 @@ COMMANDS_URL = 'https://raw.github.com/antirez/redis-doc/master/commands.json'
 if not os.path.exists(COMMANDS_FILE):
     contents = urlopen(COMMANDS_URL).read()
     open(COMMANDS_FILE, 'w').write(contents)
-commands = json.load(open(COMMANDS_FILE))
+commands = json.load(open(COMMANDS_FILE), object_pairs_hook=OrderedDict)
 for k, v in commands.items():
     commands[k.lower()] = v
     del commands[k]
 
 
 implemented_commands = set()
-for name, method in inspect.getmembers(fakeredis.FakeRedis):
+for name, method in (inspect.getmembers(fakeredis.FakeRedis)
+                     + inspect.getmembers(fakeredis.FakePubSub)):
     if hasattr(method, 'im_func'):
         if name == 'delete':
             # This is specific to the python bindings because
@@ -43,13 +45,13 @@ for name, method in inspect.getmembers(fakeredis.FakeRedis):
             implemented_commands.add('decrby')
         implemented_commands.add(name)
 
-unimplemented_commands = set()
+unimplemented_commands = []
 for command in commands:
     if command not in implemented_commands:
-        unimplemented_commands.add(command)
+        unimplemented_commands.append(command)
 
 # Group by 'group' for easier to read output
-groups = {}
+groups = OrderedDict()
 for command in unimplemented_commands:
     group = commands[command]['group']
     groups.setdefault(group, []).append(command)
