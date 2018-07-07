@@ -1962,7 +1962,7 @@ class FakeStrictRedis(object):
         return self._zrangebylex(name, min, max, start, num,
                                  reverse=True)
 
-    # TODO: left off here
+    @check_conn
     def zrevrank(self, name, value):
         """
         Returns a 0-based value indicating the descending rank of
@@ -1973,6 +1973,7 @@ class FakeStrictRedis(object):
         if zrank is not None:
             return num_items - self.zrank(name, value) - 1
 
+    @check_conn
     def zscore(self, name, value):
         "Return the score of element ``value`` in sorted set ``name``"
         all_items = self._get_zset(name)
@@ -1981,6 +1982,7 @@ class FakeStrictRedis(object):
         except KeyError:
             return None
 
+    @check_conn
     def zunionstore(self, dest, keys, aggregate=None):
         """
         Union multiple sorted sets specified by ``keys`` into
@@ -2037,6 +2039,7 @@ class FakeStrictRedis(object):
             keys.extend(args)
         return keys
 
+    @check_conn
     def pipeline(self, transaction=True, shard_hint=None):
         """Return an object that can be used to issue Redis commands in a batch.
 
@@ -2046,6 +2049,7 @@ class FakeStrictRedis(object):
         """
         return FakePipeline(self, transaction)
 
+    @check_conn
     def transaction(self, func, *keys, **kwargs):
         shard_hint = kwargs.pop('shard_hint', None)
         value_from_callable = kwargs.pop('value_from_callable', False)
@@ -2068,10 +2072,12 @@ class FakeStrictRedis(object):
                     continue
         raise redis.WatchError('Could not run transaction after 5 tries')
 
+    @check_conn
     def lock(self, name, timeout=None, sleep=0.1, blocking_timeout=None,
              lock_class=None, thread_local=True):
         return _Lock(self, name, timeout)
 
+    @check_conn
     def pubsub(self, ignore_subscribe_messages=False):
         """
         Returns a new FakePubSub instance
@@ -2082,6 +2088,7 @@ class FakeStrictRedis(object):
 
         return ps
 
+    @check_conn
     def publish(self, channel, message):
         """
         Loops through all available pubsub objects and publishes the
@@ -2098,6 +2105,7 @@ class FakeStrictRedis(object):
         return count
 
     # HYPERLOGLOG COMMANDS
+    @check_conn
     def pfadd(self, name, *values):
         "Adds the specified elements to the specified HyperLogLog."
         # Simulate the behavior of HyperLogLog by using SETs underneath to
@@ -2108,6 +2116,7 @@ class FakeStrictRedis(object):
         # - 1 if at least 1 HyperLogLog internal register was altered. 0 otherwise.
         return 1 if result > 0 else 0
 
+    @check_conn
     def pfcount(self, *sources):
         """
         Return the approximated cardinality of
@@ -2115,6 +2124,7 @@ class FakeStrictRedis(object):
         """
         return len(self.sunion(*sources))
 
+    @check_conn
     @_lua_reply(_lua_bool_ok)
     def pfmerge(self, dest, *sources):
         "Merge N different HyperLogLogs into a single one."
@@ -2146,12 +2156,15 @@ class FakeStrictRedis(object):
             result_cursor = 0
         return result_cursor, result_data
 
+    @check_conn
     def scan(self, cursor=0, match=None, count=None):
         return self._scan(self.keys(), int(cursor), match, count or 10)
 
+    @check_conn
     def sscan(self, name, cursor=0, match=None, count=None):
         return self._scan(self.smembers(name), int(cursor), match, count or 10)
 
+    @check_conn
     def hscan(self, name, cursor=0, match=None, count=None):
         cursor, keys = self._scan(self.hkeys(name), int(cursor), match, count or 10)
         results = {}
@@ -2159,6 +2172,7 @@ class FakeStrictRedis(object):
             results[k] = self.hget(name, k)
         return cursor, results
 
+    @check_conn
     def scan_iter(self, match=None, count=None):
         # This is from redis-py
         cursor = '0'
@@ -2167,6 +2181,7 @@ class FakeStrictRedis(object):
             for item in data:
                 yield item
 
+    @check_conn
     def sscan_iter(self, name, match=None, count=None):
         # This is from redis-py
         cursor = '0'
@@ -2176,6 +2191,7 @@ class FakeStrictRedis(object):
             for item in data:
                 yield item
 
+    @check_conn
     def hscan_iter(self, name, match=None, count=None):
         # This is from redis-py
         cursor = '0'

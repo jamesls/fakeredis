@@ -4343,5 +4343,71 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
         with self.assertRaises(redis.ConnectionError):
             self.redis.zrevrangebylex('name', 5, 1)
 
+    def test_zrevran(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrevrank('name', 2)
+
+    def test_zscore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zscore('name', 2)
+
+    def test_zunionstor(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zunionstore('dest', ['1', '2'])
+
+    def test_pipeline(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pipeline()
+
+    def test_transaction(self):
+        with self.assertRaises(redis.ConnectionError):
+            def func(a):
+                return a * a
+
+            self.redis.transaction(func, 3)
+
+    def test_lock(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lock('name')
+
+    def test_pubsub(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pubsub()
+
+    def test_pfadd(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pfadd('name', [1])
+
+    def test_pfmerge(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pfmerge('dest', ['a', 'b'])
+
+    def test_scan(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.scan()
+
+    def test_sscan(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sscan('name')
+
+    def test_hscan(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hscan('name')
+
+    def test_scan_iter(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.scan_iter()
+
+    def test_sscan_iter(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sscan_iter('name')
+
+    def test_hscan_iter(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hscan_iter('name')
+
+
+
+
 if __name__ == '__main__':
     unittest.main()
