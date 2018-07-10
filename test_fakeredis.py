@@ -4079,12 +4079,12 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
             self.redis.persist('key')
 
     def test_rename(self):
-        self.redis._connected = True
+        self.redis.connected = True
         self.redis.set('key1', 'value')
-        self.redis._connected = False
+        self.redis.connected = False
         with self.assertRaises(redis.ConnectionError):
             self.redis.rename('key1', 'key2')
-        self.redis._connected = True
+        self.redis.connected = True
         self.assertTrue(self.redis.exists('key1'))
 
     def test_watch(self):
