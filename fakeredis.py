@@ -331,12 +331,11 @@ class _Lock(object):
         self.redis.delete(self.name)
 
 
-def check_conn(func):
+def _check_conn(func):
     """Used to mock connection errors"""
-
     @functools.wraps(func)
     def func_wrapper(*args, **kwargs):
-        if not args[0]._connected:
+        if not func.__self__.connected:
             raise redis.ConnectionError
         return func(*args, **kwargs)
     return func_wrapper
@@ -367,9 +366,12 @@ class FakeStrictRedis(object):
         self._encoding_errors = errors
         self._pubsubs = []
         self._decode_responses = decode_responses
-        self._connected = connected
+        self.connected = connected
         if decode_responses:
-            _patch_responses(self)
+            _patch_responses(self, _make_decode_func)
+
+        if not connected:
+            _patch_responses(self, _check_conn)
 
     @_lua_reply(_lua_bool_ok)
     @check_conn
