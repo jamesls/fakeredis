@@ -2238,7 +2238,7 @@ class FakePubSub(object):
         self._q = Queue()
         self.subscribed = False
         if decode_responses:
-            _patch_responses(self)
+            _patch_responses(self, _make_decode_func)
         self._decode_responses = decode_responses
         self.ignore_subscribe_messages = kwargs.get(
             'ignore_subscribe_messages', False)
