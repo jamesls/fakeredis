@@ -221,12 +221,12 @@ def _make_decode_func(func):
     return decode_response
 
 
-def _patch_responses(obj):
+def _patch_responses(obj, decorator):
     for attr_name in dir(obj):
         attr = getattr(obj, attr_name)
         if not callable(attr) or attr_name.startswith('_'):
             continue
-        func = _make_decode_func(attr)
+        func = decorator(attr)
         setattr(obj, attr_name, func)
 
 
