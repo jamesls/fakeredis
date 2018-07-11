@@ -336,7 +336,7 @@ def _check_conn(func):
     @functools.wraps(func)
     def func_wrapper(*args, **kwargs):
         if not func.__self__.connected:
-            raise redis.ConnectionError
+            raise redis.ConnectionError("FakeRedis is emulating a connection error.")
         return func(*args, **kwargs)
     return func_wrapper
 
