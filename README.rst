@@ -79,6 +79,7 @@ your error handling. Simply pass `connected=False` to the constructor or
 set the connected attribute to `False` after initialization.
 
 .. code-block:: python
+
   >>> import fakeredis
   >>> r = fakeredis.FakeStrictRedis(connected=False)
   >>> r.set('foo', 'bar')
