@@ -79,17 +79,17 @@ your error handling. Simply pass `connected=False` to the constructor or
 set the connected attribute to `False` after initialization.
 
 .. code-block:: python
-   >>> import fakeredis
-   >>> r = fakeredis.FakeStrictRedis(connected=False)
-   >>> r.set('foo', 'bar')
-   Traceback (most recent call last):
-     File "<stdin>", line 1, in <module>
-     File "~/fakeredis/fakeredis.py", line 339, in func_wrapper
-       raise redis.ConnectionError("FakeRedis is emulating a connection error.")
-   redis.exceptions.ConnectionError: FakeRedis is emulating a connection error.
-   >>> r.connected = True
-   >>> r.set('foo', 'bar')
-   True
+  >>> import fakeredis
+  >>> r = fakeredis.FakeStrictRedis(connected=False)
+  >>> r.set('foo', 'bar')
+  Traceback (most recent call last):
+    File "<stdin>", line 1, in <module>
+    File "~/fakeredis/fakeredis.py", line 339, in func_wrapper
+      raise redis.ConnectionError("FakeRedis is emulating a connection error.")
+  redis.exceptions.ConnectionError: FakeRedis is emulating a connection error.
+  >>> r.connected = True
+  >>> r.set('foo', 'bar')
+  True
 
 Fakeredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
