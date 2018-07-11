@@ -370,8 +370,7 @@ class FakeStrictRedis(object):
         if decode_responses:
             _patch_responses(self, _make_decode_func)
 
-        if not connected:
-            _patch_responses(self, _check_conn)
+        _patch_responses(self, _check_conn)
 
     @_lua_reply(_lua_bool_ok)
     def flushdb(self):
