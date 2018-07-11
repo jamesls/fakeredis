@@ -367,10 +367,10 @@ class FakeStrictRedis(object):
         self._pubsubs = []
         self._decode_responses = decode_responses
         self.connected = connected
+        _patch_responses(self, _check_conn)
+
         if decode_responses:
             _patch_responses(self, _make_decode_func)
-
-        _patch_responses(self, _check_conn)
 
     @_lua_reply(_lua_bool_ok)
     def flushdb(self):
