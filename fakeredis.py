@@ -2231,11 +2231,13 @@ class FakePubSub(object):
     PATTERN_MESSAGE_TYPES = ['psubscribe', 'punsubscribe']
     LISTEN_DELAY = 0.1          # delay between listen loops (seconds)
 
-    def __init__(self, decode_responses=False, *args, **kwargs):
+    def __init__(self, connected=True, decode_responses=False, *args, **kwargs):
         self.channels = {}
         self.patterns = {}
         self._q = Queue()
         self.subscribed = False
+        self.connected = connected
+        _patch_responses(self, _check_conn)
         if decode_responses:
             _patch_responses(self, _make_decode_func)
         self._decode_responses = decode_responses

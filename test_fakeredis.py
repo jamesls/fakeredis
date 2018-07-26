@@ -4403,5 +4403,42 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
             self.redis.hscan_iter('name')
 
 
+class TestPubSubConnected(unittest.TestCase):
+
+    def setUp(self):
+        self.redis = fakeredis.FakePubSub(connected=False)
+
+    def tearDown(self):
+        del self.redis
+
+    def test_basic_subscript(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.subscribe('logs')
+
+    def test_subscript_conn_lost(self):
+        self.redis.connected = True
+        self.redis.subscribe('logs')
+        self.redis.connected = False
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.get_message()
+
+    def test_put_listen(self):
+        self.redis.connected = True
+        count = self.redis.put('logs', 'mymessage', 'subscribe')
+        self.assertEqual(count, 1, 'Message could should be 1')
+        self.redis.connected = False
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.get_message()
+        self.redis.connected = True
+        msg = self.redis.get_message()
+        check = {
+            'type': 'subscribe',
+            'pattern': None,
+            'channel': b'logs',
+            'data': 'mymessage'
+        }
+        self.assertEqual(msg, check, 'Message was not published to channel')
+
+
 if __name__ == '__main__':
     unittest.main()
