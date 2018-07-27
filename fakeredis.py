@@ -2231,7 +2231,7 @@ class FakePubSub(object):
     PATTERN_MESSAGE_TYPES = ['psubscribe', 'punsubscribe']
     LISTEN_DELAY = 0.1          # delay between listen loops (seconds)
 
-    def __init__(self, connected=True, decode_responses=False, *args, **kwargs):
+    def __init__(self, decode_responses=False, connected=True, *args, **kwargs):
         self.channels = {}
         self.patterns = {}
         self._q = Queue()
