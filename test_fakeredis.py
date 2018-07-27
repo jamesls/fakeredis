@@ -3984,7 +3984,6 @@ class TestImportation(unittest.TestCase):
 
 
 class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
-
     def create_redis(self):
         return fakeredis.FakeStrictRedis(db=0, connected=False)
 
@@ -4404,33 +4403,35 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
 
 class TestPubSubConnected(unittest.TestCase):
+    def create_redis(self):
+        return fakeredis.FakePubSub(connected=False)
 
     def setUp(self):
-        self.redis = fakeredis.FakePubSub(connected=False)
+        self.pubsub = self.create_redis()
 
     def tearDown(self):
-        del self.redis
+        del self.pubsub
 
     def test_basic_subscript(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.subscribe('logs')
+            self.pubsub.subscribe('logs')
 
     def test_subscript_conn_lost(self):
-        self.redis.connected = True
-        self.redis.subscribe('logs')
-        self.redis.connected = False
+        self.pubsub.connected = True
+        self.pubsub.subscribe('logs')
+        self.pubsub.connected = False
         with self.assertRaises(redis.ConnectionError):
-            self.redis.get_message()
+            self.pubsub.get_message()
 
     def test_put_listen(self):
-        self.redis.connected = True
-        count = self.redis.put('logs', 'mymessage', 'subscribe')
+        self.pubsub.connected = True
+        count = self.pubsub.put('logs', 'mymessage', 'subscribe')
         self.assertEqual(count, 1, 'Message could should be 1')
-        self.redis.connected = False
+        self.pubsub.connected = False
         with self.assertRaises(redis.ConnectionError):
-            self.redis.get_message()
-        self.redis.connected = True
-        msg = self.redis.get_message()
+            self.pubsub.get_message()
+        self.pubsub.connected = True
+        msg = self.pubsub.get_message()
         check = {
             'type': 'subscribe',
             'pattern': None,
