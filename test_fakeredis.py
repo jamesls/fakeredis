@@ -3983,5 +3983,463 @@ class TestImportation(unittest.TestCase):
             reload(fakeredis)
 
 
+class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
+    def create_redis(self):
+        return fakeredis.FakeStrictRedis(db=0, connected=False)
+
+    def setUp(self):
+        self.redis = self.create_redis()
+
+    def tearDown(self):
+        del self.redis
+
+    def test_flushdb(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.flushdb()
+
+    def test_flushall(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.flushall()
+
+    def test_append(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.append('key', 'value')
+
+        self.assertEqual(self.redis._db, {}, 'DB should be empty')
+
+    def test_bitcount(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.bitcount('key', 0, 20)
+
+    def test_decr(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.decr('key', 2)
+
+        self.assertEqual(self.redis._db, {}, 'DB should be empty')
+
+    def test_exists(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.exists('key')
+
+    def test_expire(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.expire('key', 20)
+
+    def test_pexpire(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pexpire('key', 20)
+
+    def test_echo(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.echo('value')
+
+    def test_get(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.get('key')
+
+    def test_getbit(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.getbit('key', 2)
+
+    def test_getset(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.getset('key', 'value')
+
+    def test_incr(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.incr('key')
+
+    def test_incrby(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.incrby('key')
+
+    def test_ncrbyfloat(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.incrbyfloat('key')
+
+    def test_keys(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.keys()
+
+    def test_mget(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.mget(['key1', 'key2'])
+
+    def test_mset(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.mset(('key', 'value'))
+
+    def test_msetnx(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.msetnx({'key': 'value'})
+
+    def test_persist(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.persist('key')
+
+    def test_rename(self):
+        self.redis.connected = True
+        self.redis.set('key1', 'value')
+        self.redis.connected = False
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.rename('key1', 'key2')
+        self.redis.connected = True
+        self.assertTrue(self.redis.exists('key1'))
+
+    def test_watch(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.watch()
+
+    def test_unwatch(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.unwatch()
+
+    def test_eval(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.eval('', 0)
+
+    def test_lpush(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lpush('name', [1, 2])
+
+    def test_lrange(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lrange('name', 1, 5)
+
+    def test_llen(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.llen('name')
+
+    def test_lrem(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lrem('name', 2, 2)
+
+    def test_rpush(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.rpush('name', [1])
+
+    def test_lpop(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lpop('name')
+
+    def test_lset(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lset('name', 1, 4)
+
+    def test_rpushx(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.rpushx('name', 1)
+
+    def test_ltrim(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.ltrim('name', 1, 4)
+
+    def test_lindex(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lindex('name', 1)
+
+    def test_lpushx(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lpushx('name', 1)
+
+    def test_rpop(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.rpop('name')
+
+    def test_linsert(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.linsert('name', 'where', 'refvalue', 'value')
+
+    def test_rpoplpush(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.rpoplpush('src', 'dst')
+
+    def test_blpop(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.blpop('keys')
+
+    def test_brpop(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.brpop('keys')
+
+    def test_brpoplpush(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.brpoplpush('src', 'dst')
+
+    def test_hdel(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hdel('name')
+
+    def test_hexists(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hexists('name', 'key')
+
+    def test_hget(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hget('name', 'key')
+
+    def test_hgetall(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hgetall('name')
+
+    def test_hincrby(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hincrby('name', 'key')
+
+    def test_hincrbyfloat(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hincrbyfloat('name', 'key')
+
+    def test_hkeys(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hkeys('name')
+
+    def test_hlen(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hlen('name')
+
+    def test_hset(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hset('name', 'key', 1)
+
+    def test_hsetnx(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hsetnx('name', 'key', 2)
+
+    def test_hmset(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hmset('name', {'key': 1})
+
+    def test_hmget(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hmget('name', ['a', 'b'])
+
+    def test_hvals(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hvals('name')
+
+    def test_sadd(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sadd('name', [1, 2])
+
+    def test_scard(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.scard('name')
+
+    def test_sdiff(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sdiff(['a', 'b'])
+
+    def test_sdiffstore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sdiffstore('dest', ['a', 'b'])
+
+    def test_sinter(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sinter(['a', 'b'])
+
+    def test_sinterstore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sinterstore('dest', ['a', 'b'])
+
+    def test_sismember(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sismember('name', 20)
+
+    def test_smembers(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.smembers('name')
+
+    def test_smove(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.smove('src', 'dest', 20)
+
+    def test_spop(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.spop('name')
+
+    def test_srandmember(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.srandmember('name')
+
+    def test_srem(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.srem('name')
+
+    def test_sunion(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sunion(['a', 'b'])
+
+    def test_sunionstore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sunionstore('dest', ['a', 'b'])
+
+    def test_zadd(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zadd('name')
+
+    def test_zcard(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zcard('name')
+
+    def test_zcount(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zcount('name', 1, 5)
+
+    def test_zincrby(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zincrby('name', 1)
+
+    def test_zinterstore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zinterstore('dest', ['a', 'b'])
+
+    def test_zrange(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrange('name', 1, 5)
+
+    def test_zrangebyscore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrangebyscore('name', 1, 5)
+
+    def test_rangebylex(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrangebylex('name', 1, 4)
+
+    def test_zrem(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrem('name', [1])
+
+    def test_zremrangebyrank(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zremrangebyrank('name', 1, 5)
+
+    def test_zremrangebyscore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zremrangebyscore('name', 1, 5)
+
+    def test_zremrangebylex(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zremrangebylex('name', 1, 5)
+
+    def test_zlexcount(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zlexcount('name', 1, 5)
+
+    def test_zrevrange(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrevrange('name', 1, 5, 1)
+
+    def test_zrevrangebyscore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrevrangebyscore('name', 5, 1)
+
+    def test_zrevrangebylex(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrevrangebylex('name', 5, 1)
+
+    def test_zrevran(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zrevrank('name', 2)
+
+    def test_zscore(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zscore('name', 2)
+
+    def test_zunionstor(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.zunionstore('dest', ['1', '2'])
+
+    def test_pipeline(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pipeline()
+
+    def test_transaction(self):
+        with self.assertRaises(redis.ConnectionError):
+            def func(a):
+                return a * a
+
+            self.redis.transaction(func, 3)
+
+    def test_lock(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.lock('name')
+
+    def test_pubsub(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pubsub()
+
+    def test_pfadd(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pfadd('name', [1])
+
+    def test_pfmerge(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.pfmerge('dest', ['a', 'b'])
+
+    def test_scan(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.scan()
+
+    def test_sscan(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sscan('name')
+
+    def test_hscan(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hscan('name')
+
+    def test_scan_iter(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.scan_iter()
+
+    def test_sscan_iter(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.sscan_iter('name')
+
+    def test_hscan_iter(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.redis.hscan_iter('name')
+
+
+class TestPubSubConnected(unittest.TestCase):
+    def create_redis(self):
+        return fakeredis.FakePubSub(connected=False)
+
+    def setUp(self):
+        self.pubsub = self.create_redis()
+
+    def tearDown(self):
+        del self.pubsub
+
+    def test_basic_subscript(self):
+        with self.assertRaises(redis.ConnectionError):
+            self.pubsub.subscribe('logs')
+
+    def test_subscript_conn_lost(self):
+        self.pubsub.connected = True
+        self.pubsub.subscribe('logs')
+        self.pubsub.connected = False
+        with self.assertRaises(redis.ConnectionError):
+            self.pubsub.get_message()
+
+    def test_put_listen(self):
+        self.pubsub.connected = True
+        count = self.pubsub.put('logs', 'mymessage', 'subscribe')
+        self.assertEqual(count, 1, 'Message could should be 1')
+        self.pubsub.connected = False
+        with self.assertRaises(redis.ConnectionError):
+            self.pubsub.get_message()
+        self.pubsub.connected = True
+        msg = self.pubsub.get_message()
+        check = {
+            'type': 'subscribe',
+            'pattern': None,
+            'channel': b'logs',
+            'data': 'mymessage'
+        }
+        self.assertEqual(msg, check, 'Message was not published to channel')
+
+
 if __name__ == '__main__':
     unittest.main()

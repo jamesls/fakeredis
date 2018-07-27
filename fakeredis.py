@@ -221,12 +221,12 @@ def _make_decode_func(func):
     return decode_response
 
 
-def _patch_responses(obj):
+def _patch_responses(obj, decorator):
     for attr_name in dir(obj):
         attr = getattr(obj, attr_name)
         if not callable(attr) or attr_name.startswith('_'):
             continue
-        func = _make_decode_func(attr)
+        func = decorator(attr)
         setattr(obj, attr_name, func)
 
 
@@ -331,6 +331,16 @@ class _Lock(object):
         self.redis.delete(self.name)
 
 
+def _check_conn(func):
+    """Used to mock connection errors"""
+    @functools.wraps(func)
+    def func_wrapper(*args, **kwargs):
+        if not func.__self__.connected:
+            raise redis.ConnectionError("FakeRedis is emulating a connection error.")
+        return func(*args, **kwargs)
+    return func_wrapper
+
+
 class FakeStrictRedis(object):
     @classmethod
     def from_url(cls, url, db=None, **kwargs):
@@ -343,7 +353,7 @@ class FakeStrictRedis(object):
         return cls(db=db, **kwargs)
 
     def __init__(self, db=0, charset='utf-8', errors='strict',
-                 decode_responses=False, singleton=True, **kwargs):
+                 decode_responses=False, singleton=True, connected=True, **kwargs):
         if singleton:
             self._dbs = DATABASES
         else:
@@ -356,8 +366,11 @@ class FakeStrictRedis(object):
         self._encoding_errors = errors
         self._pubsubs = []
         self._decode_responses = decode_responses
+        self.connected = connected
+        _patch_responses(self, _check_conn)
+
         if decode_responses:
-            _patch_responses(self)
+            _patch_responses(self, _make_decode_func)
 
     @_lua_reply(_lua_bool_ok)
     def flushdb(self):
@@ -2218,13 +2231,15 @@ class FakePubSub(object):
     PATTERN_MESSAGE_TYPES = ['psubscribe', 'punsubscribe']
     LISTEN_DELAY = 0.1          # delay between listen loops (seconds)
 
-    def __init__(self, decode_responses=False, *args, **kwargs):
+    def __init__(self, decode_responses=False, connected=True, *args, **kwargs):
         self.channels = {}
         self.patterns = {}
         self._q = Queue()
         self.subscribed = False
+        self.connected = connected
+        _patch_responses(self, _check_conn)
         if decode_responses:
-            _patch_responses(self)
+            _patch_responses(self, _make_decode_func)
         self._decode_responses = decode_responses
         self.ignore_subscribe_messages = kwargs.get(
             'ignore_subscribe_messages', False)

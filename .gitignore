@@ -4,3 +4,5 @@ dump.rdb
 extras/*
 .tox
 *.pyc
+.idea
+venv/
