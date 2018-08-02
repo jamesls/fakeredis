@@ -43,9 +43,11 @@ if PY2:
     def to_bytes(x, charset=DEFAULT_ENCODING, errors='strict'):
         if isinstance(x, unicode):  # noqa: F821
             return x.encode(charset, errors)
+        if isinstance(x, bytes):
+            return x
         if isinstance(x, float):
             return repr(x)
-        if isinstance(x, (bytes, bytearray, buffer)) or hasattr(x, '__str__'):  # noqa: F821
+        if isinstance(x, (bytearray, buffer)) or hasattr(x, '__str__'):  # noqa: F821
             return bytes(x)
         if hasattr(x, '__unicode__'):
             return unicode(x).encode(charset, errors)  # noqa: F821

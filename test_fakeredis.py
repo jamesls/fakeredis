@@ -132,6 +132,22 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.set(u'Ñandu', 'foo'), True)
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
+    def test_future_newbytes(self):
+        try:
+            from builtins import bytes
+        except ImportError:
+            raise SkipTest('future.types not available')
+        self.redis.set(bytes(b'\xc3\x91andu'), 'foo')
+        self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
+
+    def test_future_newstr(self):
+        try:
+            from builtins import str
+        except ImportError:
+            raise SkipTest('future.types not available')
+        self.redis.set(str(u'Ñandu'), 'foo')
+        self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
+
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
 
