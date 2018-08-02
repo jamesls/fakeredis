@@ -300,6 +300,12 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.12.0
+------
+- `#197 <https://github.com/jamesls/fakeredis/pull/197>`_ Mock connection error
+- `#195 <https://github.com/jamesls/fakeredis/pull/195>`_ Align bool/len behaviour of pipeline
+- `#199 <https://github.com/jamesls/fakeredis/issues/199>`_ future.types.newbytes does not encode correctly
+
 0.11.0
 ------
 - `#194 <https://github.com/jamesls/fakeredis/pull/194>`_ Support ``score_cast_func`` in zset functions
