@@ -337,7 +337,11 @@ def _check_conn(func):
     """Used to mock connection errors"""
     @functools.wraps(func)
     def func_wrapper(*args, **kwargs):
-        if not func.__self__.connected:
+        try:
+            connected = func.__self__.connected
+        except AttributeError:  # func.__self__ might throw if func is mocked.
+            connected = True
+        if not connected:
             raise redis.ConnectionError("FakeRedis is emulating a connection error.")
         return func(*args, **kwargs)
     return func_wrapper
