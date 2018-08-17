@@ -1488,6 +1488,12 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_smembers(self):
         self.assertEqual(self.redis.smembers('foo'), set())
 
+    def test_smembers_copy(self):
+        self.redis.sadd('foo', 'member1')
+        set = self.redis.smembers('foo')
+        self.redis.sadd('foo', 'member2')
+        self.assertNotEqual(set, self.redis.smembers('foo'))
+
     def test_smembers_wrong_type(self):
         self.redis.zadd('foo', 1, 'member')
         with self.assertRaises(redis.ResponseError):
