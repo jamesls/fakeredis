@@ -1362,7 +1362,7 @@ class FakeStrictRedis(object):
 
     def smembers(self, name):
         "Return all members of the set ``name``"
-        return self._get_set(name)
+        return self._get_set(name).copy()
 
     @_remove_empty
     def smove(self, src, dst, value):
