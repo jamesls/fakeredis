@@ -1221,6 +1221,10 @@ class FakeStrictRedis(object):
         "Return the value of ``key`` within the hash ``name``"
         return self._get_hash(name).get(key)
 
+    def hstrlen(self, name, key):
+        "Returns the string length of the value associated with field in the hash stored at key"
+        return len(self._get_hash(name).get(key, ""))
+
     def hgetall(self, name):
         "Return a Python dict of the hash's name/value pairs"
         all_items = dict()

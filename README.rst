@@ -229,12 +229,6 @@ geo
  * georadiusbymember
 
 
-hash
-----
-
- * hstrlen
-
-
 sorted_set
 ----------
 

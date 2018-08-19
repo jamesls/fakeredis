@@ -1082,6 +1082,16 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     # Tests for the hash type.
 
+    def test_hstrlen_missing(self):
+        self.assertEqual(self.redis.hstrlen('foo', 'doesnotexist'), 0)
+
+        self.redis.hset('foo', 'key', 'value')
+        self.assertEqual(self.redis.hstrlen('foo', 'doesnotexist'), 0)
+
+    def test_hstrlen(self):
+        self.redis.hset('foo', 'key', 'value')
+        self.assertEqual(self.redis.hstrlen('foo', 'key'), 5)
+
     def test_hset_then_hget(self):
         self.assertEqual(self.redis.hset('foo', 'key', 'value'), 1)
         self.assertEqual(self.redis.hget('foo', 'key'), b'value')
