@@ -9,7 +9,13 @@ python:
   - pypy
   # Disabled because PyYAML is failing to compile against it
   # - nightly
+matrix:
+  include:
+    - python: 3.7
+      dist: xenial
+      sudo: true
 sudo: false
+# Python 3.7 isn't available on trusty, so needs a separate build config
 cache:
   - pip
 services:
