@@ -294,6 +294,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.13.0
+------
+- `#202 <https://github.com/jamesls/fakeredis/pull/202>`_ Function smembers returns deepcopy
+- `#205 <https://github.com/jamesls/fakeredis/pull/205>`_ Implemented hstrlen
+
 0.12.0
 ------
 - `#197 <https://github.com/jamesls/fakeredis/pull/197>`_ Mock connection error
