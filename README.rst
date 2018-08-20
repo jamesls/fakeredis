@@ -298,6 +298,7 @@ Revision history
 ------
 - `#202 <https://github.com/jamesls/fakeredis/pull/202>`_ Function smembers returns deepcopy
 - `#205 <https://github.com/jamesls/fakeredis/pull/205>`_ Implemented hstrlen
+- `#207 <https://github.com/jamesls/fakeredis/pull/207>`_ Test on Python 3.7
 
 0.12.0
 ------
