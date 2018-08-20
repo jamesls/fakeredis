@@ -294,6 +294,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.13.0.1
+--------
+- Fix a typo in the Trove classifiers
+
 0.13.0
 ------
 - `#202 <https://github.com/jamesls/fakeredis/pull/202>`_ Function smembers returns deepcopy

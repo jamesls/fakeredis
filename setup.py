@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
     name='fakeredis',
-    version='0.13.0',
+    version='0.13.0.1',
     description="Fake implementation of redis API for testing purposes.",
     long_description=open(os.path.join(os.path.dirname(__file__),
                                        'README.rst')).read(),
@@ -27,7 +27,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
-        'Programming Language :: PYthon :: 3.7'
+        'Programming Language :: Python :: 3.7'
     ],
     install_requires=[
         'redis',
