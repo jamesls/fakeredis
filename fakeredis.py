@@ -838,8 +838,8 @@ class FakeStrictRedis(object):
         )
         expected_globals = set()
         set_globals(
-            [None] + keys_and_args[:numkeys],
-            [None] + keys_and_args[numkeys:],
+            lua_runtime.table_from(keys_and_args[:numkeys]),
+            lua_runtime.table_from(keys_and_args[numkeys:]),
             functools.partial(self._lua_redis_call, lua_runtime, expected_globals),
             functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals)
         )

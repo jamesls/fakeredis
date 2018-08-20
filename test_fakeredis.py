@@ -3311,6 +3311,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         val = self.redis.eval(lua, 0)
         self.assertEqual(val, [[b'foo']])
 
+    def test_eval_iterate_over_argv(self):
+        lua = """
+        for i, v in ipairs(ARGV) do
+        end
+        return ARGV
+        """
+        val = self.redis.eval(lua, 0, "a", "b", "c")
+        self.assertEqual(val, [b"a", b"b", b"c"])
+
+    def test_eval_iterate_over_keys(self):
+        lua = """
+        for i, v in ipairs(KEYS) do
+        end
+        return KEYS
+        """
+        val = self.redis.eval(lua, 2, "a", "b", "c")
+        self.assertEqual(val, [b"a", b"b"])
+
     def test_eval_mget(self):
         self.redis.set('foo1', 'bar1')
         self.redis.set('foo2', 'bar2')
