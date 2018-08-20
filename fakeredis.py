@@ -856,11 +856,12 @@ class FakeStrictRedis(object):
 
     def _convert_redis_result(self, lua_runtime, result):
         if isinstance(result, dict):
-            return [
+            converted = [
                 i
                 for item in result.items()
                 for i in item
             ]
+            return lua_runtime.table_from(converted)
         elif isinstance(result, set):
             converted = sorted(
                 self._convert_redis_result(lua_runtime, item)
