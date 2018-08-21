@@ -3346,7 +3346,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         end
         return result
         """
-        val = self.redis.eval(lua, 0, 'foo')
+        val = self.redis.eval(lua, 1, 'foo')
         sorted_val = sorted([val[:2], val[2:]])
         self.assertEqual(
             sorted_val,
