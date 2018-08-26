@@ -20,7 +20,7 @@ from redis.exceptions import ResponseError
 import redis.client
 
 try:
-    # Python 2.6, 2.7
+    # Python 2.7
     from Queue import Queue, Empty
 except:
     # Python 3

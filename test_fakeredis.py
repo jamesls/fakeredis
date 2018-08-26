@@ -7,6 +7,7 @@ from functools import wraps
 import os
 import sys
 import threading
+import unittest
 
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
@@ -17,7 +18,7 @@ import fakeredis
 from datetime import datetime, timedelta
 
 try:
-    # Python 2.6, 2.7
+    # Python 2.7
     from Queue import Queue
 except:
     # Python 3
@@ -27,11 +28,6 @@ PY2 = sys.version_info[0] == 2
 
 if not PY2:
     long = int
-
-if sys.version_info[:2] == (2, 6):
-    import unittest2 as unittest
-else:
-    import unittest
 
 # Try importlib, then imp, then the old builtin `reload`
 try:
