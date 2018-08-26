@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 try:
     # Python 2.7
     from Queue import Queue
-except:
+except ImportError:
     # Python 3
     from queue import Queue
 
@@ -32,10 +32,10 @@ if not PY2:
 # Try importlib, then imp, then the old builtin `reload`
 try:
     from importlib import reload
-except:
+except ImportError:
     try:
         from imp import reload
-    except:
+    except ImportError:
         pass
 
 

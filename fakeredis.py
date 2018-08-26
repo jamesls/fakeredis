@@ -22,7 +22,7 @@ import redis.client
 try:
     # Python 2.7
     from Queue import Queue, Empty
-except:
+except ImportError:
     # Python 3
     from queue import Queue, Empty
 
@@ -2431,7 +2431,7 @@ class FakePubSub(object):
             try:
                 channel = message['channel']
                 del subscribed_dict[channel]
-            except:
+            except Exception:
                 pass
 
         if message_type in self.PUBLISH_MESSAGE_TYPES:
