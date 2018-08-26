@@ -66,8 +66,8 @@ def redis_must_be_running(cls):
 
 
 def key_val_dict(size=100):
-    return dict([(b'key:' + bytes([i]), b'val:' + bytes([i]))
-                 for i in range(size)])
+    return {b'key:' + bytes([i]): b'val:' + bytes([i])
+            for i in range(size)}
 
 
 class TestFakeStrictRedis(unittest.TestCase):
@@ -1135,8 +1135,8 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_hkeys(self):
         self.redis.hset('foo', 'k1', 'v1')
         self.redis.hset('foo', 'k2', 'v2')
-        self.assertEqual(set(self.redis.hkeys('foo')), set([b'k1', b'k2']))
-        self.assertEqual(set(self.redis.hkeys('bar')), set([]))
+        self.assertEqual(set(self.redis.hkeys('foo')), {b'k1', b'k2'})
+        self.assertEqual(set(self.redis.hkeys('bar')), set())
 
     def test_hkeys_wrong_type(self):
         self.redis.zadd('foo', 1, 'bar')
@@ -1156,8 +1156,8 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_hvals(self):
         self.redis.hset('foo', 'k1', 'v1')
         self.redis.hset('foo', 'k2', 'v2')
-        self.assertEqual(set(self.redis.hvals('foo')), set([b'v1', b'v2']))
-        self.assertEqual(set(self.redis.hvals('bar')), set([]))
+        self.assertEqual(set(self.redis.hvals('foo')), {b'v1', b'v2'})
+        self.assertEqual(set(self.redis.hvals('bar')), set())
 
     def test_hvals_wrong_type(self):
         self.redis.zadd('foo', 1, 'bar')
@@ -1300,17 +1300,17 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_sadd(self):
         self.assertEqual(self.redis.sadd('foo', 'member1'), 1)
         self.assertEqual(self.redis.sadd('foo', 'member1'), 0)
-        self.assertEqual(self.redis.smembers('foo'), set([b'member1']))
+        self.assertEqual(self.redis.smembers('foo'), {b'member1'})
         self.assertEqual(self.redis.sadd('foo', 'member2', 'member3'), 2)
         self.assertEqual(self.redis.smembers('foo'),
-                         set([b'member1', b'member2', b'member3']))
+                         {b'member1', b'member2', b'member3'})
         self.assertEqual(self.redis.sadd('foo', 'member3', 'member4'), 1)
         self.assertEqual(self.redis.smembers('foo'),
-                         set([b'member1', b'member2', b'member3', b'member4']))
+                         {b'member1', b'member2', b'member3', b'member4'})
 
     def test_sadd_as_str_type(self):
         self.assertEqual(self.redis.sadd('foo', *range(3)), 3)
-        self.assertEqual(self.redis.smembers('foo'), set([b'0', b'1', b'2']))
+        self.assertEqual(self.redis.smembers('foo'), {b'0', b'1', b'2'})
 
     def test_sadd_wrong_type(self):
         self.redis.zadd('foo', 1, 'member')
@@ -1325,11 +1325,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo1', 'bar1')
         self.redis.set('foo2', 'bar2')
         self.assertEqual(set(self.redis.scan_iter(match="foo*")),
-                         set([b'foo1', b'foo2']))
+                         {b'foo1', b'foo2'})
         self.assertEqual(set(self.redis.scan_iter()),
-                         set([b'foo1', b'foo2']))
+                         {b'foo1', b'foo2'})
         self.assertEqual(set(self.redis.scan_iter(match="")),
-                         set([]))
+                         set())
 
     def test_scan_iter_multiple_pages(self):
         all_keys = key_val_dict(size=100)
@@ -1389,18 +1389,18 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('foo', 'member2')
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
-        self.assertEqual(self.redis.sdiff('foo', 'bar'), set([b'member1']))
+        self.assertEqual(self.redis.sdiff('foo', 'bar'), {b'member1'})
         # Original sets shouldn't be modified.
         self.assertEqual(self.redis.smembers('foo'),
-                         set([b'member1', b'member2']))
+                         {b'member1', b'member2'})
         self.assertEqual(self.redis.smembers('bar'),
-                         set([b'member2', b'member3']))
+                         {b'member2', b'member3'})
 
     def test_sdiff_one_key(self):
         self.redis.sadd('foo', 'member1')
         self.redis.sadd('foo', 'member2')
         self.assertEqual(self.redis.sdiff('foo'),
-                         set([b'member1', b'member2']))
+                         {b'member1', b'member2'})
 
     def test_sdiff_empty(self):
         self.assertEqual(self.redis.sdiff('foo'), set())
@@ -1447,9 +1447,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('foo', 'member2')
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
-        self.assertEqual(self.redis.sinter('foo', 'bar'), set([b'member2']))
+        self.assertEqual(self.redis.sinter('foo', 'bar'), {b'member2'})
         self.assertEqual(self.redis.sinter('foo'),
-                         set([b'member1', b'member2']))
+                         {b'member1', b'member2'})
 
     def test_sinter_bytes_keys(self):
         foo = os.urandom(10)
@@ -1458,8 +1458,8 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd(foo, 'member2')
         self.redis.sadd(bar, 'member2')
         self.redis.sadd(bar, 'member3')
-        self.assertEqual(self.redis.sinter(foo, bar), set([b'member2']))
-        self.assertEqual(self.redis.sinter(foo), set([b'member1', b'member2']))
+        self.assertEqual(self.redis.sinter(foo, bar), {b'member2'})
+        self.assertEqual(self.redis.sinter(foo), {b'member1', b'member2'})
 
     def test_sinter_wrong_type(self):
         self.redis.zadd('foo', 1, 'member')
@@ -1514,7 +1514,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('foo', 'member1')
         self.redis.sadd('foo', 'member2')
         self.assertEqual(self.redis.smove('foo', 'bar', 'member1'), True)
-        self.assertEqual(self.redis.smembers('bar'), set([b'member1']))
+        self.assertEqual(self.redis.smembers('bar'), {b'member1'})
 
     def test_smove_non_existent_key(self):
         self.assertEqual(self.redis.smove('foo', 'bar', 'member1'), False)
@@ -1525,7 +1525,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.smove('bar', 'foo', 'member')
         # Must raise the error before removing member from bar
-        self.assertEqual(self.redis.smembers('bar'), set([b'member']))
+        self.assertEqual(self.redis.smembers('bar'), {b'member'})
         with self.assertRaises(redis.ResponseError):
             self.redis.smove('foo', 'bar', 'member')
 
@@ -1553,15 +1553,15 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.srandmember('foo', 2), [b'member1'])
         self.redis.sadd('foo', b'member2')
         self.assertEqual(set(self.redis.srandmember('foo', 2)),
-                         set([b'member1', b'member2']))
+                         {b'member1', b'member2'})
         self.redis.sadd('foo', b'member3')
         res = self.redis.srandmember('foo', 2)
         self.assertEqual(len(res), 2)
 
         if self.decode_responses:
-            superset = set(['member1', 'member2', 'member3'])
+            superset = {'member1', 'member2', 'member3'}
         else:
-            superset = set([b'member1', b'member2', b'member3'])
+            superset = {b'member1', b'member2', b'member3'}
 
         for e in res:
             self.assertIn(e, superset)
@@ -1574,16 +1574,16 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_srem(self):
         self.redis.sadd('foo', 'member1', 'member2', 'member3', 'member4')
         self.assertEqual(self.redis.smembers('foo'),
-                         set([b'member1', b'member2', b'member3', b'member4']))
+                         {b'member1', b'member2', b'member3', b'member4'})
         self.assertEqual(self.redis.srem('foo', 'member1'), True)
         self.assertEqual(self.redis.smembers('foo'),
-                         set([b'member2', b'member3', b'member4']))
+                         {b'member2', b'member3', b'member4'})
         self.assertEqual(self.redis.srem('foo', 'member1'), False)
         # Since redis>=2.7.6 returns number of deleted items.
         self.assertEqual(self.redis.srem('foo', 'member2', 'member3'), 2)
-        self.assertEqual(self.redis.smembers('foo'), set([b'member4']))
+        self.assertEqual(self.redis.smembers('foo'), {b'member4'})
         self.assertEqual(self.redis.srem('foo', 'member3', 'member4'), True)
-        self.assertEqual(self.redis.smembers('foo'), set([]))
+        self.assertEqual(self.redis.smembers('foo'), set())
         self.assertEqual(self.redis.srem('foo', 'member3', 'member4'), False)
 
     def test_srem_wrong_type(self):
@@ -1597,7 +1597,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member2')
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sunion('foo', 'bar'),
-                         set([b'member1', b'member2', b'member3']))
+                         {b'member1', b'member2', b'member3'})
 
     def test_sunion_wrong_type(self):
         self.redis.zadd('foo', 1, 'member')
@@ -1614,7 +1614,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.sadd('bar', 'member3')
         self.assertEqual(self.redis.sunionstore('baz', 'foo', 'bar'), 3)
         self.assertEqual(self.redis.smembers('baz'),
-                         set([b'member1', b'member2', b'member3']))
+                         {b'member1', b'member2', b'member3'})
 
         # Catch instances where we store bytes and strings inconsistently
         # and thus baz = {b'member1', b'member2', b'member3', 'member3'}
@@ -4043,7 +4043,7 @@ class TestImportation(unittest.TestCase):
             with self.assertRaises(ImportError):
                 reload(fakeredis)
 
-            self.assertEqual(set(['c', 'msvcrt', 'System']), searched_libraries)
+            self.assertEqual({'c', 'msvcrt', 'System'}, searched_libraries)
         finally:
             ctypes.util.find_library = old_find_library
 

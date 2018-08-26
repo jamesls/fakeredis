@@ -208,7 +208,7 @@ def _decode(value):
     elif isinstance(value, bytes):
         value = value.decode(DEFAULT_ENCODING)
     elif isinstance(value, dict):
-        value = dict((_decode(k), _decode(v)) for k, v in value.items())
+        value = {_decode(k): _decode(v) for k, v in value.items()}
     elif isinstance(value, (list, set, tuple)):
         value = value.__class__(_decode(x) for x in value)
     elif isinstance(value, types.GeneratorType):
@@ -1318,7 +1318,7 @@ class FakeStrictRedis(object):
         "Add ``value`` to set ``name``"
         a_set = self._setdefault_set(name)
         card = len(a_set)
-        a_set |= set(to_bytes(x) for x in values)
+        a_set |= {to_bytes(x) for x in values}
         return len(a_set) - card
 
     def scard(self, name):
@@ -1340,7 +1340,7 @@ class FakeStrictRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         diff = self.sdiff(keys, *args)
-        self._db[dest] = set(to_bytes(x) for x in diff)
+        self._db[dest] = {to_bytes(x) for x in diff}
         return len(diff)
 
     def sinter(self, keys, *args):
@@ -1358,7 +1358,7 @@ class FakeStrictRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         intersect = self.sinter(keys, *args)
-        self._db[dest] = set(to_bytes(x) for x in intersect)
+        self._db[dest] = {to_bytes(x) for x in intersect}
         return len(intersect)
 
     def sismember(self, name, value):
@@ -1423,7 +1423,7 @@ class FakeStrictRedis(object):
         "Remove ``value`` from set ``name``"
         a_set = self._setdefault_set(name)
         card = len(a_set)
-        a_set -= set(to_bytes(x) for x in values)
+        a_set -= {to_bytes(x) for x in values}
         return card - len(a_set)
 
     def sunion(self, keys, *args):
@@ -1440,7 +1440,7 @@ class FakeStrictRedis(object):
         set named ``dest``.  Returns the number of keys in the new set.
         """
         union = self.sunion(keys, *args)
-        self._db[dest] = set(to_bytes(x) for x in union)
+        self._db[dest] = {to_bytes(x) for x in union}
         return len(union)
 
     def _get_zset(self, name):
@@ -1918,7 +1918,7 @@ class FakeStrictRedis(object):
             current_zset = self._get_anyset(key)
             if isinstance(current_zset, set):
                 # When casting set to zset redis uses a default score of 1.0
-                current_zset = dict((k, 1.0) for k in current_zset)
+                current_zset = {k: 1.0 for k in current_zset}
             for el in current_zset:
                 if not should_include(el):
                     continue
@@ -2198,7 +2198,7 @@ class FakePipeline(object):
                     self.commands = []
                     self.watching = {}
                     raise redis.WatchError(
-                        'Watched key%s %s changed' % (
+                        'Watched key{} {} changed'.format(
                             '' if len(mismatches) == 1 else
                             's', ', '.join(k for (k, _, _) in mismatches)))
             if raise_on_error:
@@ -2261,7 +2261,7 @@ class FakePubSub(object):
         based on whether responses are automatically decoded. this saves us
         from coercing the value for each message coming in.
         """
-        return dict([(self._normalize(k), v) for k, v in iteritems(data)])
+        return {self._normalize(k): v for k, v in iteritems(data)}
 
     def put(self, channel, message, message_type):
         """
