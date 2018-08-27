@@ -13,7 +13,7 @@ import time
 import types
 import re
 import functools
-from itertools import count
+from itertools import count, islice
 
 import redis
 from redis.exceptions import ResponseError
@@ -2046,14 +2046,15 @@ class FakeStrictRedis(object):
         data = sorted(keys)
         result_cursor = cursor + count
         result_data = []
-        # subset =
+
         if match is not None:
             regex = _compile_pattern(match)
+            for val in islice(data, cursor, result_cursor):
+                if regex.match(to_bytes(val)):
+                    result_data.append(val)
         else:
-            regex = None
-        for val in data[cursor:result_cursor]:
-            if not regex or regex.match(to_bytes(val)):
-                result_data.append(val)
+            result_data = data[cursor:result_cursor]
+
         if result_cursor >= len(data):
             result_cursor = 0
         return result_cursor, result_data
