@@ -2467,6 +2467,7 @@ class FakePubSub(object):
         thread.start()
         return thread
 
+
 class FakePubSubWorkerThread(threading.Thread):
     def __init__(self, pubsub, sleep_time, daemon=False):
         super(FakePubSubWorkerThread, self).__init__()
