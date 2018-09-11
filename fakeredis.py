@@ -1825,19 +1825,19 @@ class FakeStrictRedis(object):
                 found += 1
         return found
 
-    def zrevrange(self, name, start, num, withscores=False, score_cast_func=float):
+    def zrevrange(self, name, start, end, withscores=False, score_cast_func=float):
         """
         Return a range of values from sorted set ``name`` between
-        ``start`` and ``num`` sorted in descending order.
+        ``start`` and ``end`` sorted in descending order.
 
-        ``start`` and ``num`` can be negative, indicating the end of the range.
+        ``start`` and ``end`` can be negative, indicating the end of the range.
 
         ``withscores`` indicates to return the scores along with the values
         The return type is a list of (value, score) pairs
 
         ``score_cast_func`` a callable used to cast the score return value
         """
-        return self.zrange(name, start, num, True, withscores, score_cast_func)
+        return self.zrange(name, start, end, True, withscores, score_cast_func)
 
     def zrevrangebyscore(self, name, max, min, start=None, num=None,
                          withscores=False, score_cast_func=float):
