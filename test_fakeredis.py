@@ -3948,6 +3948,13 @@ class TestFakeRedis(unittest.TestCase):
             acquired = self.redis.lock('bar').acquire(blocking=False)
             self.assertFalse(acquired)
 
+    def test_lock_no_longer_owned(self):
+        lock = self.redis.lock('bar')
+        lock.acquire()
+        self.redis.delete('bar')
+        with self.assertRaises(redis.exceptions.LockError):
+            lock.release()
+
 
 class DecodeMixin(object):
     decode_responses = True
