@@ -341,7 +341,7 @@ class _Lock(object):
             raise LockError("Cannot release an unlocked lock")
 
         if _decode(self.redis.get(self.name)) != self.id:
-            raise LockError("Cannot extend a lock that's no longer owned")
+            raise LockError("Cannot release a lock that's no longer owned")
 
         self.redis.delete(self.name)
         self.id = None
