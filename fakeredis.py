@@ -12,6 +12,7 @@ import time
 import types
 import re
 import functools
+import threading
 from itertools import count, islice
 from uuid import uuid4
 
@@ -311,6 +312,9 @@ def _compile_pattern(pattern):
     return re.compile(regex, re.S)
 
 
+threading_lock = threading.Lock()
+
+
 class _Lock(object):
     def __init__(self, redis, name, timeout):
         self.redis = redis
@@ -327,7 +331,8 @@ class _Lock(object):
 
     def acquire(self, blocking=True, blocking_timeout=None):
         token = str(uuid4())
-        acquired = bool(self.redis.set(self.name, token, nx=True, ex=self.timeout))
+        with threading_lock:
+            acquired = bool(self.redis.set(self.name, token, nx=True, ex=self.timeout))
         if not acquired and blocking:
             raise ValueError('fakeredis can\'t do blocking locks')
 
@@ -340,11 +345,12 @@ class _Lock(object):
         if self.id is None:
             raise LockError("Cannot release an unlocked lock")
 
-        if _decode(self.redis.get(self.name)) != self.id:
-            raise LockError("Cannot release a lock that's no longer owned")
+        with threading_lock:
+            if _decode(self.redis.get(self.name)) != self.id:
+                raise LockError("Cannot release a lock that's no longer owned")
 
-        self.redis.delete(self.name)
-        self.id = None
+            self.redis.delete(self.name)
+            self.id = None
 
 
 def _check_conn(func):
