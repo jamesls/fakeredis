@@ -8,15 +8,16 @@ from collections import MutableMapping
 from datetime import datetime, timedelta
 import operator
 import sys
-import threading
 import time
 import types
 import re
 import functools
+import threading
 from itertools import count, islice
+from uuid import uuid4
 
 import redis
-from redis.exceptions import ResponseError
+from redis.exceptions import ResponseError, LockError
 import redis.client
 
 try:
@@ -311,12 +312,15 @@ def _compile_pattern(pattern):
     return re.compile(regex, re.S)
 
 
+threading_lock = threading.Lock()
+
+
 class _Lock(object):
     def __init__(self, redis, name, timeout):
         self.redis = redis
         self.name = name
-        self.lock = threading.Lock()
-        redis.set(name, self, ex=timeout)
+        self.timeout = timeout
+        self.id = None
 
     def __enter__(self):
         self.acquire()
@@ -326,11 +330,27 @@ class _Lock(object):
         self.release()
 
     def acquire(self, blocking=True, blocking_timeout=None):
-        return self.lock.acquire(blocking)
+        token = str(uuid4())
+        with threading_lock:
+            acquired = bool(self.redis.set(self.name, token, nx=True, ex=self.timeout))
+        if not acquired and blocking:
+            raise ValueError('fakeredis can\'t do blocking locks')
+
+        if acquired:
+            self.id = token
+
+        return acquired
 
     def release(self):
-        self.lock.release()
-        self.redis.delete(self.name)
+        if self.id is None:
+            raise LockError("Cannot release an unlocked lock")
+
+        with threading_lock:
+            if _decode(self.redis.get(self.name)) != self.id:
+                raise LockError("Cannot release a lock that's no longer owned")
+
+            self.redis.delete(self.name)
+            self.id = None
 
 
 def _check_conn(func):
