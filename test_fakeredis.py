@@ -2848,6 +2848,15 @@ class TestFakeStrictRedis(unittest.TestCase):
         p.set('baz', 'quux').get('baz')
         self.assertEqual(2, len(p))
 
+    def test_pipeline_no_commands(self):
+        # redis-py's execute is a nop if there are no commands queued,
+        # so it succeeds even if watched keys have been changed.
+        self.redis.set('foo', '1')
+        p = self.redis.pipeline()
+        p.watch('foo')
+        self.redis.set('foo', '2')
+        self.assertEqual(p.execute(), [])
+
     def test_key_patterns(self):
         self.redis.mset({'one': 1, 'two': 2, 'three': 3, 'four': 4})
         self.assertItemsEqual(self.redis.keys('*o*'),

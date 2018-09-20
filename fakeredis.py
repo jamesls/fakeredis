@@ -2324,6 +2324,8 @@ class FakePipeline(object):
 
     def execute(self, raise_on_error=True):
         """Run all the commands in the pipeline and return the results."""
+        if not self.commands:
+            return []
         try:
             if self.watching:
                 mismatches = [
