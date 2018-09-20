@@ -1393,11 +1393,10 @@ class FakeStrictRedis(object):
             if timeout == 0:
                 self._condition.wait()
             else:
-                wait_for = (expire - datetime.now()).total_seconds()
+                wait_for = timedelta_total_seconds(expire - datetime.now())
                 if wait_for <= 0:
                     break
-                if not self._condition.wait(wait_for):
-                    break
+                self._condition.wait(wait_for)
         # Timed out
         return None
 
