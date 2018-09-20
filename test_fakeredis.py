@@ -3953,13 +3953,64 @@ class TestFakeRedis(unittest.TestCase):
 
     def test_lock(self):
         lock = self.redis.lock('foo')
-        lock.acquire()
+        self.assertTrue(lock.acquire())
         self.assertTrue(self.redis.exists('foo'))
         lock.release()
         self.assertFalse(self.redis.exists('foo'))
         with self.redis.lock('bar'):
             self.assertTrue(self.redis.exists('bar'))
         self.assertFalse(self.redis.exists('bar'))
+
+    def test_unlock_without_lock(self):
+        lock = self.redis.lock('foo')
+        with self.assertRaises(redis.exceptions.LockError):
+            lock.release()
+
+    @attr('slow')
+    def test_unlock_expired(self):
+        lock = self.redis.lock('foo', timeout=0.01, sleep=0.001)
+        self.assertTrue(lock.acquire())
+        sleep(0.1)
+        with self.assertRaises(redis.exceptions.LockError):
+            lock.release()
+
+    @attr('slow')
+    def test_lock_blocking_timeout(self):
+        lock = self.redis.lock('foo')
+        self.assertTrue(lock.acquire())
+        lock2 = self.redis.lock('foo')
+        self.assertFalse(lock2.acquire(blocking_timeout=1))
+
+    def test_lock_nonblocking(self):
+        lock = self.redis.lock('foo')
+        self.assertTrue(lock.acquire())
+        lock2 = self.redis.lock('foo')
+        self.assertFalse(lock2.acquire(blocking=False))
+
+    def test_lock_extend(self):
+        lock = self.redis.lock('foo', timeout=2)
+        lock.acquire()
+        lock.extend(3)
+        ttl = int(self.redis.pttl('foo'))
+        self.assertGreater(ttl, 4000)
+        self.assertLessEqual(ttl, 5000)
+
+    def test_lock_extend_exceptions(self):
+        lock1 = self.redis.lock('foo', timeout=2)
+        with self.assertRaises(redis.exceptions.LockError):
+            lock1.extend(3)
+        lock2 = self.redis.lock('foo')
+        lock2.acquire()
+        with self.assertRaises(redis.exceptions.LockError):
+            lock2.extend(3)  # Cannot extend a lock with no timeout
+
+    @attr('slow')
+    def test_lock_extend_expired(self):
+        lock = self.redis.lock('foo', timeout=0.01, sleep=0.001)
+        lock.acquire()
+        sleep(0.1)
+        with self.assertRaises(redis.exceptions.LockError):
+            lock.extend(3)
 
 
 class DecodeMixin(object):
