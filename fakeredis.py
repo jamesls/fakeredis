@@ -346,8 +346,12 @@ def _check_conn(func):
 def _locked(func):
     @functools.wraps(func)
     def func_wrapper(self, *args, **kwargs):
-        with self._lock:
-            return func(self, *args, **kwargs)
+        with self._condition:
+            ret = func(self, *args, **kwargs)
+            # This is overkill as func might not even have modified the DB.
+            # But fakeredis isn't intended to be high-performance.
+            self._condition.notify_all()
+            return ret
     return func_wrapper
 
 
@@ -370,7 +374,7 @@ class FakeStrictRedis(object):
             self._dbs = {}
         if db not in self._dbs:
             self._dbs[db] = _ExpiringDict()
-        self._lock = threading.RLock()
+        self._condition = threading.Condition()
         self._db = self._dbs[db]
         self._db_num = db
         self._encoding = charset
@@ -1218,41 +1222,55 @@ class FakeStrictRedis(object):
             self._db.setx(dst, dst_list)
         return el
 
-    @_locked
-    def blpop(self, keys, timeout=0):
-        # This has to be a best effort approximation which follows
-        # these rules:
-        # 1) For each of those keys see if there's something we can
-        #    pop from.
-        # 2) If this is not the case then simulate a timeout.
-        # This means that there's not really any blocking behavior here.
+    def _blocking(self, timeout, func):
+        if timeout is None:
+            timeout = 0
+        else:
+            expire = datetime.now() + timedelta(seconds=timeout)
+        while True:
+            ret = func()
+            if ret is not None:
+                return ret
+            if timeout == 0:
+                self._condition.wait()
+            else:
+                wait_for = (expire - datetime.now()).total_seconds()
+                if wait_for <= 0:
+                    break
+                if not self._condition.wait(wait_for):
+                    break
+        # Timed out
+        return None
+
+    def _bpop(self, keys, timeout, pop):
+        """Implements blpop and brpop"""
         if isinstance(keys, string_types):
             keys = [to_bytes(keys)]
         else:
             keys = [to_bytes(k) for k in keys]
-        for key in keys:
-            lst = self._get_list(key)
-            if lst:
-                ret = (key, lst.pop(0))
-                self._remove_if_empty(key)
-                return ret
+
+        def try_pop():
+            for key in keys:
+                lst = self._get_list(key)
+                if lst:
+                    ret = (key, pop(lst))
+                    self._remove_if_empty(key)
+                    return ret
+            return None
+
+        return self._blocking(timeout, try_pop)
+
+    @_locked
+    def blpop(self, keys, timeout=0):
+        return self._bpop(keys, timeout, lambda lst: lst.pop(0))
 
     @_locked
     def brpop(self, keys, timeout=0):
-        if isinstance(keys, string_types):
-            keys = [to_bytes(keys)]
-        else:
-            keys = [to_bytes(k) for k in keys]
-        for key in keys:
-            lst = self._get_list(key)
-            if lst:
-                ret = (key, lst.pop())
-                self._remove_if_empty(key)
-                return ret
+        return self._bpop(keys, timeout, lambda lst: lst.pop())
 
     @_locked
     def brpoplpush(self, src, dst, timeout=0):
-        return self.rpoplpush(src, dst)
+        return self._blocking(timeout, lambda: self.rpoplpush(src, dst))
 
     def _get_hash(self, name):
         value = self._db.get(name, _Hash())

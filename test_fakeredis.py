@@ -1013,6 +1013,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.assertEqual(self.redis.blpop('foo', timeout=1), (b'foo', b'one'))
 
+    @attr('slow')
+    def test_blpop_block(self):
+        def push_thread():
+            sleep(0.5)
+            self.redis.rpush('foo', 'value1')
+            sleep(0.5)
+            # Will wake the condition variable
+            self.redis.set('bar', 'go back to sleep some more')
+            self.redis.rpush('foo', 'value2')
+
+        thread = threading.Thread(target=push_thread)
+        thread.start()
+        try:
+            self.assertEqual(self.redis.blpop('foo'), (b'foo', b'value1'))
+            self.assertEqual(self.redis.blpop('foo', timeout=5), (b'foo', b'value2'))
+        finally:
+            thread.join()
+
     def test_blpop_wrong_type(self):
         self.redis.set('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
@@ -1034,6 +1052,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'two')
         self.assertEqual(self.redis.brpop('foo', timeout=1),
                          (b'foo', b'two'))
+
+    @attr('slow')
+    def test_brpop_block(self):
+        def push_thread():
+            sleep(0.5)
+            self.redis.rpush('foo', 'value1')
+            sleep(0.5)
+            # Will wake the condition variable
+            self.redis.set('bar', 'go back to sleep some more')
+            self.redis.rpush('foo', 'value2')
+
+        thread = threading.Thread(target=push_thread)
+        thread.start()
+        try:
+            self.assertEqual(self.redis.brpop('foo'), (b'foo', b'value1'))
+            self.assertEqual(self.redis.brpop('foo', timeout=5), (b'foo', b'value2'))
+        finally:
+            thread.join()
 
     def test_brpop_wrong_type(self):
         self.redis.set('foo', 'bar')
