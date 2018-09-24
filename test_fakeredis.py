@@ -3082,17 +3082,13 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_pubsub_run_in_thread(self):
         q = Queue()
 
-        def _queue_msg(msg, q):
-            q.put(msg)
-
         pubsub = self.redis.pubsub()
-        pubsub.subscribe(**{"channel": lambda e: _queue_msg(e, q)})
+        pubsub.subscribe(channel=q.put)
         pubsub_thread = pubsub.run_in_thread()
 
         msg = b"Hello World"
         self.redis.publish("channel", msg)
 
-        sleep(1)
         retrieved = q.get()
         self.assertEqual(retrieved["data"], msg)
 
@@ -3100,11 +3096,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         pubsub_thread.join()
         self.assertTrue(not pubsub_thread.is_alive())
 
-        pubsub.subscribe(**{"channel": None})
+        pubsub.subscribe(channel=None)
         with self.assertRaises(redis.exceptions.PubSubError):
             pubsub_thread = pubsub.run_in_thread()
 
-        pubsub.psubscribe(**{"channel": None})
+        pubsub.unsubscribe("channel")
+
+        pubsub.psubscribe(channel=None)
         with self.assertRaises(redis.exceptions.PubSubError):
             pubsub_thread = pubsub.run_in_thread()
 
