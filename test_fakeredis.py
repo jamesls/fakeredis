@@ -3987,6 +3987,26 @@ class TestFakeRedis(unittest.TestCase):
         lock2 = self.redis.lock('foo')
         self.assertFalse(lock2.acquire(blocking=False))
 
+    def test_lock_twice(self):
+        lock = self.redis.lock('foo')
+        self.assertTrue(lock.acquire(blocking=False))
+        self.assertFalse(lock.acquire(blocking=False))
+
+    def test_acquiring_lock_different_lock_release(self):
+        lock1 = self.redis.lock('foo')
+        lock2 = self.redis.lock('foo')
+        self.assertTrue(lock1.acquire(blocking=False))
+        self.assertFalse(lock2.acquire(blocking=False))
+
+        # Test only releasing lock1 actually releases the lock
+        with self.assertRaises(redis.exceptions.LockError):
+            lock2.release()
+        self.assertFalse(lock2.acquire(blocking=False))
+        lock1.release()
+        # Locking with lock2 now has the lock
+        self.assertTrue(lock2.acquire(blocking=False))
+        self.assertFalse(lock1.acquire(blocking=False))
+
     def test_lock_extend(self):
         lock = self.redis.lock('foo', timeout=2)
         lock.acquire()
