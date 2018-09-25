@@ -13,10 +13,12 @@ import time
 import types
 import re
 import functools
+import uuid
 from itertools import count, islice
 
 import redis
-from redis.exceptions import ResponseError
+from redis.exceptions import ResponseError, LockError
+from redis.utils import dummy
 import redis.client
 
 try:
@@ -311,26 +313,183 @@ def _compile_pattern(pattern):
     return re.compile(regex, re.S)
 
 
+# This is a copy of redis.lock.Lock, but with some bugs fixed.
 class _Lock(object):
-    def __init__(self, redis, name, timeout):
+    """
+    A shared, distributed Lock. Using Redis for locking allows the Lock
+    to be shared across processes and/or machines.
+
+    It's left to the user to resolve deadlock issues and make sure
+    multiple clients play nicely together.
+    """
+    def __init__(self, redis, name, timeout=None, sleep=0.1,
+                 blocking=True, blocking_timeout=None, thread_local=True):
+        """
+        Create a new Lock instance named ``name`` using the Redis client
+        supplied by ``redis``.
+
+        ``timeout`` indicates a maximum life for the lock.
+        By default, it will remain locked until release() is called.
+        ``timeout`` can be specified as a float or integer, both representing
+        the number of seconds to wait.
+
+        ``sleep`` indicates the amount of time to sleep per loop iteration
+        when the lock is in blocking mode and another client is currently
+        holding the lock.
+
+        ``blocking`` indicates whether calling ``acquire`` should block until
+        the lock has been acquired or to fail immediately, causing ``acquire``
+        to return False and the lock not being acquired. Defaults to True.
+        Note this value can be overridden by passing a ``blocking``
+        argument to ``acquire``.
+
+        ``blocking_timeout`` indicates the maximum amount of time in seconds to
+        spend trying to acquire the lock. A value of ``None`` indicates
+        continue trying forever. ``blocking_timeout`` can be specified as a
+        float or integer, both representing the number of seconds to wait.
+
+        ``thread_local`` indicates whether the lock token is placed in
+        thread-local storage. By default, the token is placed in thread local
+        storage so that a thread only sees its token, not a token set by
+        another thread. Consider the following timeline:
+
+            time: 0, thread-1 acquires `my-lock`, with a timeout of 5 seconds.
+                     thread-1 sets the token to "abc"
+            time: 1, thread-2 blocks trying to acquire `my-lock` using the
+                     Lock instance.
+            time: 5, thread-1 has not yet completed. redis expires the lock
+                     key.
+            time: 5, thread-2 acquired `my-lock` now that it's available.
+                     thread-2 sets the token to "xyz"
+            time: 6, thread-1 finishes its work and calls release(). if the
+                     token is *not* stored in thread local storage, then
+                     thread-1 would see the token value as "xyz" and would be
+                     able to successfully release the thread-2's lock.
+
+        In some use cases it's necessary to disable thread local storage. For
+        example, if you have code where one thread acquires a lock and passes
+        that lock instance to a worker thread to release later. If thread
+        local storage isn't disabled in this case, the worker thread won't see
+        the token set by the thread that acquired the lock. Our assumption
+        is that these cases aren't common and as such default to using
+        thread local storage.
+        """
         self.redis = redis
         self.name = name
-        self.lock = threading.Lock()
-        redis.set(name, self, ex=timeout)
+        self.timeout = timeout
+        self.sleep = sleep
+        self.blocking = blocking
+        self.blocking_timeout = blocking_timeout
+        self.thread_local = bool(thread_local)
+        self.local = threading.local() if self.thread_local else dummy()
+        self.local.token = None
+        if self.timeout and self.sleep > self.timeout:
+            raise LockError("'sleep' must be less than 'timeout'")
 
     def __enter__(self):
-        self.acquire()
+        # force blocking, as otherwise the user would have to check whether
+        # the lock was actually acquired or not.
+        self.acquire(blocking=True)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.release()
 
-    def acquire(self, blocking=True, blocking_timeout=None):
-        return self.lock.acquire(blocking)
+    def acquire(self, blocking=None, blocking_timeout=None):
+        """
+        Use Redis to hold a shared, distributed lock named ``name``.
+        Returns True once the lock is acquired.
+
+        If ``blocking`` is False, always return immediately. If the lock
+        was acquired, return True, otherwise return False.
+
+        ``blocking_timeout`` specifies the maximum number of seconds to
+        wait trying to acquire the lock.
+        """
+        sleep = self.sleep
+        token = to_bytes(uuid.uuid1().hex)
+        if blocking is None:
+            blocking = self.blocking
+        if blocking_timeout is None:
+            blocking_timeout = self.blocking_timeout
+        stop_trying_at = None
+        if blocking_timeout is not None:
+            stop_trying_at = time.time() + blocking_timeout
+        while 1:
+            if self.do_acquire(token):
+                self.local.token = token
+                return True
+            if not blocking:
+                return False
+            if stop_trying_at is not None and time.time() > stop_trying_at:
+                return False
+            time.sleep(sleep)
+
+    def do_acquire(self, token):
+        if self.redis.setnx(self.name, token):
+            if self.timeout:
+                # convert to milliseconds
+                timeout = int(self.timeout * 1000)
+                self.redis.pexpire(self.name, timeout)
+            return True
+        return False
 
     def release(self):
-        self.lock.release()
-        self.redis.delete(self.name)
+        "Releases the already acquired lock"
+        expected_token = self.local.token
+        if expected_token is None:
+            raise LockError("Cannot release an unlocked lock")
+        self.local.token = None
+        self.do_release(expected_token)
+
+    def do_release(self, expected_token):
+        name = self.name
+
+        def execute_release(pipe):
+            lock_value = to_bytes(pipe.get(name))
+            if lock_value != expected_token:
+                raise LockError("Cannot release a lock that's no longer owned")
+            pipe.multi()
+            pipe.delete(name)
+
+        self.redis.transaction(execute_release, name)
+
+    def extend(self, additional_time):
+        """
+        Adds more time to an already acquired lock.
+
+        ``additional_time`` can be specified as an integer or a float, both
+        representing the number of seconds to add.
+        """
+        if self.local.token is None:
+            raise LockError("Cannot extend an unlocked lock")
+        if self.timeout is None:
+            raise LockError("Cannot extend a lock with no timeout")
+        return self.do_extend(additional_time)
+
+    def do_extend(self, additional_time):
+        pipe = self.redis.pipeline()
+        pipe.watch(self.name)
+        lock_value = to_bytes(pipe.get(self.name))
+        if lock_value != self.local.token:
+            raise LockError("Cannot extend a lock that's no longer owned")
+        expiration = pipe.pttl(self.name)
+        if expiration is None or expiration < 0:
+            # Redis evicted the lock key between the previous get() and now
+            # we'll handle this when we call pexpire()
+            expiration = 0
+        pipe.multi()
+        pipe.pexpire(self.name, expiration + int(additional_time * 1000))
+
+        try:
+            response = pipe.execute()
+        except redis.WatchError:
+            # someone else acquired the lock
+            raise LockError("Cannot extend a lock that's no longer owned")
+        if not response[0]:
+            # pexpire returns False if the key doesn't exist
+            raise LockError("Cannot extend a lock that's no longer owned")
+        return True
 
 
 def _check_conn(func):
@@ -340,6 +499,18 @@ def _check_conn(func):
         if not func.__self__.connected:
             raise redis.ConnectionError("FakeRedis is emulating a connection error.")
         return func(*args, **kwargs)
+    return func_wrapper
+
+
+def _locked(func):
+    @functools.wraps(func)
+    def func_wrapper(self, *args, **kwargs):
+        with self._condition:
+            ret = func(self, *args, **kwargs)
+            # This is overkill as func might not even have modified the DB.
+            # But fakeredis isn't intended to be high-performance.
+            self._condition.notify_all()
+            return ret
     return func_wrapper
 
 
@@ -362,6 +533,7 @@ class FakeStrictRedis(object):
             self._dbs = {}
         if db not in self._dbs:
             self._dbs[db] = _ExpiringDict()
+        self._condition = threading.Condition()
         self._db = self._dbs[db]
         self._db_num = db
         self._encoding = charset
@@ -375,11 +547,13 @@ class FakeStrictRedis(object):
             _patch_responses(self, _make_decode_func)
 
     @_lua_reply(_lua_bool_ok)
+    @_locked
     def flushdb(self):
         self._db.clear()
         return True
 
     @_lua_reply(_lua_bool_ok)
+    @_locked
     def flushall(self):
         for db in self._dbs.values():
             db.clear()
@@ -410,11 +584,13 @@ class FakeStrictRedis(object):
         return value
 
     # Basic key commands
+    @_locked
     def append(self, key, value):
         self._setdefault_string(key)
         self._db[key] += to_bytes(value)
         return len(self._db[key])
 
+    @_locked
     def bitcount(self, name, start=0, end=-1):
         if end == -1:
             end = None
@@ -426,6 +602,7 @@ class FakeStrictRedis(object):
         except KeyError:
             return 0
 
+    @_locked
     def decr(self, name, amount=1):
         try:
             value = int(self._get_string(name, b'0')) - amount
@@ -435,13 +612,16 @@ class FakeStrictRedis(object):
                                       "range.")
         return value
 
+    @_locked
     def exists(self, name):
         return name in self._db
     __contains__ = exists
 
+    @_locked
     def expire(self, name, time):
         return self._expire(name, time)
 
+    @_locked
     def pexpire(self, name, millis):
         return self._expire(name, millis, 1000)
 
@@ -458,9 +638,11 @@ class FakeStrictRedis(object):
         else:
             return False
 
+    @_locked
     def expireat(self, name, when):
         return self._expireat(name, when)
 
+    @_locked
     def pexpireat(self, name, when):
         return self._expireat(name, when, 1000)
 
@@ -473,22 +655,26 @@ class FakeStrictRedis(object):
         else:
             return False
 
+    @_locked
     def echo(self, value):
         if isinstance(value, text_type):
             return value.encode('utf-8')
         return value
 
+    @_locked
     def get(self, name):
         value = self._get_string(name, None)
         if value is not None:
             return to_bytes(value)
 
+    @_locked
     def __getitem__(self, name):
         value = self.get(name)
         if value is not None:
             return value
         raise KeyError(name)
 
+    @_locked
     def getbit(self, name, offset):
         """Returns a boolean indicating the value of ``offset`` in ``name``"""
         val = self._get_string(name)
@@ -501,6 +687,7 @@ class FakeStrictRedis(object):
             return 0
         return 1 if (1 << actual_bitoffset) & actual_val else 0
 
+    @_locked
     def getset(self, name, value):
         """
         Set the value at key ``name`` to ``value`` if key doesn't exist
@@ -510,6 +697,7 @@ class FakeStrictRedis(object):
         self._db[name] = to_bytes(value)
         return val
 
+    @_locked
     def incr(self, name, amount=1):
         """
         Increments the value of ``key`` by ``amount``.  If no key exists,
@@ -526,12 +714,14 @@ class FakeStrictRedis(object):
                                       "range.")
         return value
 
+    @_locked
     def incrby(self, name, amount=1):
         """
         Alias for command ``incr``
         """
         return self.incr(name, amount)
 
+    @_locked
     def incrbyfloat(self, name, amount=1.0):
         try:
             value = float(self._get_string(name, b'0')) + amount
@@ -540,11 +730,13 @@ class FakeStrictRedis(object):
             raise redis.ResponseError("value is not a valid float.")
         return value
 
+    @_locked
     def keys(self, pattern=None):
         if pattern is not None:
             regex = _compile_pattern(pattern)
         return [key for key in self._db if pattern is None or regex.match(key)]
 
+    @_locked
     def mget(self, keys, *args):
         all_keys = self._list_or_args(keys, args)
         found = []
@@ -560,6 +752,7 @@ class FakeStrictRedis(object):
         return found
 
     @_lua_reply(_lua_bool_ok)
+    @_locked
     def mset(self, *args, **kwargs):
         if args:
             if len(args) != 1 or not isinstance(args[0], dict):
@@ -570,6 +763,7 @@ class FakeStrictRedis(object):
             self.set(key, val)
         return True
 
+    @_locked
     def msetnx(self, mapping):
         """
         Sets each key in the ``mapping`` dict to its corresponding value if
@@ -581,6 +775,7 @@ class FakeStrictRedis(object):
             return True
         return False
 
+    @_locked
     def persist(self, name):
         self._db.persist(name)
 
@@ -588,6 +783,7 @@ class FakeStrictRedis(object):
         return True
 
     @_lua_reply(_lua_bool_ok)
+    @_locked
     def rename(self, src, dst):
         try:
             value = self._db[src]
@@ -597,12 +793,14 @@ class FakeStrictRedis(object):
         del self._db[src]
         return True
 
+    @_locked
     def renamenx(self, src, dst):
         if dst in self._db:
             return False
         else:
             return self.rename(src, dst)
 
+    @_locked
     def set(self, name, value, ex=None, px=None, nx=False, xx=False):
         if (not nx and not xx) or (nx and self._db.get(name, None) is None) \
                 or (xx and not self._db.get(name, None) is None):
@@ -631,6 +829,7 @@ class FakeStrictRedis(object):
 
     __setitem__ = set
 
+    @_locked
     def setbit(self, name, offset, value):
         val = self._get_string(name, b'\x00')
         byte = offset // 8
@@ -652,6 +851,7 @@ class FakeStrictRedis(object):
         self._db.setx(name, bytes(reconstructed))
         return bool(old_value)
 
+    @_locked
     def setex(self, name, time, value):
         if isinstance(time, timedelta):
             time = int(timedelta_total_seconds(time))
@@ -660,6 +860,7 @@ class FakeStrictRedis(object):
                 'value is not an integer or out of range')
         return self.set(name, value, ex=time)
 
+    @_locked
     def psetex(self, name, time_ms, value):
         if isinstance(time_ms, timedelta):
             time_ms = int(timedelta_total_seconds(time_ms) * 1000)
@@ -667,6 +868,7 @@ class FakeStrictRedis(object):
             raise ResponseError("invalid expire time in SETEX")
         return self.set(name, value, px=time_ms)
 
+    @_locked
     def setnx(self, name, value):
         result = self.set(name, value, nx=True)
         # Real Redis returns False from setnx, but None from set(nx=...)
@@ -674,6 +876,7 @@ class FakeStrictRedis(object):
             return False
         return result
 
+    @_locked
     def setrange(self, name, offset, value):
         val = self._get_string(name, b"")
         if len(val) < offset:
@@ -682,9 +885,11 @@ class FakeStrictRedis(object):
         self._db.setx(name, val)
         return len(val)
 
+    @_locked
     def strlen(self, name):
         return len(self._get_string(name))
 
+    @_locked
     def substr(self, name, start, end=-1):
         if end == -1:
             end = None
@@ -698,9 +903,11 @@ class FakeStrictRedis(object):
     # according to the docs.
     getrange = substr
 
+    @_locked
     def ttl(self, name):
         return self._ttl(name)
 
+    @_locked
     def pttl(self, name):
         return self._ttl(name, 1000)
 
@@ -720,6 +927,7 @@ class FakeStrictRedis(object):
                         (exp_time - now).seconds +
                         (exp_time - now).microseconds / 1E6) * multiplier))
 
+    @_locked
     def type(self, name):
         key = self._db.get(name)
         if hasattr(key.__class__, 'redis_type'):
@@ -742,6 +950,7 @@ class FakeStrictRedis(object):
     def unwatch(self):
         pass
 
+    @_locked
     def delete(self, *names):
         deleted = 0
         for name in names:
@@ -752,6 +961,7 @@ class FakeStrictRedis(object):
                 continue
         return deleted
 
+    @_locked
     def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
              alpha=False, store=None):
         """Sort and return the list, set or sorted set at ``name``.
@@ -802,6 +1012,7 @@ class FakeStrictRedis(object):
         except KeyError:
             return []
 
+    @_locked
     def eval(self, script, numkeys, *keys_and_args):
         from lupa import LuaRuntime, LuaError
 
@@ -1041,11 +1252,13 @@ class FakeStrictRedis(object):
             raise redis.ResponseError(_WRONGTYPE_MSG)
         return value
 
+    @_locked
     def lpush(self, name, *values):
         self._setdefault_list(name)[0:0] = list(reversed(
             [to_bytes(x) for x in values]))
         return len(self._db[name])
 
+    @_locked
     def lrange(self, name, start, end):
         if end == -1:
             end = None
@@ -1053,9 +1266,11 @@ class FakeStrictRedis(object):
             end += 1
         return self._get_list(name)[start:end]
 
+    @_locked
     def llen(self, name):
         return len(self._get_list(name))
 
+    @_locked
     @_remove_empty
     def lrem(self, name, count, value):
         value = to_bytes(value)
@@ -1076,10 +1291,12 @@ class FakeStrictRedis(object):
             del a_list[index]
         return len(indices_to_remove)
 
+    @_locked
     def rpush(self, name, *values):
         self._setdefault_list(name).extend([to_bytes(x) for x in values])
         return len(self._db[name])
 
+    @_locked
     @_remove_empty
     def lpop(self, name):
         try:
@@ -1088,6 +1305,7 @@ class FakeStrictRedis(object):
             return None
 
     @_lua_reply(_lua_bool_ok)
+    @_locked
     def lset(self, name, index, value):
         try:
             lst = self._get_list_or_none(name)
@@ -1098,10 +1316,12 @@ class FakeStrictRedis(object):
             raise redis.ResponseError("index out of range")
         return True
 
+    @_locked
     def rpushx(self, name, value):
         self._get_list(name).append(to_bytes(value))
 
     @_lua_reply(_lua_bool_ok)
+    @_locked
     def ltrim(self, name, start, end):
         val = self._get_list_or_none(name)
         if val is not None:
@@ -1112,15 +1332,18 @@ class FakeStrictRedis(object):
             self._db.setx(name, val[start:end])
         return True
 
+    @_locked
     def lindex(self, name, index):
         try:
             return self._get_list(name)[index]
         except IndexError:
             return None
 
+    @_locked
     def lpushx(self, name, value):
         self._get_list(name).insert(0, to_bytes(value))
 
+    @_locked
     @_remove_empty
     def rpop(self, name):
         try:
@@ -1128,6 +1351,7 @@ class FakeStrictRedis(object):
         except IndexError:
             return None
 
+    @_locked
     def linsert(self, name, where, refvalue, value):
         if where.lower() not in ('before', 'after'):
             raise redis.ResponseError('syntax error')
@@ -1145,6 +1369,7 @@ class FakeStrictRedis(object):
             lst.insert(index, to_bytes(value))
             return len(lst)
 
+    @_locked
     def rpoplpush(self, src, dst):
         # _get_list instead of _setdefault_list at this point because we
         # don't want to create the list if nothing gets popped.
@@ -1156,38 +1381,54 @@ class FakeStrictRedis(object):
             self._db.setx(dst, dst_list)
         return el
 
+    def _blocking(self, timeout, func):
+        if timeout is None:
+            timeout = 0
+        else:
+            expire = datetime.now() + timedelta(seconds=timeout)
+        while True:
+            ret = func()
+            if ret is not None:
+                return ret
+            if timeout == 0:
+                self._condition.wait()
+            else:
+                wait_for = timedelta_total_seconds(expire - datetime.now())
+                if wait_for <= 0:
+                    break
+                self._condition.wait(wait_for)
+        # Timed out
+        return None
+
+    def _bpop(self, keys, timeout, pop):
+        """Implements blpop and brpop"""
+        if isinstance(keys, string_types):
+            keys = [to_bytes(keys)]
+        else:
+            keys = [to_bytes(k) for k in keys]
+
+        def try_pop():
+            for key in keys:
+                lst = self._get_list(key)
+                if lst:
+                    ret = (key, pop(lst))
+                    self._remove_if_empty(key)
+                    return ret
+            return None
+
+        return self._blocking(timeout, try_pop)
+
+    @_locked
     def blpop(self, keys, timeout=0):
-        # This has to be a best effort approximation which follows
-        # these rules:
-        # 1) For each of those keys see if there's something we can
-        #    pop from.
-        # 2) If this is not the case then simulate a timeout.
-        # This means that there's not really any blocking behavior here.
-        if isinstance(keys, string_types):
-            keys = [to_bytes(keys)]
-        else:
-            keys = [to_bytes(k) for k in keys]
-        for key in keys:
-            lst = self._get_list(key)
-            if lst:
-                ret = (key, lst.pop(0))
-                self._remove_if_empty(key)
-                return ret
+        return self._bpop(keys, timeout, lambda lst: lst.pop(0))
 
+    @_locked
     def brpop(self, keys, timeout=0):
-        if isinstance(keys, string_types):
-            keys = [to_bytes(keys)]
-        else:
-            keys = [to_bytes(k) for k in keys]
-        for key in keys:
-            lst = self._get_list(key)
-            if lst:
-                ret = (key, lst.pop())
-                self._remove_if_empty(key)
-                return ret
+        return self._bpop(keys, timeout, lambda lst: lst.pop())
 
+    @_locked
     def brpoplpush(self, src, dst, timeout=0):
-        return self.rpoplpush(src, dst)
+        return self._blocking(timeout, lambda: self.rpoplpush(src, dst))
 
     def _get_hash(self, name):
         value = self._db.get(name, _Hash())
@@ -1201,6 +1442,7 @@ class FakeStrictRedis(object):
             raise redis.ResponseError(_WRONGTYPE_MSG)
         return value
 
+    @_locked
     @_remove_empty
     def hdel(self, name, *keys):
         h = self._get_hash(name)
@@ -1211,6 +1453,7 @@ class FakeStrictRedis(object):
                 rem += 1
         return rem
 
+    @_locked
     def hexists(self, name, key):
         "Returns a boolean indicating if ``key`` exists within hash ``name``"
         if self._get_hash(name).get(key) is None:
@@ -1218,26 +1461,31 @@ class FakeStrictRedis(object):
         else:
             return 1
 
+    @_locked
     def hget(self, name, key):
         "Return the value of ``key`` within the hash ``name``"
         return self._get_hash(name).get(key)
 
+    @_locked
     def hstrlen(self, name, key):
         "Returns the string length of the value associated with field in the hash stored at key"
         return len(self._get_hash(name).get(key, ""))
 
+    @_locked
     def hgetall(self, name):
         "Return a Python dict of the hash's name/value pairs"
         all_items = dict()
         all_items.update(self._get_hash(name))
         return all_items
 
+    @_locked
     def hincrby(self, name, key, amount=1):
         "Increment the value of ``key`` in hash ``name`` by ``amount``"
         new = int(self._setdefault_hash(name).get(key, b'0')) + amount
         self._db[name][key] = to_bytes(new)
         return new
 
+    @_locked
     def hincrbyfloat(self, name, key, amount=1.0):
         """Increment the value of key in hash name by floating amount"""
         try:
@@ -1252,14 +1500,17 @@ class FakeStrictRedis(object):
         self._db[name][key] = to_bytes(new)
         return new
 
+    @_locked
     def hkeys(self, name):
         "Return the list of keys within hash ``name``"
         return list(self._get_hash(name))
 
+    @_locked
     def hlen(self, name):
         "Return the number of elements in hash ``name``"
         return len(self._get_hash(name))
 
+    @_locked
     def hset(self, name, key, value):
         """
         Set ``key`` to ``value`` within hash ``name``
@@ -1269,6 +1520,7 @@ class FakeStrictRedis(object):
         self._setdefault_hash(name)[key] = to_bytes(value)
         return 1 if key_is_new else 0
 
+    @_locked
     def hsetnx(self, name, key, value):
         """
         Set ``key`` to ``value`` within hash ``name`` if ``key`` does not
@@ -1279,6 +1531,7 @@ class FakeStrictRedis(object):
         self._setdefault_hash(name)[key] = to_bytes(value)
         return True
 
+    @_locked
     def hmset(self, name, mapping):
         """
         Sets each key in the ``mapping`` dict to its corresponding value
@@ -1292,12 +1545,14 @@ class FakeStrictRedis(object):
         self._setdefault_hash(name).update(new_mapping)
         return True
 
+    @_locked
     def hmget(self, name, keys, *args):
         "Returns a list of values ordered identically to ``keys``"
         h = self._get_hash(name)
         all_keys = self._list_or_args(keys, args)
         return [h.get(k) for k in all_keys]
 
+    @_locked
     def hvals(self, name):
         "Return the list of values within hash ``name``"
         return list(self._get_hash(name).values())
@@ -1314,6 +1569,7 @@ class FakeStrictRedis(object):
             raise redis.ResponseError(_WRONGTYPE_MSG)
         return value
 
+    @_locked
     def sadd(self, name, *values):
         "Add ``value`` to set ``name``"
         a_set = self._setdefault_set(name)
@@ -1321,10 +1577,12 @@ class FakeStrictRedis(object):
         a_set |= set(to_bytes(x) for x in values)
         return len(a_set) - card
 
+    @_locked
     def scard(self, name):
         "Return the number of elements in set ``name``"
         return len(self._get_set(name))
 
+    @_locked
     def sdiff(self, keys, *args):
         "Return the difference of sets specified by ``keys``"
         all_keys = (to_bytes(x) for x in self._list_or_args(keys, args))
@@ -1333,6 +1591,7 @@ class FakeStrictRedis(object):
             diff -= self._get_set(key)
         return diff
 
+    @_locked
     @_remove_empty
     def sdiffstore(self, dest, keys, *args):
         """
@@ -1343,6 +1602,7 @@ class FakeStrictRedis(object):
         self._db[dest] = set(to_bytes(x) for x in diff)
         return len(diff)
 
+    @_locked
     def sinter(self, keys, *args):
         "Return the intersection of sets specified by ``keys``"
         all_keys = (to_bytes(x) for x in self._list_or_args(keys, args))
@@ -1351,6 +1611,7 @@ class FakeStrictRedis(object):
             intersect.intersection_update(self._get_set(key))
         return intersect
 
+    @_locked
     @_remove_empty
     def sinterstore(self, dest, keys, *args):
         """
@@ -1361,14 +1622,17 @@ class FakeStrictRedis(object):
         self._db[dest] = set(to_bytes(x) for x in intersect)
         return len(intersect)
 
+    @_locked
     def sismember(self, name, value):
         "Return a boolean indicating if ``value`` is a member of set ``name``"
         return to_bytes(value) in self._get_set(name)
 
+    @_locked
     def smembers(self, name):
         "Return all members of the set ``name``"
         return self._get_set(name).copy()
 
+    @_locked
     @_remove_empty
     def smove(self, src, dst, value):
         value = to_bytes(value)
@@ -1381,6 +1645,7 @@ class FakeStrictRedis(object):
         except KeyError:
             return False
 
+    @_locked
     @_remove_empty
     def spop(self, name):
         "Remove and return a random member of set ``name``"
@@ -1389,6 +1654,7 @@ class FakeStrictRedis(object):
         except KeyError:
             return None
 
+    @_locked
     def srandmember(self, name, number=None):
         """
         If ``number`` is None, returns a random member of set ``name``.
@@ -1418,6 +1684,7 @@ class FakeStrictRedis(object):
                 in sorted(random.sample(range(len(members)), number))
             ]
 
+    @_locked
     @_remove_empty
     def srem(self, name, *values):
         "Remove ``value`` from set ``name``"
@@ -1426,6 +1693,7 @@ class FakeStrictRedis(object):
         a_set -= set(to_bytes(x) for x in values)
         return card - len(a_set)
 
+    @_locked
     def sunion(self, keys, *args):
         "Return the union of sets specifiued by ``keys``"
         all_keys = (to_bytes(x) for x in self._list_or_args(keys, args))
@@ -1434,6 +1702,7 @@ class FakeStrictRedis(object):
             union.update(self._get_set(key))
         return union
 
+    @_locked
     def sunionstore(self, dest, keys, *args):
         """
         Store the union of sets specified by ``keys`` into a new
@@ -1544,6 +1813,7 @@ class FakeStrictRedis(object):
 
         return comparator, actual_value
 
+    @_locked
     def zadd(self, name, *args, **kwargs):
         """
         Set any number of score, element-name pairs to the key ``name``. Pairs
@@ -1574,10 +1844,12 @@ class FakeStrictRedis(object):
                 raise redis.ResponseError("value is not a valid float")
         return len(zset) - old_len
 
+    @_locked
     def zcard(self, name):
         "Return the number of elements in the sorted set ``name``"
         return len(self._get_zset(name))
 
+    @_locked
     def zcount(self, name, min, max):
         found = 0
         filter_func = self._get_zelement_range_filter_func(min, max)
@@ -1586,6 +1858,7 @@ class FakeStrictRedis(object):
                 found += 1
         return found
 
+    @_locked
     def zincrby(self, name, value, amount=1):
         "Increment the score of ``value`` in sorted set ``name`` by ``amount``"
         d = self._setdefault_zset(name)
@@ -1593,6 +1866,7 @@ class FakeStrictRedis(object):
         d[value] = score
         return score
 
+    @_locked
     @_remove_empty
     def zinterstore(self, dest, keys, aggregate=None):
         """
@@ -1624,6 +1898,7 @@ class FakeStrictRedis(object):
         else:
             return [(k, score_cast_func(to_bytes(all_items[k]))) for k in items]
 
+    @_locked
     def zrange(self, name, start, end, desc=False, withscores=False, score_cast_func=float):
         """
         Return a range of values from sorted set ``name`` between
@@ -1657,6 +1932,7 @@ class FakeStrictRedis(object):
         in_order = sorted(by_keyname, key=lambda x: x[1], reverse=reverse)
         return [el[0] for el in in_order]
 
+    @_locked
     def zrangebyscore(self, name, min, max, start=None, num=None,
                       withscores=False, score_cast_func=float):
         """
@@ -1690,6 +1966,7 @@ class FakeStrictRedis(object):
             matches = matches[start:start + num]
         return self._apply_score_cast_func(matches, all_items, withscores, score_cast_func)
 
+    @_locked
     def zrangebylex(self, name, min, max,
                     start=None, num=None):
         """
@@ -1727,6 +2004,7 @@ class FakeStrictRedis(object):
             matches = matches[start:start + num]
         return matches
 
+    @_locked
     def zrank(self, name, value):
         """
         Returns a 0-based value indicating the rank of ``value`` in sorted set
@@ -1739,6 +2017,7 @@ class FakeStrictRedis(object):
         except ValueError:
             return None
 
+    @_locked
     @_remove_empty
     def zrem(self, name, *values):
         "Remove member ``value`` from sorted set ``name``"
@@ -1750,6 +2029,7 @@ class FakeStrictRedis(object):
                 rem += 1
         return rem
 
+    @_locked
     @_remove_empty
     def zremrangebyrank(self, name, min, max):
         """
@@ -1770,6 +2050,7 @@ class FakeStrictRedis(object):
             num_deleted += 1
         return num_deleted
 
+    @_locked
     @_remove_empty
     def zremrangebyscore(self, name, min, max):
         """
@@ -1785,6 +2066,7 @@ class FakeStrictRedis(object):
                 removed += 1
         return removed
 
+    @_locked
     @_remove_empty
     def zremrangebylex(self, name, min, max):
         """
@@ -1806,6 +2088,7 @@ class FakeStrictRedis(object):
                 removed += 1
         return removed
 
+    @_locked
     def zlexcount(self, name, min, max):
         """
         Returns a count of elements in the sorted set ``name``
@@ -1825,6 +2108,7 @@ class FakeStrictRedis(object):
                 found += 1
         return found
 
+    @_locked
     def zrevrange(self, name, start, end, withscores=False, score_cast_func=float):
         """
         Return a range of values from sorted set ``name`` between
@@ -1839,6 +2123,7 @@ class FakeStrictRedis(object):
         """
         return self.zrange(name, start, end, True, withscores, score_cast_func)
 
+    @_locked
     def zrevrangebyscore(self, name, max, min, start=None, num=None,
                          withscores=False, score_cast_func=float):
         """
@@ -1856,6 +2141,7 @@ class FakeStrictRedis(object):
         return self._zrangebyscore(name, min, max, start, num, withscores, score_cast_func,
                                    reverse=True)
 
+    @_locked
     def zrevrangebylex(self, name, max, min,
                        start=None, num=None):
         """
@@ -1875,6 +2161,7 @@ class FakeStrictRedis(object):
         return self._zrangebylex(name, min, max, start, num,
                                  reverse=True)
 
+    @_locked
     def zrevrank(self, name, value):
         """
         Returns a 0-based value indicating the descending rank of
@@ -1885,6 +2172,7 @@ class FakeStrictRedis(object):
         if zrank is not None:
             return num_items - self.zrank(name, value) - 1
 
+    @_locked
     def zscore(self, name, value):
         "Return the score of element ``value`` in sorted set ``name``"
         all_items = self._get_zset(name)
@@ -1893,6 +2181,7 @@ class FakeStrictRedis(object):
         except KeyError:
             return None
 
+    @_locked
     def zunionstore(self, dest, keys, aggregate=None):
         """
         Union multiple sorted sets specified by ``keys`` into
@@ -1982,8 +2271,13 @@ class FakeStrictRedis(object):
 
     def lock(self, name, timeout=None, sleep=0.1, blocking_timeout=None,
              lock_class=None, thread_local=True):
-        return _Lock(self, name, timeout)
+        if lock_class is None:
+            lock_class = _Lock
+        return lock_class(self, name, timeout=timeout, sleep=sleep,
+                          blocking_timeout=blocking_timeout,
+                          thread_local=thread_local)
 
+    @_locked
     def pubsub(self, ignore_subscribe_messages=False):
         """
         Returns a new FakePubSub instance
@@ -1994,6 +2288,7 @@ class FakeStrictRedis(object):
 
         return ps
 
+    @_locked
     def publish(self, channel, message):
         """
         Loops through all available pubsub objects and publishes the
@@ -2059,12 +2354,15 @@ class FakeStrictRedis(object):
             result_cursor = 0
         return result_cursor, result_data
 
+    @_locked
     def scan(self, cursor=0, match=None, count=None):
         return self._scan(self.keys(), int(cursor), match, count or 10)
 
+    @_locked
     def sscan(self, name, cursor=0, match=None, count=None):
         return self._scan(self.smembers(name), int(cursor), match, count or 10)
 
+    @_locked
     def hscan(self, name, cursor=0, match=None, count=None):
         cursor, keys = self._scan(self.hkeys(name), int(cursor), match, count or 10)
         results = {}
@@ -2188,6 +2486,8 @@ class FakePipeline(object):
 
     def execute(self, raise_on_error=True):
         """Run all the commands in the pipeline and return the results."""
+        if not self.commands:
+            return []
         try:
             if self.watching:
                 mismatches = [
