@@ -17,9 +17,10 @@ import uuid
 from itertools import count, islice
 
 import redis
-from redis.exceptions import ResponseError, LockError
+from redis.exceptions import ResponseError, LockError, PubSubError
 from redis.utils import dummy
 import redis.client
+from redis.client import PubSubWorkerThread
 
 try:
     # Python 2.6, 2.7
@@ -2754,3 +2755,15 @@ class FakePubSub(object):
                 return None
 
         return message
+
+    def run_in_thread(self, sleep_time=0, daemon=False):
+        for channel, handler in iteritems(self.channels):
+            if handler is None:
+                raise PubSubError("Channel: '%s' has no handler registered" % (channel,))
+        for pattern, handler in iteritems(self.patterns):
+            if handler is None:
+                raise PubSubError("Pattern: '%s' has no handler registered" % (channel,))
+
+        thread = PubSubWorkerThread(self, sleep_time, daemon=daemon)
+        thread.start()
+        return thread
