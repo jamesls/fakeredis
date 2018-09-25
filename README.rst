@@ -294,6 +294,17 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.14.0
+------
+This release greatly improves support for threads: the bulk of commands are now
+thread-safe, ``lock`` has been rewritten to more closely match redis-py, and
+pubsub now supports ``run_in_thread``:
+
+- `#213 <https://github.com/jamesls/fakeredis/issues/217>`_ pipeline.watch runs transaction even if no commands are queued
+- `#214 <https://github.com/jamesls/fakeredis/pull/214>`_ Added pubsub.run_in_thread as it is implemented in redis-py
+- `#215 <https://github.com/jamesls/fakeredis/pull/215>`_ Keep pace with redis-py for zrevrange method
+- `#216 <https://github.com/jamesls/fakeredis/pull/216>`_ Update behavior of lock to behave closer to redis lock
+
 0.13.1
 ------
 - `#208 <https://github.com/jamesls/fakeredis/pull/208>`_ eval's KEYS and ARGV are now lua tables
