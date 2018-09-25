@@ -294,6 +294,12 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.13.1
+------
+- `#208 <https://github.com/jamesls/fakeredis/pull/208>`_ eval's KEYS and ARGV are now lua tables
+- `#209 <https://github.com/jamesls/fakeredis/pull/209>`_ Redis operation that returns dict now converted to Lua table when called inside eval operation
+- `#212 <https://github.com/jamesls/fakeredis/pull/212>`_ Optimize ``_scan()``
+
 0.13.0.1
 --------
 - Fix a typo in the Trove classifiers

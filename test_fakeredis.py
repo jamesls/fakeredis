@@ -1013,6 +1013,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.assertEqual(self.redis.blpop('foo', timeout=1), (b'foo', b'one'))
 
+    @attr('slow')
+    def test_blpop_block(self):
+        def push_thread():
+            sleep(0.5)
+            self.redis.rpush('foo', 'value1')
+            sleep(0.5)
+            # Will wake the condition variable
+            self.redis.set('bar', 'go back to sleep some more')
+            self.redis.rpush('foo', 'value2')
+
+        thread = threading.Thread(target=push_thread)
+        thread.start()
+        try:
+            self.assertEqual(self.redis.blpop('foo'), (b'foo', b'value1'))
+            self.assertEqual(self.redis.blpop('foo', timeout=5), (b'foo', b'value2'))
+        finally:
+            thread.join()
+
     def test_blpop_wrong_type(self):
         self.redis.set('foo', 'bar')
         with self.assertRaises(redis.ResponseError):
@@ -1034,6 +1052,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'two')
         self.assertEqual(self.redis.brpop('foo', timeout=1),
                          (b'foo', b'two'))
+
+    @attr('slow')
+    def test_brpop_block(self):
+        def push_thread():
+            sleep(0.5)
+            self.redis.rpush('foo', 'value1')
+            sleep(0.5)
+            # Will wake the condition variable
+            self.redis.set('bar', 'go back to sleep some more')
+            self.redis.rpush('foo', 'value2')
+
+        thread = threading.Thread(target=push_thread)
+        thread.start()
+        try:
+            self.assertEqual(self.redis.brpop('foo'), (b'foo', b'value1'))
+            self.assertEqual(self.redis.brpop('foo', timeout=5), (b'foo', b'value2'))
+        finally:
+            thread.join()
 
     def test_brpop_wrong_type(self):
         self.redis.set('foo', 'bar')
@@ -2812,6 +2848,15 @@ class TestFakeStrictRedis(unittest.TestCase):
         p.set('baz', 'quux').get('baz')
         self.assertEqual(2, len(p))
 
+    def test_pipeline_no_commands(self):
+        # redis-py's execute is a nop if there are no commands queued,
+        # so it succeeds even if watched keys have been changed.
+        self.redis.set('foo', '1')
+        p = self.redis.pipeline()
+        p.watch('foo')
+        self.redis.set('foo', '2')
+        self.assertEqual(p.execute(), [])
+
     def test_key_patterns(self):
         self.redis.mset({'one': 1, 'two': 2, 'three': 3, 'four': 4})
         self.assertItemsEqual(self.redis.keys('*o*'),
@@ -3936,13 +3981,84 @@ class TestFakeRedis(unittest.TestCase):
 
     def test_lock(self):
         lock = self.redis.lock('foo')
-        lock.acquire()
+        self.assertTrue(lock.acquire())
         self.assertTrue(self.redis.exists('foo'))
         lock.release()
         self.assertFalse(self.redis.exists('foo'))
         with self.redis.lock('bar'):
             self.assertTrue(self.redis.exists('bar'))
         self.assertFalse(self.redis.exists('bar'))
+
+    def test_unlock_without_lock(self):
+        lock = self.redis.lock('foo')
+        with self.assertRaises(redis.exceptions.LockError):
+            lock.release()
+
+    @attr('slow')
+    def test_unlock_expired(self):
+        lock = self.redis.lock('foo', timeout=0.01, sleep=0.001)
+        self.assertTrue(lock.acquire())
+        sleep(0.1)
+        with self.assertRaises(redis.exceptions.LockError):
+            lock.release()
+
+    @attr('slow')
+    def test_lock_blocking_timeout(self):
+        lock = self.redis.lock('foo')
+        self.assertTrue(lock.acquire())
+        lock2 = self.redis.lock('foo')
+        self.assertFalse(lock2.acquire(blocking_timeout=1))
+
+    def test_lock_nonblocking(self):
+        lock = self.redis.lock('foo')
+        self.assertTrue(lock.acquire())
+        lock2 = self.redis.lock('foo')
+        self.assertFalse(lock2.acquire(blocking=False))
+
+    def test_lock_twice(self):
+        lock = self.redis.lock('foo')
+        self.assertTrue(lock.acquire(blocking=False))
+        self.assertFalse(lock.acquire(blocking=False))
+
+    def test_acquiring_lock_different_lock_release(self):
+        lock1 = self.redis.lock('foo')
+        lock2 = self.redis.lock('foo')
+        self.assertTrue(lock1.acquire(blocking=False))
+        self.assertFalse(lock2.acquire(blocking=False))
+
+        # Test only releasing lock1 actually releases the lock
+        with self.assertRaises(redis.exceptions.LockError):
+            lock2.release()
+        self.assertFalse(lock2.acquire(blocking=False))
+        lock1.release()
+        # Locking with lock2 now has the lock
+        self.assertTrue(lock2.acquire(blocking=False))
+        self.assertFalse(lock1.acquire(blocking=False))
+
+    def test_lock_extend(self):
+        lock = self.redis.lock('foo', timeout=2)
+        lock.acquire()
+        lock.extend(3)
+        ttl = int(self.redis.pttl('foo'))
+        self.assertGreater(ttl, 4000)
+        self.assertLessEqual(ttl, 5000)
+
+    def test_lock_extend_exceptions(self):
+        lock1 = self.redis.lock('foo', timeout=2)
+        with self.assertRaises(redis.exceptions.LockError):
+            lock1.extend(3)
+        lock2 = self.redis.lock('foo')
+        lock2.acquire()
+        with self.assertRaises(redis.exceptions.LockError):
+            lock2.extend(3)  # Cannot extend a lock with no timeout
+
+    @attr('slow')
+    def test_lock_extend_expired(self):
+        lock = self.redis.lock('foo', timeout=0.01, sleep=0.001)
+        lock.acquire()
+        sleep(0.1)
+        with self.assertRaises(redis.exceptions.LockError):
+            lock.extend(3)
 
 
 class DecodeMixin(object):
