@@ -2882,7 +2882,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     @attr('slow')
     def test_bgsave_timestamp_update(self):
         early_timestamp = self.redis.lastsave()
-        sleep(1)
+        sleep(2)
         self.assertTrue(self.redis.bgsave())
         late_timestamp = self.redis.lastsave()
         self.assertLess(early_timestamp, late_timestamp)
@@ -2890,7 +2890,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     @attr('slow')
     def test_save_timestamp_update(self):
         early_timestamp = self.redis.lastsave()
-        sleep(1)
+        sleep(2)
         self.assertTrue(self.redis.save())
         late_timestamp = self.redis.lastsave()
         self.assertLess(early_timestamp, late_timestamp)
