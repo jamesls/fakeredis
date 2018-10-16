@@ -2870,6 +2870,15 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_ping(self):
         self.assertTrue(self.redis.ping())
 
+    def test_bgsave(self):
+        self.assertTrue(self.redis.bgsave())
+
+    def test_save(self):
+        self.assertTrue(self.redis.save())
+
+    def test_lastsave(self):
+        self.assertTrue(isinstance(self.redis.lastsave(), datetime))
+
     def test_type(self):
         self.redis.set('string_key', "value")
         self.redis.lpush("list_key", "value")
