@@ -783,6 +783,15 @@ class FakeStrictRedis(object):
     def ping(self):
         return True
 
+    def bgsave(self):
+        pass
+
+    def save(self):
+        pass
+
+    def lastsave(self):
+        pass
+
     @_lua_reply(_lua_bool_ok)
     @_locked
     def rename(self, src, dst):
