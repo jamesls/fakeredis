@@ -116,7 +116,6 @@ server
 ------
 
  * bgrewriteaof
- * bgsave
  * client kill
  * client list
  * client getname
@@ -135,7 +134,6 @@ server
  * debug object
  * debug segfault
  * info
- * lastsave
  * memory doctor
  * memory help
  * memory malloc-stats
@@ -144,7 +142,6 @@ server
  * memory usage
  * monitor
  * role
- * save
  * shutdown
  * slaveof
  * slowlog

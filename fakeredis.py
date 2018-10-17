@@ -541,6 +541,7 @@ class FakeStrictRedis(object):
         self._encoding_errors = errors
         self._pubsubs = []
         self._decode_responses = decode_responses
+        self._lastsave = datetime.now()
         self.connected = connected
         _patch_responses(self, _check_conn)
 
@@ -782,6 +783,17 @@ class FakeStrictRedis(object):
 
     def ping(self):
         return True
+
+    def bgsave(self):
+        self._lastsave = datetime.now()
+        return True
+
+    def save(self):
+        self._lastsave = datetime.now()
+        return True
+
+    def lastsave(self):
+        return self._lastsave
 
     @_lua_reply(_lua_bool_ok)
     @_locked
