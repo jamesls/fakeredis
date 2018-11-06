@@ -4,7 +4,13 @@ import warnings
 import copy
 from ctypes import CDLL, POINTER, c_double, c_char_p, pointer
 from ctypes.util import find_library
-from collections import MutableMapping
+try:
+    # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
+    from collections.abc import MutableMapping
+except:
+    # Python 2.6, 2.7
+    from collections import MutableMapping
+
 from datetime import datetime, timedelta
 import operator
 import sys
