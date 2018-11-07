@@ -3688,8 +3688,11 @@ class TestFakeStrictRedis(unittest.TestCase):
                 return value;
             end
             ''', 2, 'foo', 'bar')
-        # Lua must receive the set *sorted*
-        self.assertEqual(val, [b'a', b'c', b'd', b'e', b'f'])
+        # Note: while fakeredis sorts the result when using Lua, this isn't
+        # actually part of the redis contract (see
+        # https://github.com/antirez/redis/issues/5538), and for Redis 5 we
+        # need to sort val to pass the test.
+        self.assertEqual(sorted(val), [b'a', b'c', b'd', b'e', b'f'])
 
 
 class TestFakeRedis(unittest.TestCase):

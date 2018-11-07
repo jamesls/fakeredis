@@ -1093,6 +1093,10 @@ class FakeStrictRedis(object):
             ]
             return lua_runtime.table_from(converted)
         elif isinstance(result, set):
+            # Redis up to 4 (with default options) sorts sets when returning
+            # them to Lua, but only to make scripts deterministic for
+            # replication. Redis 5 no longer sorts, but we maintain the sort
+            # so that unit tests written against fakeredis are reproducible.
             converted = sorted(
                 self._convert_redis_result(lua_runtime, item)
                 for item in result
