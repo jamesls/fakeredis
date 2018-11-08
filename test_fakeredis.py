@@ -622,6 +622,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.setnx('foo', 'baz'), False)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
+    def test_del_operator(self):
+        self.redis['foo'] = 'bar'
+        del self.redis['foo']
+        self.assertEqual(self.redis.get('foo'), None)
+
     def test_delete(self):
         self.redis['foo'] = 'bar'
         self.assertEqual(self.redis.delete('foo'), True)

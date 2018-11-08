@@ -980,6 +980,9 @@ class FakeStrictRedis(object):
                 continue
         return deleted
 
+    def __delitem__(self, name):
+        return self.delete(name)
+
     @_locked
     def sort(self, name, start=None, num=None, by=None, get=None, desc=False,
              alpha=False, store=None):
