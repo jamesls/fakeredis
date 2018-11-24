@@ -25,11 +25,11 @@ SYNTAX_ERROR_MSG = "syntax error"
 INVALID_INT_MSG = "value is not an integer or out of range"
 INVALID_FLOAT_MSG = "value is not a valid float"
 INVALID_BIT_OFFSET_MSG = "bit offset is not an integer or out of range"
+INVALID_DB_MSG = "DB index is out of range"
 OVERFLOW_MSG = "increment or decrement would overflow"
 NONFINITE_MSG = "increment would produce NaN or Infinity"
 WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
 UNKNOWN_COMMAND_MSG = "unknown command '{}'"
-NO_COMMAND_MSG = "no command given"     # real redis seems to just hang?
 OK = b'OK'
 
 
@@ -61,6 +61,42 @@ class Item(object):
 
     def updated(self):
         self.version += 1
+
+
+class ExpiringDict(MutableMapping):
+    def __init__(self, *args, **kwargs):
+        self._dict = dict(*args, **kwargs)
+        self.time = 0.0
+
+    def expired(self, item):
+        return item.expireat is not None and item.expireat < self.time
+
+    def _remove_expired(self):
+        for key in list(self._dict):
+            item = self._dict[key]
+            if self.expired(item):
+                del self._dict[key]
+
+    def __getitem__(self, key):
+        item = self._dict[key]
+        if self.expired(item):
+            del self._dict[key]
+            raise KeyError(key)
+        return item
+
+    def __setitem__(self, key, value):
+        self._dict[key] = value
+
+    def __delitem__(self, key):
+        del self._dict[key]
+
+    def __iter__(self):
+        self._remove_expired()
+        return iter(self._dict)
+
+    def __len__(self):
+        self._remove_expired()
+        return len(self._dict)
 
 
 class ZSet(dict):
@@ -107,6 +143,16 @@ class BitOffset(Int):
     @classmethod
     def valid(cls, value):
         return 0 <= value < 8 * 512 * 1024 * 1024     # Redis imposes 512MB limit on keys
+
+
+class DbIndex(Int):
+    """Argument converted for databased indices"""
+
+    DECODE_ERROR = INVALID_DB_MSG
+
+    @classmethod
+    def valid(cls, value):
+        return 0 <= value < 16
 
 
 class Float(object):
@@ -207,17 +253,15 @@ def command(*args, **kwargs):
 
 class FakeServer(object):
     def __init__(self):
-        self.dbs = defaultdict(dict)
+        self.dbs = defaultdict(ExpiringDict)
         self.lock = threading.Lock()
 
 
-class _FakeSocket(object):
+class FakeSocket(object):
     def __init__(self, server):
         self._server = server
         self._db = server.dbs[0]
         self._db_num = 0
-        self._time = 0.0
-        self._lock = self._server.lock
         self.responses = queue.Queue()
 
     def shutdown(self, flags):
@@ -263,8 +307,10 @@ class _FakeSocket(object):
                 clean_name = name.replace('\r', ' ').replace('\n', ' ')
                 raise redis.ResponseError(UNKNOWN_COMMAND_MSG.format(clean_name))
             sig = func._fakeredis_sig
-            with self._lock:
-                self._time = time.time()
+            with self._server.lock:
+                now = time.time()
+                for db in self._server.dbs.values():
+                    db.time = now
                 args, tmp_keys = sig.apply(fields[1:], self._db)
                 result = func(*args)
                 # Remove empty containers, and make temporary items permanent
@@ -289,6 +335,40 @@ class _FakeSocket(object):
             end = max(0, end + length)
         end = min(end, length - 1)
         return start, end + 1
+
+    # TODO: implement auth, quit
+
+    @command((bytes,))
+    def echo(self, message):
+        return message
+
+    @command((), (bytes,))
+    def ping(self, *args):
+        # TODO: behaves differently on a pubsub connection
+        if len(args) == 0:
+            return "PONG"
+        elif len(args) == 1:
+            return args[0]
+        else:
+            raise redis.ResponseError(WRONG_ARGS_MSG)
+
+    @command((DbIndex,))
+    def select(self, index):
+        self._db = self._server.dbs[index]
+        self._db_num = index
+        return OK
+
+    @command((DbIndex, DbIndex))
+    def swapdb(self, index1, index2):
+        if index1 != index2:
+            db1 = self._server.dbs[index1]
+            db2 = self._server.dbs[index2]
+            tmp = dict(db1)
+            db1.clear()
+            db1.update(db2)
+            db2.clear()
+            db2.update(tmp)
+        return OK
 
     @command((), (bytes,))
     def flushdb(self, *args):
@@ -456,6 +536,7 @@ class _FakeSocket(object):
     @command((Key(),), name='del')
     def delete(self, key):
         key.value = None
+        return OK
 
 
 class _DummyParser(object):
@@ -487,7 +568,7 @@ class FakeConnection(redis.Connection):
         self._sock = None
 
     def _connect(self):
-        return _FakeSocket(self._server)
+        return FakeSocket(self._server)
 
     def can_read(self, timeout=0):
         # TODO: handle timeout (needed for pub/sub)
