@@ -714,12 +714,12 @@ class FakeStrictRedis(object):
         try:
             if not isinstance(amount, int_types):
                 raise redis.ResponseError("value is not an integer or out "
-                                          "of range.")
+                                          "of range")
             value = int(self._get_string(name, b'0')) + amount
             self._db.setx(name, to_bytes(value))
         except (TypeError, ValueError):
             raise redis.ResponseError("value is not an integer or out of "
-                                      "range.")
+                                      "range")
         return value
 
     @_locked
