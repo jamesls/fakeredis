@@ -6,6 +6,7 @@ import time
 import threading
 import math
 import re
+from collections import defaultdict
 try:
     # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
     from collections.abc import MutableMapping
@@ -205,6 +206,28 @@ def command(*args, **kwargs):
 
 
 class FakeServer(object):
+    def __init__(self):
+        self.dbs = defaultdict(dict)
+        self.lock = threading.Lock()
+
+
+class _FakeSocket(object):
+    def __init__(self, server):
+        self._server = server
+        self._db = server.dbs[0]
+        self._db_num = 0
+        self._time = 0.0
+        self._lock = self._server.lock
+        self.responses = queue.Queue()
+
+    def shutdown(self, flags):
+        pass     # For compatibility with socket.socket
+
+    def close(self):
+        # TODO: unsubscribe from pub/sub
+        self._server = None
+        self.responses = None
+
     @staticmethod
     def _parse_packed_command(command):
         fp = io.BytesIO(command)
@@ -222,40 +245,23 @@ class FakeServer(object):
             fp.read(2)                 # CRLF
         return fields
 
-    def __init__(self):
-        self._db = {}
-        self._dbs = {0: self._db}
-        self._db_num = 0
-        self._lock = threading.Lock()
-        self._time = 0.0
-
-    @staticmethod
-    def _fix_range(start, end, length):
-        # Negative number handling is based on the redis source code
-        if start < 0 and end < 0 and start > end:
-            return -1, -1
-        if start < 0:
-            start = max(0, start + length)
-        if end < 0:
-            end = max(0, end + length)
-        end = min(end, length - 1)
-        return start, end + 1
-
-    def execute_command(self, command):
-        fields = self._parse_packed_command(command)
-        if not fields:
-            return None
-        name = fields[0]
-        # redis treats the command as NULL-terminated
-        if b'\0' in name:
-            name = name[:name.find(b'\0')]
-        name = nativestr(name)
-        func = getattr(self, name.lower(), None)
-        if name.startswith('_') or not func or not hasattr(func, '_fakeredis_sig'):
-            # redis remaps \r or \n in an error to ' ' to make it legal protocol
-            clean_name = name.replace('\r', ' ').replace('\n', ' ')
-            return redis.ResponseError(UNKNOWN_COMMAND_MSG.format(clean_name))
+    def sendall(self, command):
         try:
+            if isinstance(command, list):
+                command = b''.join(command)
+            fields = self._parse_packed_command(command)
+            if not fields:
+                return
+            name = fields[0]
+            # redis treats the command as NULL-terminated
+            if b'\0' in name:
+                name = name[:name.find(b'\0')]
+            name = nativestr(name)
+            func = getattr(self, name.lower(), None)
+            if name.startswith('_') or not func or not hasattr(func, '_fakeredis_sig'):
+                # redis remaps \r or \n in an error to ' ' to make it legal protocol
+                clean_name = name.replace('\r', ' ').replace('\n', ' ')
+                raise redis.ResponseError(UNKNOWN_COMMAND_MSG.format(clean_name))
             sig = func._fakeredis_sig
             with self._lock:
                 self._time = time.time()
@@ -268,9 +274,21 @@ class FakeServer(object):
                     else:
                         self._db.pop(key, None)
                 # TODO: decode results if requested
-                return result
         except redis.ResponseError as exc:
-            return exc
+            result = exc
+        self.responses.put(result)
+
+    @staticmethod
+    def _fix_range(start, end, length):
+        # Negative number handling is based on the redis source code
+        if start < 0 and end < 0 and start > end:
+            return -1, -1
+        if start < 0:
+            start = max(0, start + length)
+        if end < 0:
+            end = max(0, end + length)
+        end = min(end, length - 1)
+        return start, end + 1
 
     @command((), (bytes,))
     def flushdb(self, *args):
@@ -285,7 +303,7 @@ class FakeServer(object):
         if args:
             if len(args) != 1 or args[0].lower() != b'async':
                 raise redis.ResponseError(SYNTAX_ERROR_MSG)
-        for db in self._dbs.values():
+        for db in self._server.dbs.values():
             db.clear()
         # TODO: clear pubsub as well?
         return OK
@@ -436,31 +454,8 @@ class FakeServer(object):
         return OK
 
     @command((Key(),), name='del')
-    def _delete(self, key):
+    def delete(self, key):
         key.value = None
-
-
-setattr(FakeServer, 'del', FakeServer._delete)
-
-
-class FakeSocket(object):
-    def __init__(self, server):
-        self._server = server
-        self.responses = queue.Queue()
-
-    def shutdown(self, flags):
-        pass     # For compatibility with socket.socket
-
-    def close(self):
-        # TODO: unsubscribe from pub/sub
-        self._server = None
-        self.responses = None
-
-    def sendall(self, command):
-        if isinstance(command, list):
-            command = b''.join(items)
-        response = self._server.execute_command(command)
-        self.responses.put(response)
 
 
 class _DummyParser(object):
@@ -492,7 +487,7 @@ class FakeConnection(redis.Connection):
         self._sock = None
 
     def _connect(self):
-        return FakeSocket(self._server)
+        return _FakeSocket(self._server)
 
     def can_read(self, timeout=0):
         # TODO: handle timeout (needed for pub/sub)
