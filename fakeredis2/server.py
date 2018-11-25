@@ -39,6 +39,71 @@ def byte_to_int(b):
     return b
 
 
+def _compile_pattern(pattern):
+    """Compile a glob pattern (e.g. for keys) to a bytes regex.
+
+    fnmatch.fnmatchcase doesn't work for this, because it uses different
+    escaping rules to redis, uses ! instead of ^ to negate a character set,
+    and handles invalid cases (such as a [ without a ]) differently. This
+    implementation was written by studying the redis implementation.
+    """
+    # It's easier to work with text than bytes, because indexing bytes
+    # doesn't behave the same in Python 3. Latin-1 will round-trip safely.
+    pattern = pattern.decode('latin-1')
+    parts = ['^']
+    i = 0
+    L = len(pattern)
+    while i < L:
+        c = pattern[i]
+        if c == '?':
+            parts.append('.')
+        elif c == '*':
+            parts.append('.*')
+        elif c == '\\':
+            if i < L - 1:
+                i += 1
+            parts.append(re.escape(pattern[i]))
+        elif c == '[':
+            parts.append('[')
+            i += 1
+            if i < L and pattern[i] == '^':
+                i += 1
+                parts.append('^')
+            parts_len = len(parts)  # To detect if anything was added
+            while i < L:
+                if pattern[i] == '\\' and i + 1 < L:
+                    i += 1
+                    parts.append(re.escape(pattern[i]))
+                elif pattern[i] == ']':
+                    break
+                elif i + 2 <= L and pattern[i + 1] == '-':
+                    start = pattern[i]
+                    end = pattern[i + 2]
+                    if start > end:
+                        start, end = end, start
+                    parts.append(re.escape(start) + '-' + re.escape(end))
+                    i += 2
+                else:
+                    parts.append(re.escape(pattern[i]))
+                i += 1
+            if len(parts) == parts_len:
+                if parts[-1] == '[':
+                    # Empty group - will never match
+                    parts[-1] = '(?:$.)'
+                else:
+                    # Negated empty group - matches any character
+                    assert parts[-1] == '^'
+                    parts.pop()
+                    parts[-1] = '.'
+            parts.append(']')
+        else:
+            parts.append(re.escape(pattern[i]))
+        i += 1
+    parts.append('\\Z')
+    regex = ''.join(parts).encode('latin-1')
+    return re.compile(regex, re.S)
+
+
 class Item(object):
     __slots__ = ['value', 'expireat', 'version']
 
@@ -156,45 +221,41 @@ class DbIndex(Int):
 
 
 class Float(object):
-    """Argument converter for double-precision floats"""
+    """Argument converter for floating-point values.
+
+    Redis uses long double for some cases (INCRBYFLOAT, HINCRBYFLOAT)
+    and double for others (zset scores), but Python doesn't support
+    long double.
+    """
 
     @classmethod
     def decode(cls, value):
         try:
-            return float(value)
-        except ValueError:
-            raise redis.ResponseError(INVALID_FLOAT_MSG)
-
-
-class LongDouble(object):
-    """Argument converter for long double"""
-
-    @classmethod
-    def decode(cls, value):
-        import numpy as np
-        try:
-            out = np.longdouble(value)
-            # Checks done by redis
-            if value[:1].isspace() or np.isnan(out):
+            if value[:1].isspace():
+                raise ValueError       # redis explicitly rejects this
+            out = float(value)
+            if math.isnan(out):
+                raise ValueError
+            # Values that over- or underflow- are explicitly rejected by
+            # redis. This is a crude hack to determine whether the input
+            # may have been such a value.
+            if out in (math.inf, -math.inf, 0.0) and re.match(b'^[^a-zA-Z]*[1-9]', value):
                 raise ValueError
             return out
         except ValueError:
             raise redis.ResponseError(INVALID_FLOAT_MSG)
 
     @classmethod
-    def encode(cls, value):
-        import numpy as np
-        if np.isfinite(value):
-            # This mimics how redis does the conversion, even though it is
-            # not lossless.
-            s = np.format_float_positional(value, precision=17,
-                                           unique=False, trim='-')
-            # numpy bug prevents decimal point being removed in some cases
-            if s.endswith('.'):
-                s = s[:-1]
-            return s.encode('ascii')
+    def encode(cls, value, humanfriendly):
+        if math.isinf(value):
+            return str(value).encode()
+        elif humanfriendly:
+            # Algorithm from ld2string in redis
+            out = '{:.17f}'.format(value)
+            out = re.sub(r'(?:\.)?0+$', '', out)
+            return out.encode()
         else:
-            raise redis.ResponseError(NONFINITE_MSG)
+            return '{:.17g}'.format(value).encode()
 
 
 class Key(object):
@@ -336,7 +397,8 @@ class FakeSocket(object):
         end = min(end, length - 1)
         return start, end + 1
 
-    # TODO: implement auth, quit
+    # Connection commands
+    # TODO: auth, quit
 
     @command((bytes,))
     def echo(self, message):
@@ -370,23 +432,69 @@ class FakeSocket(object):
             db2.update(tmp)
         return OK
 
-    @command((), (bytes,))
-    def flushdb(self, *args):
-        if args:
-            if len(args) != 1 or args[0].lower() != b'async':
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
-        self._db.clear()
-        return OK
+    # Key commands
+    # TODO: lots
 
-    @command((), (bytes,))
-    def flushall(self, *args):
-        if args:
-            if len(args) != 1 or args[0].lower() != b'async':
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
-        for db in self._server.dbs.values():
-            db.clear()
-        # TODO: clear pubsub as well?
-        return OK
+    @command((Key(),), name='del')
+    def delete(self, key):
+        if key.value is None:
+            return 0
+        key.value = None
+        return 1
+
+    @command((Key(),))
+    def exists(self, key):
+        return 1 if key.value is not None else 0
+
+    def _expireat(self, key, timestamp):
+        if key.value is None:
+            return 0
+        else:
+            key.expireat = timestamp
+            return 1
+
+    def _ttl(self, key, scale):
+        if key.value is None:
+            return -2
+        elif key.expireat is None:
+            return -1
+        else:
+            return int(math.round((key.expireat - self._db.time) * scale))
+
+    @command((Key(), Int))
+    def expire(self, key, seconds):
+        return self._expireat(self._db.time + seconds)
+
+    @command((Key(), Int))
+    def expireat(self, key, timestamp):
+        return self._expireat(float(timestamp))
+
+    @command((Key(), Int))
+    def pexpire(self, key, ms):
+        return self._expireat(self._db.time + ms / 1000.0)
+
+    @command((Key(), Int))
+    def pexpireat(self, key, ms_timestamp):
+        return self._expireat(ms_timestamp / 1000.0)
+
+    @command((Key(),))
+    def ttl(self, key):
+        return self._ttl(key, 1.0)
+
+    @command((Key(),))
+    def pttl(self, key):
+        return self._ttl(key, 1000.0)
+
+    @command((bytes,))
+    def keys(self, pattern):
+        if pattern == b'*':
+            return list(self._db)
+        else:
+            regex = _compile_pattern(pattern)
+            return [key for key in self._db if regex.match(key)]
+
+    # String commands
+    # TODO: bitfield, bitop, bitpos, mset*, psetex, setex, setnx, setrange, strlen
 
     @command((Key(bytes), bytes))
     def append(self, key, value):
@@ -412,18 +520,18 @@ class FakeSocket(object):
         return sum([bin(byte_to_int(l)).count('1') for l in value])
 
     @command((Key(bytes), Int))
-    def incrby(self, key, amount):
-        c = Int.decode(key.get(b'0')) + amount
-        key.update(Int.encode(c))
-        return c
-
-    @command((Key(bytes), Int))
     def decrby(self, key, amount):
         return self.incrby(key, -amount)
 
     @command((Key(bytes),))
     def decr(self, key):
         return self.incrby(key, -1)
+
+    @command((Key(bytes), Int))
+    def incrby(self, key, amount):
+        c = Int.decode(key.get(b'0')) + amount
+        key.update(Int.encode(c))
+        return c
 
     @command((Key(bytes),))
     def incr(self, key):
@@ -432,8 +540,10 @@ class FakeSocket(object):
     @command((Key(bytes), bytes))
     def incrbyfloat(self, key, amount):
         # TODO: introduce convert_order so that we can specify amount is LongDouble
-        c = LongDouble.decode(key.get(b'0')) + LongDouble.decode(amount)
-        encoded = LongDouble.encode(c)
+        c = Float.decode(key.get(b'0')) + Float.decode(amount)
+        if not math.isfinite(c):
+            raise redis.ResponseError(NONFINITE_MSG)
+        encoded = Float.encode(c, True)
         key.update(encoded)
         return encoded
 
@@ -470,28 +580,9 @@ class FakeSocket(object):
         key.replace(value)
         return old
 
-    @command((Key(Hash), bytes, bytes))
-    def hset(self, key, field, value):
-        h = key.value
-        is_new = field not in h
-        h[field] = value
-        key.updated()
-        return 1 if is_new else 0
-
-    @command((Key(Hash), bytes))
-    def hget(self, key, field):
-        return key.value.get(field)
-
-    @command((Key(Hash), bytes), (bytes,))
-    def hdel(self, key, *fields):
-        h = key.value
-        rem = 0
-        for field in fields:
-            if field in h:
-                del h[field]
-                key.updated()
-                rem += 1
-        return rem
+    @command((Key(),), (Key(),))
+    def mget(self, *keys):
+        return [key.value if isinstance(key.value, bytes) else None for key in keys]
 
     @command((Key(), bytes), (bytes,))
     def set(self, key, value, *args):
@@ -533,10 +624,55 @@ class FakeSocket(object):
             key.expireat = self._time + px / 1000.0
         return OK
 
-    @command((Key(),), name='del')
-    def delete(self, key):
-        key.value = None
+    # Hash commands
+
+    @command((Key(Hash), bytes), (bytes,))
+    def hdel(self, key, *fields):
+        h = key.value
+        rem = 0
+        for field in fields:
+            if field in h:
+                del h[field]
+                key.updated()
+                rem += 1
+        return rem
+
+    @command((Key(Hash), bytes))
+    def hget(self, key, field):
+        return key.value.get(field)
+
+    @command((Key(Hash), bytes, bytes))
+    def hset(self, key, field, value):
+        h = key.value
+        is_new = field not in h
+        h[field] = value
+        key.updated()
+        return 1 if is_new else 0
+
+    # Server commands
+    # TODO: lots
+
+    @command((), (bytes,))
+    def flushdb(self, *args):
+        if args:
+            if len(args) != 1 or args[0].lower() != b'async':
+                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+        self._db.clear()
         return OK
+
+    @command((), (bytes,))
+    def flushall(self, *args):
+        if args:
+            if len(args) != 1 or args[0].lower() != b'async':
+                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+        for db in self._server.dbs.values():
+            db.clear()
+        # TODO: clear pubsub as well?
+        return OK
+
+
+setattr(FakeSocket, 'del', FakeSocket.delete)
+delattr(FakeSocket, 'delete')
 
 
 class _DummyParser(object):
