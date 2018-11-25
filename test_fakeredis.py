@@ -10,11 +10,6 @@ import threading
 
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
-from nose.tools import assert_equal
-import hypothesis
-from hypothesis.stateful import rule
-import hypothesis.strategies as st
-
 import redis
 import redis.client
 
@@ -77,89 +72,6 @@ def redis_must_be_running(cls):
 def key_val_dict(size=100):
     return dict([(b'key:' + bytes([i]), b'val:' + bytes([i]))
                  for i in range(size)])
-
-
-class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
-    def __init__(self):
-        super(HypothesisStrictRedis, self).__init__()
-        self.fake = fakeredis.FakeStrictRedis(singleton=False)
-        self.real = redis.StrictRedis('localhost', port=6379)
-        self.real.flushall()
-
-    def _compare(self, cmd, *args, **kwargs):
-        fake_exc = None
-        real_exc = None
-
-        try:
-            fake_result = getattr(self.fake, cmd)(*args, **kwargs)
-        except Exception as exc:
-            fake_exc = exc
-
-        try:
-            real_result = getattr(self.real, cmd)(*args, **kwargs)
-        except Exception as exc:
-            real_exc = exc
-
-        if real_exc is not None:
-            assert_equal(type(fake_exc), type(real_exc))
-            assert_equal(fake_exc.args, real_exc.args)
-        elif fake_exc is not None:
-            raise fake_exc
-        else:
-            assert_equal(fake_result, real_result)
-
-    keys = hypothesis.stateful.Bundle('keys')
-    subkeys = hypothesis.stateful.Bundle('subkeys')
-    values = hypothesis.stateful.Bundle('values')
-
-    int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
-    float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats())
-
-    @rule(target=keys, key=st.binary())
-    def make_key(self, key):
-        return key
-
-    @rule(target=subkeys, subkey=st.binary())
-    def make_subkey(self, subkey):
-        return subkey
-
-    @rule(target=values, value=st.binary() | int_as_bytes | float_as_bytes)
-    def make_value(self, value):
-        return value
-
-    @rule(key=keys, value=values, nx=st.booleans(), xx=st.booleans())
-    def set(self, key, value, nx, xx):
-        hypothesis.assume(not nx or not xx)   # TODO: BUG
-        self._compare('set', key, value, nx=nx, xx=xx)
-
-    @rule(key=keys)
-    def get(self, key):
-        self._compare('get', key)
-
-    @rule(key=keys, subkey=subkeys, value=values)
-    def hset(self, key, subkey, value):
-        self._compare('hset', key, subkey, value)
-
-    @rule(key=keys, subkey=subkeys)
-    def hget(self, key, subkey):
-        self._compare('hget', key, subkey)
-
-    @rule(key=keys, amount=st.none() | st.integers() | int_as_bytes | st.floats() | st.binary())
-    def incr(self, key, amount):
-        if amount is None:
-            self._compare('incr', key)
-        else:
-            self._compare('incr', key, amount=amount)
-
-    @rule(key=keys, amount=st.none() | st.integers() | int_as_bytes | st.floats() | st.binary())
-    def decr(self, key, amount):
-        if amount is None:
-            self._compare('decr', key)
-        else:
-            self._compare('decr', key, amount=amount)
-
-
-TestHypothesisStrictRedis = redis_must_be_running(HypothesisStrictRedis.TestCase)
 
 
 class TestFakeStrictRedis(unittest.TestCase):

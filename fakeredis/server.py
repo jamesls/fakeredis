@@ -1,11 +1,13 @@
 import os
+import sys
 import io
 import queue
-import functools
 import time
 import threading
 import math
+import random
 import re
+import warnings
 from collections import defaultdict
 try:
     # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
@@ -15,19 +17,26 @@ except ImportError:
     from collections import MutableMapping
 
 import redis
-from redis._compat import nativestr
+from redis._compat import nativestr   # TODO don't depend on private
 
 
-INVALID_EXPIRE_MSG = "invalid expire time in set"
+DEFAULT_ENCODING = sys.getdefaultencoding()    # TODO: Python 2 support
+MAX_STRING_SIZE = 512 * 1024 * 1024
+
+INVALID_EXPIRE_MSG = "invalid expire time in {}"
 WRONGTYPE_MSG = \
     "WRONGTYPE Operation against a key holding the wrong kind of value"
 SYNTAX_ERROR_MSG = "syntax error"
 INVALID_INT_MSG = "value is not an integer or out of range"
 INVALID_FLOAT_MSG = "value is not a valid float"
+INVALID_OFFSET_MSG = "offset is out of range"
 INVALID_BIT_OFFSET_MSG = "bit offset is not an integer or out of range"
 INVALID_DB_MSG = "DB index is out of range"
+STRING_OVERFLOW_MSG = "string exceeds maximum allowed size (512MB)"
 OVERFLOW_MSG = "increment or decrement would overflow"
 NONFINITE_MSG = "increment would produce NaN or Infinity"
+SRC_DST_SAME_MSG = "source and destination objects are the same"
+NO_KEY_MSG = "no such key"
 WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
 UNKNOWN_COMMAND_MSG = "unknown command '{}'"
 OK = b'OK'
@@ -207,7 +216,7 @@ class BitOffset(Int):
 
     @classmethod
     def valid(cls, value):
-        return 0 <= value < 8 * 512 * 1024 * 1024     # Redis imposes 512MB limit on keys
+        return 0 <= value < 8 * MAX_STRING_SIZE     # Redis imposes 512MB limit on keys
 
 
 class DbIndex(Int):
@@ -459,7 +468,7 @@ class FakeSocket(object):
         elif key.expireat is None:
             return -1
         else:
-            return int(math.round((key.expireat - self._db.time) * scale))
+            return int(round((key.expireat - self._db.time) * scale))
 
     @command((Key(), Int))
     def expire(self, key, seconds):
@@ -485,6 +494,13 @@ class FakeSocket(object):
     def pttl(self, key):
         return self._ttl(key, 1000.0)
 
+    @command((Key(),))
+    def persist(self, key):
+        if key.expireat is None:
+            return 0
+        key.expireat = None
+        return 1
+
     @command((bytes,))
     def keys(self, pattern):
         if pattern == b'*':
@@ -493,11 +509,52 @@ class FakeSocket(object):
             regex = _compile_pattern(pattern)
             return [key for key in self._db if regex.match(key)]
 
+    @command((bytes, DbIndex))
+    def move(self, key, db):
+        if db == self._db_num:
+            raise redis.ResponseError(SRC_DST_SAME_MSG)
+        item = self._db.get(key)
+        if item is None or key in self._server.dbs[db]:
+            return 0
+        self._server.dbs[db][key] = item
+        del self._db[key]
+        return 1
+
+    @command(())
+    def randomkey(self):
+        keys = list(self._db.keys())
+        if not keys:
+            return None
+        return random.choice(keys)
+
+    @command((Key(), Key()))
+    def rename(self, key, newkey):
+        if key.value is None:
+            raise redis.ResponseError(NO_KEY_MSG)
+        if newkey is not key:
+            newkey.value = key.value
+            newkey.version = key.version   # TODO: does it need to be incremented?
+            newkey.expireat = key.expireat
+            key.value = None
+        return OK
+
+    @command((Key(), Key()))
+    def renamenx(self, key, newkey):
+        if key.value is None:
+            raise redis.ResponseError(NO_KEY_MSG)
+        if newkey.value is not None:
+            return 0
+        self.rename(key, newkey)
+        return 1
+
     # String commands
     # TODO: bitfield, bitop, bitpos, mset*, psetex, setex, setnx, setrange, strlen
 
     @command((Key(bytes), bytes))
     def append(self, key, value):
+        old = key.get(b'')
+        if len(old) + len(value) > MAX_STRING_SIZE:
+            raise redis.ResponseError(STRING_OVERFLOW_MSG)
         key.update(key.get(b'') + value)
         return len(key.value)
 
@@ -510,7 +567,7 @@ class FakeSocket(object):
             return 0
         if args:
             if len(args) != 2:
-                raise redis.ResponseError(SYNTAX_ERR_MSG)
+                raise redis.ResponseError(SYNTAX_ERROR_MSG)
             start = Int.decode(args[0])
             end = Int.decode(args[1])
             start, end = self._fix_range(start, end, len(key.value))
@@ -584,6 +641,21 @@ class FakeSocket(object):
     def mget(self, *keys):
         return [key.value if isinstance(key.value, bytes) else None for key in keys]
 
+    @command((Key(), bytes), (Key(), bytes))
+    def mset(self, *args):
+        for i in range(0, len(args), 2):
+            args[i].replace(args[i + 1])
+        return OK
+
+    @command((Key(), bytes), (Key(), bytes))
+    def msetnx(self, *args):
+        for i in range(0, len(args), 2):
+            if args[i].value is not None:
+                return 0
+        for i in range(0, len(args), 2):
+            args[i].replace(args[i + 1])
+        return 1
+
     @command((Key(), bytes), (bytes,))
     def set(self, key, value, *args):
         i = 0
@@ -598,15 +670,15 @@ class FakeSocket(object):
             elif args[i].lower() == b'xx':
                 xx = True
                 i += 1
-            elif args[i].lower() == b'ex' and i + 1 < args.length:
-                ex = to_int(args[i + 1])
+            elif args[i].lower() == b'ex' and i + 1 < len(args):
+                ex = Int.decode(args[i + 1])
                 if ex <= 0:
-                    raise redis.ResponseError(INVALID_EXPIRE_MSG)
+                    raise redis.ResponseError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
-            elif args[i].lower() == b'px' and i + 1 < args.length:
-                px = to_int(args[i + 1])
+            elif args[i].lower() == b'px' and i + 1 < len(args):
+                px = Int.decode(args[i + 1])
                 if px <= 0:
-                    raise redis.ResponseError(INVALID_EXPIRE_MSG)
+                    raise redis.ResponseError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             else:
                 raise redis.ResponseError(SYNTAX_ERROR_MSG)
@@ -619,10 +691,53 @@ class FakeSocket(object):
             return None
         key.replace(value)
         if ex is not None:
-            key.expireat = self._time + ex
+            key.expireat = self._db.time + ex
         if px is not None:
-            key.expireat = self._time + px / 1000.0
+            key.expireat = self._db.time + px / 1000.0
         return OK
+
+    @command((Key(), Int, bytes))
+    def setex(self, key, seconds, value):
+        if seconds <= 0:
+            raise redis.ResponseError(INVALID_EXPIRE_MSG.format('setex'))
+        key.replace(value)
+        key.expireat = self._db.time + seconds
+        return OK
+
+    @command((Key(), Int, bytes))
+    def psetex(self, key, ms, value):
+        if ms <= 0:
+            raise redis.ResponseError(INVALID_EXPIRE_MSG.format('psetex'))
+        key.replace(value)
+        key.expireat = self._db.time + ms / 1000.0
+        return OK
+
+    @command((Key(), bytes))
+    def setnx(self, key, value):
+        if key.value is not None:
+            return 0
+        key.replace(value)
+        return 1
+
+    @command((Key(bytes), Int, bytes))
+    def setrange(self, key, offset, value):
+        if offset < 0:
+            raise redis.ResponseError(INVALID_OFFSET_MSG)
+        elif not value:
+            return len(key.get(b''))
+        elif offset + len(value) > MAX_STRING_SIZE:
+            raise redis.ResponseError(STRING_OVERFLOW_MSG)
+        else:
+            out = key.get(b'')
+            if len(out) < offset:
+                out += b'\x00' * (offset - len(out))
+            out = out[0:offset] + value + out[offset+len(value):]
+            key.update(out)
+            return len(out)
+
+    @command((Key(bytes),))
+    def strlen(self, key):
+        return len(key.get(b''))
 
     # Hash commands
 
