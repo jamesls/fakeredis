@@ -48,7 +48,7 @@ def byte_to_int(b):
     return b
 
 
-def _compile_pattern(pattern):
+def compile_pattern(pattern):
     """Compile a glob pattern (e.g. for keys) to a bytes regex.
 
     fnmatch.fnmatchcase doesn't work for this, because it uses different
@@ -506,7 +506,7 @@ class FakeSocket(object):
         if pattern == b'*':
             return list(self._db)
         else:
-            regex = _compile_pattern(pattern)
+            regex = compile_pattern(pattern)
             return [key for key in self._db if regex.match(key)]
 
     @command((bytes, DbIndex))
