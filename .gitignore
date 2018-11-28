@@ -5,4 +5,8 @@ extras/*
 .tox
 *.pyc
 .idea
+.hypothesis
+.coverage
+cover/
 venv/
+dist/
