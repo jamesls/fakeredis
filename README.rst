@@ -16,6 +16,20 @@ many times you want to write unittests that do not talk to an external server
 (such as redis).  This module now allows tests to simply use this
 module as a reasonable substitute for redis.
 
+Note on redis-py 3
+==================
+
+redis-py 3 is a recent backwards-compatible update to redis-py. It is not yet
+supported by fakeredis, which only implements the redis-py 2 API.
+
+If you need to run unit tests against the redis-py 3 API, take a look at
+birdisle_. It embeds the redis server code into your process and supports
+redis-py 2 and 3. It is also a more accurate emulation of redis, because it
+is using the actual redis codebase. The downside is that it currently only
+supports Linux.
+
+.. _birdisle: https://birdisle.readthedocs.io/en/latest/
+
 
 How to Use
 ==========
@@ -290,6 +304,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 
 Revision history
 ================
+
+0.16.0
+------
+- `#224 <https://github.com/jamesls/fakeredis/pull/224>`_ Add __delitem__
+- Restrict to redis<3
 
 0.15.0
 ------
