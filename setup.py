@@ -30,7 +30,7 @@ setup(
         'Programming Language :: Python :: 3.7'
     ],
     install_requires=[
-        'redis',
+        'redis<3',
     ],
     extras_require={
         "lua": ['lupa']
