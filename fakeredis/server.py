@@ -39,7 +39,11 @@ SRC_DST_SAME_MSG = "source and destination objects are the same"
 NO_KEY_MSG = "no such key"
 WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
 UNKNOWN_COMMAND_MSG = "unknown command '{}'"
+MULTI_NESTED_MSG = "MULTI calls can not be nested"
+WITHOUT_MULTI_MSG = "{} without MULTI"
+WATCH_INSIDE_MULTI_MSG = "WATCH inside MULTI is not allowed"
 OK = b'OK'
+QUEUED = b'QUEUED'
 
 
 # TODO: Python 2 support
@@ -114,33 +118,95 @@ def compile_pattern(pattern):
 
 
 class Item(object):
-    __slots__ = ['value', 'expireat', 'version']
+    """An item stored in the database"""
+
+    __slots__ = ['value', 'expireat']
 
     def __init__(self, value):
         self.value = value
         self.expireat = None
-        self.version = 1
 
-    def get(self, default):
-        return self.value if self.value is not None else default
 
-    def replace(self, new_value):
-        self.value = new_value
-        self.version += 1
+class CommandItem(object):
+    """An item referenced by a command.
+
+    It wraps an Item but has extra fields to manage updates and notifications.
+    """
+    def __init__(self, key, db, item=None, default=None):
+        if item is None:
+            self._value = default
+            self.expireat = None
+        else:
+            self._value = item.value
+            self.expireat = item.expireat
+        self.key = key
+        self.db = db
+        self._modified = False
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, new_value):
+        self._value = new_value
+        self._modified = True
         self.expireat = None
 
+    def get(self, default):
+        return self._value if self else default
+
     def update(self, new_value):
-        self.value = new_value
-        self.version += 1
+        self._value = new_value
+        self._modified = True
 
     def updated(self):
-        self.version += 1
+        self._modified = True
+
+    def writeback(self):
+        if self._modified:
+            self.db.notify_watch(self.key)
+        if not isinstance(self.value, bytes) and not self.value:
+            self.db.pop(self.key, None)
+            return
+        item = self.db.setdefault(self.key, Item(None))
+        item.value = self.value
+        item.expireat = self.expireat
+
+    def __bool__(self):
+        return bool(self._value) or isinstance(self._value, bytes)
+
+    __nonzero__ = __bool__    # For Python 2
 
 
-class ExpiringDict(MutableMapping):
+class Database(MutableMapping):
     def __init__(self, *args, **kwargs):
         self._dict = dict(*args, **kwargs)
         self.time = 0.0
+        self._watches = defaultdict(set)      # key to set of connections
+
+    def swap(self, other):
+        self._dict, other._dict = other._dict, self._dict
+        self.time, other.time = other.time, self.time
+        # TODO: should watches swap too?
+
+    def notify_watch(self, key):
+        for sock in self._watches.get(key, set()):
+            sock.notify_watch()
+
+    def add_watch(self, key, sock):
+        self._watches[key].add(sock)
+
+    def remove_watch(self, key, sock):
+        watches = self._watches[key]
+        watches.discard(sock)
+        if not watches:
+            del self._watches[key]
+
+    def clear(self):
+        for key in self:
+            self.notify_watch(key)
+        self._dict.clear()
 
     def expired(self, item):
         return item.expireat is not None and item.expireat < self.time
@@ -280,10 +346,17 @@ class Signature(object):
         self.fixed = fixed
         self.repeat = repeat
 
-    def apply(self, args, db):
+    def check_arity(self, args):
         if len(args) != len(self.fixed):
             delta = len(args) - len(self.fixed)
-            if delta < 0 or not self.repeat or delta % len(self.repeat) != 0:
+            if delta < 0 or not self.repeat:
+                raise redis.ResponseError(WRONG_ARGS_MSG.format(self.name))
+
+    def apply(self, args, db):
+        self.check_arity(args)
+        if self.repeat:
+            delta = len(args) - len(self.fixed)
+            if delta % len(self.repeat) != 0:
                 raise redis.ResponseError(WRONG_ARGS_MSG.format(self.name))
 
         types = list(self.fixed)
@@ -300,14 +373,14 @@ class Signature(object):
         tmp_keys = {}
         for i, (arg, type_) in enumerate(zip(args, types)):
             if isinstance(type_, Key):
-                value = db.get(arg, Item(None))
+                item = db.get(arg)
+                default = None
                 if type_.type_ is not None:
-                    if value.value is not None and type(value.value) != type_.type_:
+                    if item is not None and type(item.value) != type_.type_:
                         raise redis.ResponseError(WRONGTYPE_MSG)
-                    if value.value is None and type_.type_ is not bytes:
-                        value.replace(type_.type_())
-                tmp_keys[arg] = value
-                args[i] = value
+                    if item is None and type_.type_ is not bytes:
+                        default = type_.type_()
+                args[i] = tmp_keys[arg] = CommandItem(arg, db, item, default=default)
 
         return args, tmp_keys
 
@@ -323,7 +396,7 @@ def command(*args, **kwargs):
 
 class FakeServer(object):
     def __init__(self):
-        self.dbs = defaultdict(ExpiringDict)
+        self.dbs = defaultdict(Database)
         self.lock = threading.Lock()
 
 
@@ -332,6 +405,11 @@ class FakeSocket(object):
         self._server = server
         self._db = server.dbs[0]
         self._db_num = 0
+        # When in a MULTI, set to a list of function calls
+        self._transaction = None
+        self._transaction_failed = False
+        self._watch_notified = False
+        self._watches = set()
         self.responses = queue.Queue()
 
     def shutdown(self, flags):
@@ -339,7 +417,10 @@ class FakeSocket(object):
 
     def close(self):
         # TODO: unsubscribe from pub/sub
+        with self._server.lock:
+            self._clear_watches()
         self._server = None
+        self._db = None
         self.responses = None
 
     @staticmethod
@@ -359,6 +440,17 @@ class FakeSocket(object):
             fp.read(2)                 # CRLF
         return fields
 
+    def _run_command(self, func, sig, args):
+        tmp_keys = {}
+        try:
+            args, tmp_keys = sig.apply(args, self._db)
+            result = func(*args)
+        except redis.ResponseError as exc:
+            result = exc
+        for cmd_item in tmp_keys.values():
+            cmd_item.writeback()
+        return result
+
     def sendall(self, command):
         try:
             if isinstance(command, list):
@@ -371,7 +463,8 @@ class FakeSocket(object):
             if b'\0' in name:
                 name = name[:name.find(b'\0')]
             name = nativestr(name)
-            func = getattr(self, name.lower(), None)
+            func_name = name.lower()
+            func = getattr(self, func_name, None)
             if name.startswith('_') or not func or not hasattr(func, '_fakeredis_sig'):
                 # redis remaps \r or \n in an error to ' ' to make it legal protocol
                 clean_name = name.replace('\r', ' ').replace('\n', ' ')
@@ -381,18 +474,24 @@ class FakeSocket(object):
                 now = time.time()
                 for db in self._server.dbs.values():
                     db.time = now
-                args, tmp_keys = sig.apply(fields[1:], self._db)
-                result = func(*args)
-                # Remove empty containers, and make temporary items permanent
-                for key, item in tmp_keys.items():
-                    if isinstance(item.value, bytes) or item.value:
-                        self._db[key] = item
-                    else:
-                        self._db.pop(key, None)
+                sig.check_arity(fields[1:])
+                if self._transaction is not None \
+                        and func_name not in ('exec', 'discard', 'multi', 'watch'):
+                    self._transaction.append((func, sig, fields[1:]))
+                    result = QUEUED
+                else:
+                    result = self._run_command(func, sig, fields[1:])
                 # TODO: decode results if requested
         except redis.ResponseError as exc:
+            if self._transaction is not None:
+                # TODO: should not apply if the exception is from _run_command
+                # e.g. watch inside multi
+                self._transaction_failed = True
             result = exc
         self.responses.put(result)
+
+    def notify_watch(self):
+        self._watch_notified = True
 
     @staticmethod
     def _fix_range(start, end, length):
@@ -434,11 +533,7 @@ class FakeSocket(object):
         if index1 != index2:
             db1 = self._server.dbs[index1]
             db2 = self._server.dbs[index2]
-            tmp = dict(db1)
-            db1.clear()
-            db1.update(db2)
-            db2.clear()
-            db2.update(tmp)
+            db1.swap(db2)
         return OK
 
     # Key commands
@@ -446,24 +541,24 @@ class FakeSocket(object):
 
     @command((Key(),), name='del')
     def delete(self, key):
-        if key.value is None:
+        if not key:
             return 0
         key.value = None
         return 1
 
     @command((Key(),))
     def exists(self, key):
-        return 1 if key.value is not None else 0
+        return 1 if key else 0
 
     def _expireat(self, key, timestamp):
-        if key.value is None:
+        if not key:
             return 0
         else:
             key.expireat = timestamp
             return 1
 
     def _ttl(self, key, scale):
-        if key.value is None:
+        if not key:
             return -2
         elif key.expireat is None:
             return -1
@@ -499,6 +594,7 @@ class FakeSocket(object):
         if key.expireat is None:
             return 0
         key.expireat = None
+        # TODO: does this mark it modified for WATCH?
         return 1
 
     @command((bytes,))
@@ -509,15 +605,15 @@ class FakeSocket(object):
             regex = compile_pattern(pattern)
             return [key for key in self._db if regex.match(key)]
 
-    @command((bytes, DbIndex))
+    @command((Key(), DbIndex))
     def move(self, key, db):
         if db == self._db_num:
             raise redis.ResponseError(SRC_DST_SAME_MSG)
-        item = self._db.get(key)
-        if item is None or key in self._server.dbs[db]:
+        if not item or key.key in self._server.dbs[db]:
             return 0
-        self._server.dbs[db][key] = item
-        del self._db[key]
+        # TODO: what is the interaction with expiry and WATCH?
+        self._server.dbs[db][key] = key.item
+        key.value = None   # Causes deletion
         return 1
 
     @command(())
@@ -529,23 +625,83 @@ class FakeSocket(object):
 
     @command((Key(), Key()))
     def rename(self, key, newkey):
-        if key.value is None:
+        if not key:
             raise redis.ResponseError(NO_KEY_MSG)
-        if newkey is not key:
+        # TODO: check interaction with WATCH
+        if newkey.key != key.key:
             newkey.value = key.value
-            newkey.version = key.version   # TODO: does it need to be incremented?
             newkey.expireat = key.expireat
             key.value = None
         return OK
 
     @command((Key(), Key()))
     def renamenx(self, key, newkey):
-        if key.value is None:
+        if not key:
             raise redis.ResponseError(NO_KEY_MSG)
-        if newkey.value is not None:
+        if newkey:
             return 0
         self.rename(key, newkey)
         return 1
+
+    # Transaction commands
+
+    def _clear_watches(self):
+        self._watch_notified = False
+        while self._watches:
+            (key, db) = self._watches.pop()
+            db.remove_watch(key, self)
+
+    @command(())
+    def multi(self):
+        if self._transaction is not None:
+            raise redis.ResponseError(MULTI_NESTED_MSG)
+        self._transaction = []
+        self._transaction_failed = False
+
+    @command(())
+    def discard(self):
+        if self._transaction is None:
+            raise redis.ResponseError(WITHOUT_MULTI_MSG.format('DISCARD'))
+        self._transaction = None
+        self._transaction_failed = False
+        self._clear_watches()
+
+    @command(())
+    def exec(self):
+        if self._transaction is None:
+            raise redis.ResponseError(WITHOUT_MULTI_MSG.format('EXEC'))
+        if self._transaction_failed:
+            self._transaction = None
+            raise redis.ResponseError(EXECABORT_MSG)
+        transaction = self._transaction
+        self._transaction = None
+        self._transaction_failed = False
+        watch_notified = self._watch_notified
+        self._clear_watches()
+        if watch_notified:
+            return None
+        result = []
+        for func, sig, args in transaction:
+            try:
+                ans = self._run_command(func, sig, args)
+            except redis.ResponseError as exc:
+                ans = exc
+            result.append(ans)
+        return result
+
+    @command((Key(),), (Key(),))
+    def watch(self, *keys):
+        if self._transaction is not None:
+            raise redis.ResponseError(WATCH_INSIDE_MULTI_MSG)
+        for key in keys:
+            if key not in self._watches:
+                self._watches.add(key)
+                self._db.add_watch(key, self)
+
+    @command(())
+    def unwatch(self):
+        self._clear_watches()
+
 
     # String commands
     # TODO: bitfield, bitop, bitpos, mset*, psetex, setex, setnx, setrange, strlen
@@ -563,7 +719,7 @@ class FakeSocket(object):
         # Redis immediately returns 0 if the key doesn't exist, without
         # validating the optional args. That's why we can't declare them as
         # int.
-        if key.value is None:
+        if not key:
             return 0
         if args:
             if len(args) != 2:
@@ -634,7 +790,7 @@ class FakeSocket(object):
     @command((Key(bytes), bytes))
     def getset(self, key, value):
         old = key.value
-        key.replace(value)
+        key.value = value
         return old
 
     @command((Key(),), (Key(),))
@@ -644,16 +800,16 @@ class FakeSocket(object):
     @command((Key(), bytes), (Key(), bytes))
     def mset(self, *args):
         for i in range(0, len(args), 2):
-            args[i].replace(args[i + 1])
+            args[i].value = args[i + 1]
         return OK
 
     @command((Key(), bytes), (Key(), bytes))
     def msetnx(self, *args):
         for i in range(0, len(args), 2):
-            if args[i].value is not None:
+            if args[i]:
                 return 0
         for i in range(0, len(args), 2):
-            args[i].replace(args[i + 1])
+            args[i].value = args[i + 1]
         return 1
 
     @command((Key(), bytes), (bytes,))
@@ -685,11 +841,11 @@ class FakeSocket(object):
         if (xx and nx) or (px is not None and ex is not None):
             raise redis.ResponseError(SYNTAX_ERROR_MSG)
 
-        if nx and key.value is not None:
+        if nx and key:
             return None
-        if xx and key.value is None:
+        if xx and not key:
             return None
-        key.replace(value)
+        key.value = value
         if ex is not None:
             key.expireat = self._db.time + ex
         if px is not None:
@@ -700,7 +856,7 @@ class FakeSocket(object):
     def setex(self, key, seconds, value):
         if seconds <= 0:
             raise redis.ResponseError(INVALID_EXPIRE_MSG.format('setex'))
-        key.replace(value)
+        key.value = value
         key.expireat = self._db.time + seconds
         return OK
 
@@ -708,15 +864,15 @@ class FakeSocket(object):
     def psetex(self, key, ms, value):
         if ms <= 0:
             raise redis.ResponseError(INVALID_EXPIRE_MSG.format('psetex'))
-        key.replace(value)
+        key.value = value
         key.expireat = self._db.time + ms / 1000.0
         return OK
 
     @command((Key(), bytes))
     def setnx(self, key, value):
-        if key.value is not None:
+        if key:
             return 0
-        key.replace(value)
+        key.value = value
         return 1
 
     @command((Key(bytes), Int, bytes))
@@ -782,7 +938,7 @@ class FakeSocket(object):
                 raise redis.ResponseError(SYNTAX_ERROR_MSG)
         for db in self._server.dbs.values():
             db.clear()
-        # TODO: clear pubsub as well?
+        # TODO: clear watches and/or pubsub as well?
         return OK
 
 

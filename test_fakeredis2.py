@@ -106,6 +106,30 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def renamenx(self, key, newkey):
         self._compare('renamenx', key, newkey)
 
+    # Transaction commands
+    # TODO: create separate test case for transactions. They're not a good
+    # fit for this state machine since they move return values later.
+
+    @rule()
+    def multi(self):
+        self._compare('multi')
+
+    @rule()
+    def discard(self):
+        self._compare('discard')
+
+    @rule()
+    def exec(self):
+        self._compare('exec')
+
+    @rule(key=keys)
+    def watch(self, key):
+        self._compare('watch', key)
+
+    @rule()
+    def unwatch(self):
+        self._compare('unwatch')
+
     # String commands
 
     @rule(key=keys, value=values)
