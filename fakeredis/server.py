@@ -19,6 +19,8 @@ except ImportError:
 import redis
 from redis._compat import nativestr   # TODO don't depend on private
 
+from .zset import ZSet
+
 
 DEFAULT_ENCODING = sys.getdefaultencoding()    # TODO: Python 2 support
 MAX_STRING_SIZE = 512 * 1024 * 1024
@@ -37,6 +39,7 @@ OVERFLOW_MSG = "increment or decrement would overflow"
 NONFINITE_MSG = "increment would produce NaN or Infinity"
 SRC_DST_SAME_MSG = "source and destination objects are the same"
 NO_KEY_MSG = "no such key"
+INDEX_ERROR_MSG = "index out of range"
 WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
 UNKNOWN_COMMAND_MSG = "unknown command '{}'"
 MULTI_NESTED_MSG = "MULTI calls can not be nested"
@@ -239,10 +242,6 @@ class Database(MutableMapping):
         return len(self._dict)
 
 
-class ZSet(dict):
-    redis_type = b'zset'
-
-
 class Hash(dict):
     redis_type = b'hash'
 
@@ -335,9 +334,13 @@ class Float(object):
 
 class Key(object):
     """Marker to indicate that argument in signature is a key"""
+    # TODO: add argument to specify a return value if the key is not found
 
-    def __init__(self, type_=None):
+    UNSPECIFIED = object()
+
+    def __init__(self, type_=None, missing_return=UNSPECIFIED):
         self.type_ = type_
+        self.missing_return = missing_return
 
 
 class Signature(object):
@@ -353,6 +356,10 @@ class Signature(object):
                 raise redis.ResponseError(WRONG_ARGS_MSG.format(self.name))
 
     def apply(self, args, db):
+        """Returns a tuple, which is either:
+        - transformed args and a dict of CommandItems; or
+        - a single containing a short-circuit return value
+        """
         self.check_arity(args)
         if self.repeat:
             delta = len(args) - len(self.fixed)
@@ -364,13 +371,16 @@ class Signature(object):
             types.append(self.repeat[i % len(self.repeat)])
 
         args = list(args)
-        # First pass: convert/validate non-keys
+        # First pass: convert/validate non-keys, and short-circuit on missing keys
         for i, (arg, type_) in enumerate(zip(args, types)):
-            if not isinstance(type_, Key) and type_ != bytes:
+            if isinstance(type_, Key):
+                if type_.missing_return is not Key.UNSPECIFIED and arg not in db:
+                    return (type_.missing_return,)
+            elif type_ != bytes:
                 args[i] = type_.decode(args[i])
 
         # Second pass: read keys and check their types
-        tmp_keys = {}
+        command_items = {}
         for i, (arg, type_) in enumerate(zip(args, types)):
             if isinstance(type_, Key):
                 item = db.get(arg)
@@ -378,11 +388,12 @@ class Signature(object):
                 if type_.type_ is not None:
                     if item is not None and type(item.value) != type_.type_:
                         raise redis.ResponseError(WRONGTYPE_MSG)
-                    if item is None and type_.type_ is not bytes:
-                        default = type_.type_()
-                args[i] = tmp_keys[arg] = CommandItem(arg, db, item, default=default)
+                    if item is None:
+                        if type_.type_ is not bytes:
+                            default = type_.type_()
+                args[i] = command_items[arg] = CommandItem(arg, db, item, default=default)
 
-        return args, tmp_keys
+        return args, command_items
 
 
 def command(*args, **kwargs):
@@ -441,14 +452,18 @@ class FakeSocket(object):
         return fields
 
     def _run_command(self, func, sig, args):
-        tmp_keys = {}
+        command_items = {}
         try:
-            args, tmp_keys = sig.apply(args, self._db)
-            result = func(*args)
+            ret = sig.apply(args, self._db)
+            if len(ret) == 1:
+                result = ret[0]
+            else:
+                args, command_items = ret
+                result = func(*args)
         except redis.ResponseError as exc:
             result = exc
-        for cmd_item in tmp_keys.values():
-            cmd_item.writeback()
+        for command_item in command_items.values():
+            command_item.writeback()
         return result
 
     def sendall(self, command):
@@ -567,19 +582,19 @@ class FakeSocket(object):
 
     @command((Key(), Int))
     def expire(self, key, seconds):
-        return self._expireat(self._db.time + seconds)
+        return self._expireat(key, self._db.time + seconds)
 
     @command((Key(), Int))
     def expireat(self, key, timestamp):
-        return self._expireat(float(timestamp))
+        return self._expireat(key, float(timestamp))
 
     @command((Key(), Int))
     def pexpire(self, key, ms):
-        return self._expireat(self._db.time + ms / 1000.0)
+        return self._expireat(key, self._db.time + ms / 1000.0)
 
     @command((Key(), Int))
     def pexpireat(self, key, ms_timestamp):
-        return self._expireat(ms_timestamp / 1000.0)
+        return self._expireat(key, ms_timestamp / 1000.0)
 
     @command((Key(),))
     def ttl(self, key):
@@ -714,11 +729,10 @@ class FakeSocket(object):
         key.update(key.get(b'') + value)
         return len(key.value)
 
-    @command((Key(bytes),), (bytes,))
+    @command((Key(bytes, 0),), (bytes,))
     def bitcount(self, key, *args):
-        # Redis immediately returns 0 if the key doesn't exist, without
-        # validating the optional args. That's why we can't declare them as
-        # int.
+        # Redis checks the argument count before decoding integers. That's why
+        # we can't declare them as Int.
         if not key:
             return 0
         if args:
@@ -752,7 +766,7 @@ class FakeSocket(object):
 
     @command((Key(bytes), bytes))
     def incrbyfloat(self, key, amount):
-        # TODO: introduce convert_order so that we can specify amount is LongDouble
+        # TODO: introduce convert_order so that we can specify amount is Float
         c = Float.decode(key.get(b'0')) + Float.decode(amount)
         if not math.isfinite(c):
             raise redis.ResponseError(NONFINITE_MSG)
@@ -919,6 +933,157 @@ class FakeSocket(object):
         h[field] = value
         key.updated()
         return 1 if is_new else 0
+
+    # List commands
+    # TODO: blocking commands
+
+    @command((Key(list, None), Int))
+    def lindex(self, key, index):
+        try:
+            return key.value[index]
+        except IndexError:
+            return None
+
+    @command((Key(list), bytes, bytes, bytes))
+    def linsert(self, key, where, pivot, value):
+        if where.lower() not in (b'before', b'after'):
+            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+        if not key:
+            return 0
+        else:
+            try:
+                index = key.value.index(pivot)
+            except ValueError:
+                return -1
+            if where.lower() == b'after':
+                index += 1
+            key.value.insert(index, value)
+            key.updated()
+            return len(key.value)
+
+    @command((Key(list),))
+    def llen(self, key):
+        return len(key.value)
+
+    @command((Key(list),))
+    def lpop(self, key):
+        try:
+            ret = key.value.pop(0)
+            key.updated()
+            return ret
+        except IndexError:
+            return None
+
+    @command((Key(list), bytes), (bytes,))
+    def lpush(self, key, *values):
+        for value in values:
+            key.value.insert(0, value)
+        key.updated()
+        return len(key.value)
+
+    @command((Key(list), bytes), (bytes,))
+    def lpushx(self, key, *values):
+        if not key:
+            return 0
+        return self.lpush(key, *values)
+
+    @command((Key(list), Int, Int))
+    def lrange(self, key, start, stop):
+        if stop == -1:
+            stop = None
+        else:
+            stop += 1
+        return key.value[start:stop]
+
+    @command((Key(list), Int, bytes))
+    def lrem(self, key, count, value):
+        a_list = key.value
+        found = []
+        for i, el in enumerate(a_list):
+            if el == value:
+                found.append(i)
+        if count > 0:
+            indices_to_remove = found[:count]
+        elif count < 0:
+            indices_to_remove = found[count:]
+        else:
+            indices_to_remove = found
+        # Iterating in reverse order to ensure the indices
+        # remain valid during deletion.
+        for index in reversed(indices_to_remove):
+            del a_list[index]
+        if indices_to_remove:
+            key.updated()
+        return len(indices_to_remove)
+
+    @command((Key(list), Int, bytes))
+    def lset(self, key, index, value):
+        if not key:
+            raise redis.ResponseError(NO_KEY_MSG)
+        try:
+            key.value[index] = value
+            key.updated()
+        except IndexError:
+            raise redis.ResponseError(INDEX_ERROR_MSG)
+        return OK
+
+    @command((Key(list), Int, Int))
+    def ltrim(self, key, start, stop):
+        if key:
+            if stop == -1:
+                stop = None
+            else:
+                stop += 1
+            new_value = key.value[start:stop]
+            if len(new_value) != len(key.value):
+                key.update(new_value)
+        return OK
+
+    @command((Key(list),))
+    def rpop(self, key):
+        try:
+            ret = key.value.pop()
+            key.updated()
+            return ret
+        except IndexError:
+            return None
+
+    @command((Key(list, None), Key(list)))
+    def rpoplpush(self, src, dst):
+        el = self.rpop(src)
+        self.lpush(dst, el)
+        return el
+
+    @command((Key(list), bytes), (bytes,))
+    def rpush(self, key, *values):
+        for value in values:
+            key.value.append(value)
+        key.updated()
+        return len(key.value)
+
+    @command((Key(list), bytes), (bytes,))
+    def rpushx(self, key, *values):
+        if not key:
+            return 0
+        return self.rpush(key, *values)
+
+    # Sorted set commands
+    # TODO: blocking commands, others
+    @command((Key(ZSet), bytes, bytes), (bytes,))
+    def zadd(self, key, *args):
+        # TODO: handle NX, XX, CH, INCR
+        if len(args) % 2 != 0:
+            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+        items = []
+        # Parse all scores first, before updating
+        for i in range(0, len(args), 2):
+            score = Float.decode(args[i])
+            items.append((score, args[i + 1]))
+        old_len = len(key.value)
+        for item in items:
+            key.value[item.second] = item.first
+            key.updated()
+        return len(key.value) - old_len
 
     # Server commands
     # TODO: lots

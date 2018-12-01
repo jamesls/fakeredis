@@ -106,6 +106,75 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def renamenx(self, key, newkey):
         self._compare('renamenx', key, newkey)
 
+    # List commands
+    # TODO: blocking commands
+
+    @rule(key=keys, index=st.integers())
+    def lindex(self, key, index):
+        self._compare('lindex', key, index)
+
+    @rule(key=keys, where=st.sampled_from(['before', 'after', 'BEFORE', 'AFTER']) | st.binary(),
+          pivot=values, value=values)
+    def linsert(self, key, where, pivot, value):
+        self._compare('linsert', key, where, pivot, value)
+
+    @rule(key=keys)
+    def llen(self, key):
+        self._compare('llen', key)
+
+    @rule(key=keys)
+    def lpop(self, key):
+        self._compare('lpop', key)
+
+    @rule(key=keys, values=st.lists(values))
+    def lpush(self, key, values):
+        self._compare('lpush', key, *values)
+
+    @rule(key=keys, values=st.lists(values))
+    def lpushx(self, key, values):
+        self._compare('lpushx', key, *values)
+
+    @rule(key=keys, start=st.integers(), stop=st.integers())
+    def lrange(self, key, start, stop):
+        self._compare('llrange', key, start, stop)
+
+    @rule(key=keys, count=st.integers(), value=values)
+    def lrem(self, key, count, value):
+        self._compare('lrem', key, count, value)
+
+    @rule(key=keys, index=st.integers(), value=values)
+    def lset(self, key, index, value):
+        self._compare('lset', key, index, value)
+
+    @rule(key=keys, start=st.integers(), stop=st.integers())
+    def ltrim(self, key, start, stop):
+        self._compare('ltrim', key, start, stop)
+
+    @rule(key=keys)
+    def rpop(self, key):
+        self._compare('rpop', key)
+
+    @rule(src=keys, dst=keys)
+    def rpoplpush(self, src, dst):
+        self._compare('rpoplpush', src, dst)
+
+    @rule(key=keys, values=st.lists(values))
+    def rpush(self, key, values):
+        self._compare('rpush', key, *values)
+
+    @rule(key=keys, values=st.lists(values))
+    def rpushx(self, key, values):
+        self._compare('rpushx', key, *values)
+
+    # Sorted set commands
+
+    @rule(key=keys, items=st.lists(st.tuples(st.floats(), st.binary())))
+    def zadd(self, key, items):
+        # TODO: test xx, nx, ch, incr
+        # TODO: support redis-py 3
+        flat_items = itertools.chain(*items)
+        self._compare('zadd', *flat_items)
+
     # Transaction commands
     # TODO: create separate test case for transactions. They're not a good
     # fit for this state machine since they move return values later.
@@ -191,12 +260,12 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
 
     @rule(items=st.lists(st.tuples(keys, values)))
     def mset(self, items):
-        args = list(itertools.chain(*items))
+        args = itertools.chain(*items)
         self._compare('mset', *args)
 
     @rule(items=st.lists(st.tuples(keys, values)))
     def msetnx(self, items):
-        args = list(itertools.chain(*items))
+        args = itertools.chain(*items)
         self._compare('mset', *args)
 
     @rule(key=keys, value=values, nx=st.booleans(), xx=st.booleans())
