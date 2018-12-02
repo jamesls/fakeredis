@@ -1,5 +1,6 @@
 import time
 import itertools
+import operator
 
 import hypothesis
 from hypothesis.stateful import rule
@@ -49,9 +50,14 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     keys = hypothesis.stateful.Bundle('keys')
     fields = hypothesis.stateful.Bundle('fields')
     values = hypothesis.stateful.Bundle('values')
+    scores = hypothesis.stateful.Bundle('scores')
 
     int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
     float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
+    score_tests = scores | st.builds(lambda x: b'(' + repr(x).encode(), scores)
+    string_tests = (
+        st.sampled_from([b'+', b'-'])
+        | st.builds(operator.add, st.sampled_from([b'(', b'[']), fields))
 
     @rule(target=keys, key=st.binary())
     def make_key(self, key):
@@ -63,6 +69,10 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
 
     @rule(target=values, value=st.binary() | int_as_bytes | float_as_bytes)
     def make_value(self, value):
+        return value
+
+    @rule(target=scores, value=st.floats(width=32))
+    def make_score(self, value):
         return value
 
     # Connection commands
@@ -168,12 +178,47 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
 
     # Sorted set commands
 
-    @rule(key=keys, items=st.lists(st.tuples(st.floats(), st.binary())))
+    @rule(key=keys, items=st.lists(st.tuples(scores, fields)))
     def zadd(self, key, items):
         # TODO: test xx, nx, ch, incr
         # TODO: support redis-py 3
+        print(key, items)
         flat_items = itertools.chain(*items)
         self._compare('zadd', *flat_items)
+
+    @rule(key=keys)
+    def zcard(self, key):
+        self._compare('zcard', key)
+
+    @rule(key=keys, min=score_tests, max=score_tests)
+    def zcount(self, key, min, max):
+        self._compare('zcount', key, min, max)
+
+    @rule(key=keys, increment=scores, member=fields)
+    def zincrby(self, key, increment, member):
+        self._compare('zincrby', key, increment, member)
+
+    @rule(key=keys, min=string_tests, max=string_tests)
+    def zlexcount(self, key, min, max):
+        self._compare('zlexcount', key, min, max)
+
+    @rule(key=keys, start=st.integers(), stop=st.integers(), withscores=st.booleans())
+    def zrange(self, key, start, stop, withscores):
+        self._compare('zrange', key, start, stop, withscores)
+
+    @rule(key=keys, start=st.integers(), stop=st.integers(), withscores=st.booleans())
+    def zrevrange(self, key, start, stop, withscores):
+        self._compare('zrevrange', key, start, stop, withscores)
+
+    @rule(key=keys, min=string_tests, max=string_tests,
+          start=st.none() | st.integers(), count=st.none() | st.integers())
+    def zrangebylex(self, key, min, max, start, count):
+        self._compare('zrangebylex', min, max, start, count)
+
+    @rule(key=keys, min=string_tests, max=string_tests,
+          start=st.none() | st.integers(), count=st.none() | st.integers())
+    def zrevrangebylex(self, key, min, max, start, count):
+        self._compare('zrevrangebylex', min, max, start, count)
 
     # Transaction commands
     # TODO: create separate test case for transactions. They're not a good

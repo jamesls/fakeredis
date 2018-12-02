@@ -8,6 +8,7 @@ import math
 import random
 import re
 import warnings
+import functools
 from collections import defaultdict
 try:
     # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
@@ -34,6 +35,8 @@ INVALID_FLOAT_MSG = "value is not a valid float"
 INVALID_OFFSET_MSG = "offset is out of range"
 INVALID_BIT_OFFSET_MSG = "bit offset is not an integer or out of range"
 INVALID_DB_MSG = "DB index is out of range"
+INVALID_MIN_MAX_FLOAT_MSG = "min or max is not a float"
+INVALID_MIN_MAX_STR_MSG = "min or max not a valid string range item"
 STRING_OVERFLOW_MSG = "string exceeds maximum allowed size (512MB)"
 OVERFLOW_MSG = "increment or decrement would overflow"
 NONFINITE_MSG = "increment would produce NaN or Infinity"
@@ -330,6 +333,69 @@ class Float(object):
             return out.encode()
         else:
             return '{:.17g}'.format(value).encode()
+
+
+class ScoreTest(object):
+    """Argument converter for sorted set score endpoints."""
+    def __init__(self, value, exclusive=False):
+        self.value = value
+        self.exclusive = exclusive
+
+    @classmethod
+    def decode(cls, value):
+        try:
+            if value[:1] == b'(':
+                return cls(Float.decode(value[1:]), True)
+            else:
+                return cls(Float.decode(value), False)
+        except redis.ResponseError:
+            raise redis.ResponseError(INVALID_MIN_MAX_FLOAT_MSG)
+
+    @property
+    def lower_bound(self):
+        return (self.value, AfterAny() if self.exclusive else BeforeAny())
+
+    @property
+    def upper_bound(self):
+        return (self.value, BeforeAny() if self.exclusive else AfterAny())
+
+
+class StringTest(object):
+    """Argument converter for sorted set LEX endpoints."""
+    def __init__(self, value, exclusive):
+        self.value = value
+        self.exclusive = exclusive
+
+    @classmethod
+    def decode(cls, value):
+        if value == b'-':
+            return cls(BeforeAny(), True)
+        elif value == b'+':
+            return cls(AfterAny(), True)
+        elif value[:1] == b'(':
+            return cls(value[1:], True)
+        elif value[:1] == b'[':
+            return cls(value[1:], False)
+        else:
+            raise redis.ResponseError(INVALID_MIN_MAX_STR_MSG)
+
+
+@functools.total_ordering
+class BeforeAny(object):
+    def __gt__(self, other):
+        return False
+
+    def __eq__(self, other):
+        return isinstance(other, BeforeAny)
+
+
+@functools.total_ordering
+class AfterAny(object):
+    def __lt__(self, other):
+        return False
+
+    def __eq__(self, other):
+        return isinstance(other, AfterAny)
 
 
 class Key(object):
@@ -712,11 +778,12 @@ class FakeSocket(object):
             if key not in self._watches:
                 self._watches.add(key)
                 self._db.add_watch(key, self)
+        return OK
 
     @command(())
     def unwatch(self):
         self._clear_watches()
-
+        return OK
 
     # String commands
     # TODO: bitfield, bitop, bitpos, mset*, psetex, setex, setnx, setrange, strlen
@@ -989,10 +1056,7 @@ class FakeSocket(object):
 
     @command((Key(list), Int, Int))
     def lrange(self, key, start, stop):
-        if stop == -1:
-            stop = None
-        else:
-            stop += 1
+        start, stop = self._fix_range(start, stop, len(key.value))
         return key.value[start:stop]
 
     @command((Key(list), Int, bytes))
@@ -1068,7 +1132,7 @@ class FakeSocket(object):
         return self.rpush(key, *values)
 
     # Sorted set commands
-    # TODO: blocking commands, others
+    # TODO: blocking commands, set operations, zpopmin/zpopmax
     @command((Key(ZSet), bytes, bytes), (bytes,))
     def zadd(self, key, *args):
         # TODO: handle NX, XX, CH, INCR
@@ -1081,9 +1145,86 @@ class FakeSocket(object):
             items.append((score, args[i + 1]))
         old_len = len(key.value)
         for item in items:
-            key.value[item.second] = item.first
+            key.value[item[1]] = item[0]
             key.updated()
         return len(key.value) - old_len
+
+    @command((Key(ZSet),))
+    def zcard(self, key):
+        return len(key.value)
+
+    @command((Key(ZSet), ScoreTest, ScoreTest))
+    def zcount(self, key, min, max):
+        return key.value.zcount(min.lower_bound, max.upper_bound)
+
+    @command((Key(ZSet), Float, bytes))
+    def zincrby(self, key, increment, member):
+        score = key.value.get(member) + increment
+        key.value[member] = score
+        key.updated()
+        return Float.encode(score)
+
+    @command((Key(ZSet), StringTest, StringTest))
+    def zlexcount(self, key, min, max):
+        return key.value.zlexcount(min.value, min.exclusive, max.value, max.exclusive)
+
+    def _zrange(self, key, start, stop, reverse, *args):
+        zset = key.value
+        if len(args) > 1 or (args and args[0].lower() != b'withscores'):
+            raise redis.ResponseError(SYNTAX_ERRORG)
+        start, stop = self._fix_range(start, stop, len(zset))
+        if reverse:
+            start, stop = len(zset) - stop, len(zset) - start
+        items = zset.islice_score(start, stop, reverse)
+        if args:
+            out = []
+            for item in items:
+                out.append(item[1])
+                out.append(item[0])
+        else:
+            out = [item[1] for item in items]
+        return out
+
+    @command((Key(ZSet), Int, Int), (bytes,))
+    def zrange(self, start, stop, *args):
+        return self._zrange(start, stop, False, *args)
+
+    @command((Key(ZSet), Int, Int), (bytes,))
+    def zrevrange(self, start, stop, *args):
+        return self._zrange(start, stop, True, *args)
+
+    def _zrangebylex(self, key, min, max, reverse, *args):
+        if args:
+            if len(args) != 3 or args[0].lower() != b'limit':
+                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            offset = Int.decode(args[1])
+            count = Int.decode(args[2])
+        else:
+            offset = count = None
+        zset = key.value
+        items = zset.irange_lex(min.value, max.value,
+                                inclusive=(not min.exclusive, not max.exclusive),
+                                reverse=reverse)
+        out = []
+        # TODO: check handling of negative offset/count
+        for item in items:
+            if offset is not None and offset > 0:
+                offset -= 1
+                continue
+            if count is not None:
+                if count == 0:
+                    break
+                count -= 1
+            out.append(item[0])
+        return out
+
+    @command((Key(ZSet), StringTest, StringTest), (bytes, Int, Int))
+    def zrangebylex(self, key, min, max, *args):
+        return self._zrangebylex(key, min, max, False, *args)
+
+    @command((Key(ZSet), StringTest, StringTest), (bytes, Int, Int))
+    def zrevrangebylex(self, key, min, max, *args):
+        return self._zrangebylex(key, min, max, True, *args)
 
     # Server commands
     # TODO: lots

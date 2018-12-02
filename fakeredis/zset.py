@@ -19,5 +19,33 @@ class ZSet(object):
         self._bylex[value] = score
         self._byscore.add((score, value))
 
+    def __getitem__(self, key):
+        return self._bylex[key]
+
+    def get(self, key, default=None):
+        return self._bylex.get(key)
+
     def __len__(self):
         return len(self._bylex)
+
+    def zcount(self, min_, max_):
+        pos1 = self._byscore.bisect_left(min_)
+        pos2 = self._byscore.bisect_left(max_)
+        return max(0, pos2 - pos1)
+
+    def zlexcount(self, min_value, min_exclusive, max_value, max_exclusive):
+        if min_exclusive:
+            pos1 = self._bylex.bisect_right(min_value)
+        else:
+            pos1 = self._bylex.bisect_left(min_value)
+        if max_exclusive:
+            pos2 = self._bylex.bisect_left(max_value)
+        else:
+            pos2 = self._bylex.bisect_right(max_value)
+        return max(0, pos2 - pos1)
+
+    def islice_score(self, start, stop, reverse=False):
+        return self._byscore.islice(start, stop, reverse)
+
+    def irange_lex(self, start, stop, inclusive=(True, True), reverse=False):
+        return self._bylex.irange_key(start, stop, inclusive=inclusive, reverse=reverse)
