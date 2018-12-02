@@ -575,8 +575,11 @@ class FakeSocket(object):
     def notify_watch(self):
         self._watch_notified = True
 
+    # redis has inconsistent handling of negative indices, hence two versions
+    # of this code.
+
     @staticmethod
-    def _fix_range(start, end, length):
+    def _fix_range_string(start, end, length):
         # Negative number handling is based on the redis source code
         if start < 0 and end < 0 and start > end:
             return -1, -1
@@ -588,7 +591,7 @@ class FakeSocket(object):
         return start, end + 1
 
     @staticmethod
-    def _fix_range_zset(start, end, length):
+    def _fix_range(start, end, length):
         # Redis handles negative slightly differently for zrange
         if start < 0:
             start = max(0, start + length)
@@ -820,7 +823,7 @@ class FakeSocket(object):
                 raise redis.ResponseError(SYNTAX_ERROR_MSG)
             start = Int.decode(args[0])
             end = Int.decode(args[1])
-            start, end = self._fix_range(start, end, len(key.value))
+            start, end = self._fix_range_string(start, end, len(key.value))
             value = key.value[start:end]
         else:
             value = key.value
@@ -873,7 +876,7 @@ class FakeSocket(object):
     @command((Key(bytes), Int, Int))
     def getrange(self, key, start, end):
         value = key.get(b'')
-        start, end = self._fix_range(start, end, len(value))
+        start, end = self._fix_range_string(start, end, len(value))
         return value[start:end]
 
     # substr is a deprecated alias for getrange
@@ -1185,7 +1188,7 @@ class FakeSocket(object):
         zset = key.value
         if len(args) > 1 or (args and args[0].lower() != b'withscores'):
             raise redis.ResponseError(SYNTAX_ERROR_MSG)
-        start, stop = self._fix_range_zset(start, stop, len(zset))
+        start, stop = self._fix_range(start, stop, len(zset))
         if reverse:
             start, stop = len(zset) - stop, len(zset) - start
         items = zset.islice_score(start, stop, reverse)

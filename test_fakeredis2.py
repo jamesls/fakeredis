@@ -87,9 +87,11 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     def exists(self, key):
         self._compare('exists', key)
 
-    @rule(pattern=st.none() | patterns)
-    def keys_(self, pattern):
-        self._compare('keys', pattern)
+    # Disabled for now due to redis giving wrong answers
+    # (https://github.com/antirez/redis/issues/5632)
+    # @rule(pattern=st.none() | patterns)
+    # def keys_(self, pattern):
+    #     self._compare('keys', pattern)
 
     @rule(key=keys)
     def persist(self, key):
@@ -372,14 +374,15 @@ class ZSetNoScoresMachine(BaseMachine):
         self._compare('zlexcount', key, min, max)
 
     @rule(key=keys, min=string_tests, max=string_tests,
-          start=st.none() | counts, count=st.none() | counts)
-    def zrangebylex(self, key, min, max, start, count):
-        self._compare('zrangebylex', key, min, max, start, count)
-
-    @rule(key=keys, min=string_tests, max=string_tests,
-          start=st.none() | counts, count=st.none() | counts)
-    def zrevrangebylex(self, key, max, min, start, count):
-        self._compare('zrevrangebylex', key, max, min, start, count)
+          limit=st.none() | st.tuples(counts, counts),
+          reverse=st.booleans())
+    def zrangebylex(self, key, min, max, limit, reverse):
+        cmd = 'zrevrangebylex' if reverse else 'zrangebylex'
+        if limit is None:
+            self._compare(cmd, key, min, max)
+        else:
+            start, count = limit
+            self._compare(cmd, key, min, max, start, count)
 
 
 TestZSetNoScores = ZSetNoScoresMachine.TestCase
