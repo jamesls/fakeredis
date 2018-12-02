@@ -52,7 +52,8 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
             real_exc = exc
 
         if real_exc is not None:
-            assert_equal(type(fake_exc), type(real_exc))
+            if type(fake_exc) != type(real_exc):
+                raise fake_exc
             # TODO reenable after implementing tools to control error check ordering
             #assert_equal(fake_exc.args, real_exc.args)
         elif fake_exc is not None:
@@ -347,6 +348,47 @@ class ListMachine(BaseMachine):
 TestList = ListMachine.TestCase
 
 
+class SetMachine(BaseMachine):
+    keys = BaseMachine.keys
+    fields = BaseMachine.fields
+
+    @rule(key=keys, members=st.lists(fields))
+    def sadd(self, key, members):
+        self._compare('sadd', key, *members)
+
+    @rule(key=keys)
+    def scard(self, key):
+        self._compare('scard', key)
+
+    @rule(key=st.lists(keys), op=st.sampled_from(['sdiff', 'sinter', 'sunion']))
+    def setop(self, key, op):
+        self._compare(op, *key)
+
+    @rule(dst=keys, key=st.lists(keys),
+          op=st.sampled_from(['sdiffstore', 'sinterstore', 'sunionstore']))
+    def setopstore(self, dst, key, op):
+        self._compare(op, dst, *key)
+
+    @rule(key=keys, member=fields)
+    def sismember(self, key, member):
+        self._compare('sismember', key, member)
+
+    @rule(key=keys)
+    def smembers(self, key):
+        self._compare('smembers')
+
+    @rule(src=keys, dst=keys, member=fields)
+    def smove(self, src, dst, member):
+        self._compare('smove', src, dst, member)
+
+    @rule(key=keys, member=st.lists(fields))
+    def srem(self, key, member):
+        self._compare('srem', key, *member)
+
+
+TestSet = SetMachine.TestCase
+
+
 class ZSetMachine(BaseMachine):
     keys = BaseMachine.keys
     fields = BaseMachine.fields
@@ -468,7 +510,8 @@ TestServer = ServerMachine.TestCase
 
 class JointMachine(TransactionMachine, ServerMachine, ConnectionMachine,
                    StringMachine, HashMachine, ListMachine,
-                   ZSetMachine):
+                   SetMachine, ZSetMachine):
+    # TODO: rule inheritance isn't working!
     # redis-py splits the command on spaces, and hangs if that ends up
     # being an empty list
     @rule(command=st.text().filter(lambda x: bool(x.split())),

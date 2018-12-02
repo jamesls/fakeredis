@@ -47,6 +47,7 @@ NO_KEY_MSG = "no such key"
 INDEX_ERROR_MSG = "index out of range"
 WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
 UNKNOWN_COMMAND_MSG = "unknown command '{}'"
+EXECABORT_MSG = "Transaction discarded because of previous errors."
 MULTI_NESTED_MSG = "MULTI calls can not be nested"
 WITHOUT_MULTI_MSG = "{} without MULTI"
 WATCH_INSIDE_MULTI_MSG = "WATCH inside MULTI is not allowed"
@@ -144,13 +145,14 @@ class CommandItem(object):
     def __init__(self, key, db, item=None, default=None):
         if item is None:
             self._value = default
-            self.expireat = None
+            self._expireat = None
         else:
             self._value = item.value
-            self.expireat = item.expireat
+            self._expireat = item.expireat
         self.key = key
         self.db = db
         self._modified = False
+        self._expireat_modified = False
 
     @property
     def value(self):
@@ -161,6 +163,15 @@ class CommandItem(object):
         self._value = new_value
         self._modified = True
         self.expireat = None
+
+    @property
+    def expireat(self):
+        return self._expireat
+
+    @expireat.setter
+    def expireat(self, value):
+        self._expireat = value
+        self._expireat_modified = True
 
     def get(self, default):
         return self._value if self else default
@@ -175,12 +186,15 @@ class CommandItem(object):
     def writeback(self):
         if self._modified:
             self.db.notify_watch(self.key)
-        if not isinstance(self.value, bytes) and not self.value:
-            self.db.pop(self.key, None)
-            return
-        item = self.db.setdefault(self.key, Item(None))
-        item.value = self.value
-        item.expireat = self.expireat
+            if not isinstance(self.value, bytes) and not self.value:
+                self.db.pop(self.key, None)
+                return
+            else:
+                item = self.db.setdefault(self.key, Item(None))
+                item.value = self.value
+                item.expireat = self.expireat
+        elif self._expireat_modified and self.key in self.db:
+            self.db[self.key].expireat = self.expireat
 
     def __bool__(self):
         return bool(self._value) or isinstance(self._value, bytes)
@@ -455,7 +469,7 @@ class Signature(object):
                 args[i] = type_.decode(args[i])
 
         # Second pass: read keys and check their types
-        command_items = {}
+        command_items = []
         for i, (arg, type_) in enumerate(zip(args, types)):
             if isinstance(type_, Key):
                 item = db.get(arg)
@@ -466,7 +480,8 @@ class Signature(object):
                     if item is None:
                         if type_.type_ is not bytes:
                             default = type_.type_()
-                args[i] = command_items[arg] = CommandItem(arg, db, item, default=default)
+                args[i] = CommandItem(arg, db, item, default=default)
+                command_items.append(args[i])
 
         return args, command_items
 
@@ -537,7 +552,7 @@ class FakeSocket(object):
                 result = func(*args)
         except redis.ResponseError as exc:
             result = exc
-        for command_item in command_items.values():
+        for command_item in command_items:
             command_item.writeback()
         return result
 
@@ -779,7 +794,7 @@ class FakeSocket(object):
             raise redis.ResponseError(WITHOUT_MULTI_MSG.format('EXEC'))
         if self._transaction_failed:
             self._transaction = None
-            raise redis.ResponseError(EXECABORT_MSG)
+            raise redis.exceptions.ExecAbortError(EXECABORT_MSG)
         transaction = self._transaction
         self._transaction = None
         self._transaction_failed = False
@@ -920,7 +935,7 @@ class FakeSocket(object):
         return 1
 
     @command((Key(), bytes), (bytes,))
-    def set(self, key, value, *args):
+    def set_(self, key, value, *args):
         i = 0
         ex = None
         px = None
@@ -1044,6 +1059,7 @@ class FakeSocket(object):
     def hmset(self, key, *args):
         for i in range(0, len(args), 2):
             key.value[args[i]] = args[i + 1]
+            key.updated()
         return OK
 
     @command((Key(Hash), bytes, bytes))
@@ -1198,6 +1214,82 @@ class FakeSocket(object):
             return 0
         return self.rpush(key, *values)
 
+    # Set commands
+    # TODO: spop, srandmember, sscan
+
+    @command((Key(set), bytes), (bytes,))
+    def sadd(self, key, *members):
+        old_size = len(key.value)
+        key.value.update(members)
+        key.updated()
+        return len(key.value) - old_size
+
+    @command((Key(set),))
+    def scard(self, key):
+        return len(key.value)
+
+    def _setop(self, op, dst, key, *keys):
+        ans = key.value.copy()
+        for other in keys:
+            ans = op(ans, other.value)
+        if dst is None:
+            return list(ans)
+        else:
+            dst.value = ans
+            return len(dst.value)
+
+    @command((Key(set),), (Key(set),))
+    def sdiff(self, *keys):
+        return self._setop(lambda a, b: a - b, None, *keys)
+
+    @command((Key(), Key(set)), (Key(set),))
+    def sdiffstore(self, dst, *keys):
+        return self._setop(lambda a, b: a - b, dst, *keys)
+
+    @command((Key(set),), (Key(set),))
+    def sinter(self, *keys):
+        return self._setop(lambda a, b: a & b, None, *keys)
+
+    @command((Key(), Key(set)), (Key(set),))
+    def sinterstore(self, dst, *keys):
+        return self._setop(lambda a, b: a & b, dst, *keys)
+
+    @command((Key(set), bytes))
+    def sismember(self, key, member):
+        return int(member in key.value)
+
+    @command((Key(set),))
+    def smembers(self, key):
+        return list(key.value)
+
+    @command((Key(set, 0), Key(set), bytes))
+    def smove(self, src, dst, member):
+        try:
+            src.value.remove(member)
+            src.updated()
+        except KeyError:
+            return 0
+        else:
+            dst.value.add(member)
+            dst.updated()   # TODO: is it updated if member was already present?
+            return 1
+
+    @command((Key(set), bytes), (bytes,))
+    def srem(self, key, *members):
+        old_size = len(key.value)
+        for member in members:
+            key.value.discard(member)
+            key.updated()
+        return old_size - len(key.value)
+
+    @command((Key(set),), (Key(set),))
+    def sunion(self, *keys):
+        return self._setop(lambda a, b: a | b, None, *keys)
+
+    @command((Key(), Key(set)), (Key(set),))
+    def sunionstore(self, dst, *keys):
+        return self._setop(lambda a, b: a | b, dst, *keys)
+
     # Sorted set commands
     # TODO: blocking commands, set operations, zpopmin/zpopmax
     @command((Key(ZSet), bytes, bytes), (bytes,))
@@ -1318,6 +1410,8 @@ class FakeSocket(object):
 
 setattr(FakeSocket, 'del', FakeSocket.delete)
 delattr(FakeSocket, 'delete')
+setattr(FakeSocket, 'set', FakeSocket.set_)
+delattr(FakeSocket, 'set_')
 
 
 class _DummyParser(object):
