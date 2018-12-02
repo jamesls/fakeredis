@@ -231,12 +231,44 @@ class HashMachine(BaseMachine):
         self._compare('hget', key, *field)
 
     @rule(key=keys, field=fields)
+    def hexists(self, key, field):
+        self._compare('hexists', key, field)
+
+    @rule(key=keys, field=fields)
     def hget(self, key, field):
         self._compare('hget', key, field)
+
+    @rule(key=keys)
+    def hgetall(self, key):
+        self._compare('hgetall', key)
+
+    @rule(key=keys)
+    def hkeys(self, key):
+        self._compare('hkeys', key)
+
+    @rule(key=keys)
+    def hlen(self, key):
+        self._compare('hlen', key)
+
+    @rule(key=keys, field=st.lists(fields))
+    def hmget(self, key, field):
+        self._compare('hmget', key, *field)
+
+    @rule(key=keys, items=st.dictionaries(fields, values))
+    def hmset(self, key, items):
+        self._compare('hmset', key, items)
 
     @rule(key=keys, field=fields, value=values)
     def hset(self, key, field, value):
         self._compare('hset', key, field, value)
+
+    @rule(key=keys, field=fields, value=values)
+    def hsetnx(self, key, field, value):
+        self._compare('hsetnx', key, field, value)
+
+    @rule(key=keys)
+    def hvals(self, key):
+        self._compare('hvals', key)
 
 
 TestHash = HashMachine.TestCase

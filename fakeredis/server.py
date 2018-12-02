@@ -9,6 +9,7 @@ import random
 import re
 import warnings
 import functools
+import itertools
 from collections import defaultdict
 try:
     # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
@@ -993,6 +994,7 @@ class FakeSocket(object):
         return len(key.get(b''))
 
     # Hash commands
+    # TODO: hincrby, hincrbyfloat, hscan
 
     @command((Key(Hash), bytes), (bytes,))
     def hdel(self, key, *fields):
@@ -1006,8 +1008,34 @@ class FakeSocket(object):
         return rem
 
     @command((Key(Hash), bytes))
+    def hexists(self, key, field):
+        return int(field in key.value)
+
+    @command((Key(Hash), bytes))
     def hget(self, key, field):
         return key.value.get(field)
+
+    @command((Key(Hash),))
+    def hgetall(self, key):
+        return list(itertools.chain(*key.value.items()))
+
+    @command((Key(Hash),))
+    def hkeys(self, key):
+        return list(key.value.keys())
+
+    @command((Key(Hash),))
+    def hlen(self, key):
+        return len(key.value)
+
+    @command((Key(Hash), bytes), (bytes,))
+    def hmget(self, key, *fields):
+        return [key.value.get(field) for field in fields]
+
+    @command((Key(Hash), bytes, bytes), (bytes, bytes))
+    def hmset(self, key, *args):
+        for i in range(0, len(args), 2):
+            key.value[args[i]] = args[i + 1]
+        return OK
 
     @command((Key(Hash), bytes, bytes))
     def hset(self, key, field, value):
@@ -1016,6 +1044,20 @@ class FakeSocket(object):
         h[field] = value
         key.updated()
         return 1 if is_new else 0
+
+    @command((Key(Hash), bytes, bytes))
+    def hsetnx(self, key, field, value):
+        if field in key.value:
+            return 0
+        return self.hset(key, field, value)
+
+    @command((Key(Hash), bytes))
+    def hstrlen(self, key, field):
+        return len(key.value.get(field, b''))
+
+    @command((Key(Hash),))
+    def hvals(self, key):
+        return list(key.value.values())
 
     # List commands
     # TODO: blocking commands
