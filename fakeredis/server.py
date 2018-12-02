@@ -41,6 +41,7 @@ INVALID_MIN_MAX_STR_MSG = "min or max not a valid string range item"
 STRING_OVERFLOW_MSG = "string exceeds maximum allowed size (512MB)"
 OVERFLOW_MSG = "increment or decrement would overflow"
 NONFINITE_MSG = "increment would produce NaN or Infinity"
+SCORE_NAN_MSG = "resulting score is not a number (NaN)"
 SRC_DST_SAME_MSG = "source and destination objects are the same"
 NO_KEY_MSG = "no such key"
 INDEX_ERROR_MSG = "index out of range"
@@ -245,6 +246,12 @@ class Database(MutableMapping):
     def __len__(self):
         self._remove_expired()
         return len(self._dict)
+
+    def __hash__(self):
+        return hash(super(object, self))
+
+    def __eq__(self, other):
+        return super(object, self) == other
 
 
 class Hash(dict):
@@ -755,6 +762,7 @@ class FakeSocket(object):
             raise redis.ResponseError(MULTI_NESTED_MSG)
         self._transaction = []
         self._transaction_failed = False
+        return OK
 
     @command(())
     def discard(self):
@@ -763,6 +771,7 @@ class FakeSocket(object):
         self._transaction = None
         self._transaction_failed = False
         self._clear_watches()
+        return OK
 
     @command(())
     def exec(self):
@@ -793,8 +802,8 @@ class FakeSocket(object):
             raise redis.ResponseError(WATCH_INSIDE_MULTI_MSG)
         for key in keys:
             if key not in self._watches:
-                self._watches.add(key)
-                self._db.add_watch(key, self)
+                self._watches.add((key, self._db))
+                self._db.add_watch(key.key, self)
         return OK
 
     @command(())
@@ -803,7 +812,7 @@ class FakeSocket(object):
         return OK
 
     # String commands
-    # TODO: bitfield, bitop, bitpos, mset*, psetex, setex, setnx, setrange, strlen
+    # TODO: bitfield, bitop, bitpos
 
     @command((Key(bytes), bytes))
     def append(self, key, value):
@@ -1218,6 +1227,8 @@ class FakeSocket(object):
     @command((Key(ZSet), Float, bytes))
     def zincrby(self, key, increment, member):
         score = key.value.get(member, 0.0) + increment
+        if math.isnan(score):
+            raise redis.ResponseError(SCORE_NAN_MSG)
         key.value[member] = score
         key.updated()
         return Float.encode(score, False)

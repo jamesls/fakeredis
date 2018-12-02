@@ -26,6 +26,10 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
         super(BaseMachine, self).__init__()
         self.fake = fakeredis.FakeStrictRedis()
         self.real = redis.StrictRedis('localhost', port=6379)
+        try:
+            self.real.execute_command('discard')
+        except redis.ResponseError:
+            pass
         self.real.flushall()
 
     def teardown(self):
@@ -137,18 +141,18 @@ class StringMachine(BaseMachine):
         self._compare('bitcount', key, start, end)
 
     @rule(key=keys, amount=st.none() | values)
-    def decrby(self, key, amount):
+    def decr(self, key, amount):
         if amount is None:
-            self._compare('decrby', key)
+            self._compare('decr', key)
         else:
-            self._compare('decrby', key, amount=amount)
+            self._compare('decr', key, amount=amount)
 
     @rule(key=keys, amount=st.none() | values)
-    def incrby(self, key, amount):
+    def incr(self, key, amount):
         if amount is None:
-            self._compare('incrby', key)
+            self._compare('incr', key)
         else:
-            self._compare('incrby', key, amount=amount)
+            self._compare('incr', key, amount=amount)
 
     # Disabled for now because Python can't exactly model the long doubles.
     # TODO: make a more targeted test that checks the basics.
@@ -183,15 +187,13 @@ class StringMachine(BaseMachine):
     def mget(self, keys):
         self._compare('mget', *keys)
 
-    @rule(items=st.lists(st.tuples(keys, values)))
+    @rule(items=st.dictionaries(keys, values))
     def mset(self, items):
-        args = itertools.chain(*items)
-        self._compare('mset', *args)
+        self._compare('mset', items)
 
-    @rule(items=st.lists(st.tuples(keys, values)))
+    @rule(items=st.dictionaries(keys, values))
     def msetnx(self, items):
-        args = itertools.chain(*items)
-        self._compare('mset', *args)
+        self._compare('msetnx', items)
 
     @rule(key=keys, value=values, nx=st.booleans(), xx=st.booleans())
     def set(self, key, value, nx, xx):
@@ -228,7 +230,7 @@ class HashMachine(BaseMachine):
 
     @rule(key=keys, field=st.lists(fields))
     def hdel(self, key, field):
-        self._compare('hget', key, *field)
+        self._compare('hdel', key, *field)
 
     @rule(key=keys, field=fields)
     def hexists(self, key, field):
@@ -265,6 +267,10 @@ class HashMachine(BaseMachine):
     @rule(key=keys, field=fields, value=values)
     def hsetnx(self, key, field, value):
         self._compare('hsetnx', key, field, value)
+
+    @rule(key=keys, field=fields)
+    def hstrlen(self, key, field):
+        self._compare('hstrlen', key, field)
 
     @rule(key=keys)
     def hvals(self, key):
@@ -425,23 +431,23 @@ class TransactionMachine(StringMachine):
 
     @rule()
     def multi(self):
-        self._compare('multi')
+        self._compare('execute_command', 'multi')
 
     @rule()
     def discard(self):
-        self._compare('discard')
+        self._compare('execute_command', 'discard')
 
     @rule()
     def exec(self):
-        self._compare('exec')
+        self._compare('execute_command', 'exec')
 
     @rule(key=keys)
     def watch(self, key):
-        self._compare('watch', key)
+        self._compare('execute_command', 'watch', key)
 
     @rule()
     def unwatch(self):
-        self._compare('unwatch')
+        self._compare('execute_command', 'unwatch')
 
 
 TestTransaction = TransactionMachine.TestCase
