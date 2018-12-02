@@ -23,7 +23,7 @@ class ZSet(object):
         return self._bylex[key]
 
     def get(self, key, default=None):
-        return self._bylex.get(key)
+        return self._bylex.get(key, default)
 
     def __len__(self):
         return len(self._bylex)
@@ -48,4 +48,4 @@ class ZSet(object):
         return self._byscore.islice(start, stop, reverse)
 
     def irange_lex(self, start, stop, inclusive=(True, True), reverse=False):
-        return self._bylex.irange_key(start, stop, inclusive=inclusive, reverse=reverse)
+        return self._bylex.irange(start, stop, inclusive=inclusive, reverse=reverse)

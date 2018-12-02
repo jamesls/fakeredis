@@ -1,6 +1,7 @@
 import time
 import itertools
 import operator
+import sys
 
 import hypothesis
 from hypothesis.stateful import rule
@@ -11,10 +12,18 @@ import redis
 import fakeredis
 
 
+int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
+float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
+counts = st.integers(min_value=-3, max_value=3) | st.integers()
+# The filter is to work around https://github.com/antirez/redis/issues/5632
+patterns = (st.text(alphabet=st.sampled_from('[]^$*.?-azAZ\\\r\n\t'))
+            | st.binary().filter(lambda x: b'\0' not in x))
+
+
 @hypothesis.settings(max_examples=1000, timeout=hypothesis.unlimited)
-class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
+class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     def __init__(self):
-        super(HypothesisStrictRedis, self).__init__()
+        super(BaseMachine, self).__init__()
         self.fake = fakeredis.FakeStrictRedis()
         self.real = redis.StrictRedis('localhost', port=6379)
         self.real.flushall()
@@ -22,7 +31,7 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def teardown(self):
         self.real.connection_pool.disconnect()
         self.fake.connection_pool.disconnect()
-        super(HypothesisStrictRedis, self).teardown()
+        super(BaseMachine, self).teardown()
 
     def _compare(self, cmd, *args, **kwargs):
         fake_exc = None
@@ -52,13 +61,6 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     values = hypothesis.stateful.Bundle('values')
     scores = hypothesis.stateful.Bundle('scores')
 
-    int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
-    float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
-    score_tests = scores | st.builds(lambda x: b'(' + repr(x).encode(), scores)
-    string_tests = (
-        st.sampled_from([b'+', b'-'])
-        | st.builds(operator.add, st.sampled_from([b'(', b'[']), fields))
-
     @rule(target=keys, key=st.binary())
     def make_key(self, key):
         return key
@@ -70,21 +72,6 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     @rule(target=values, value=st.binary() | int_as_bytes | float_as_bytes)
     def make_value(self, value):
         return value
-
-    @rule(target=scores, value=st.floats(width=32))
-    def make_score(self, value):
-        return value
-
-    # Connection commands
-    # TODO: tests for select, swapdb
-
-    @rule(value=values)
-    def echo(self, value):
-        self._compare('echo', value)
-
-    @rule(args=st.lists(values, max_size=2))
-    def ping(self, args):
-        self._compare('execute_command', b'ping', *args)
 
     # Key commands
     # TODO: add special testing for
@@ -100,7 +87,7 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def exists(self, key):
         self._compare('exists', key)
 
-    @rule(pattern=st.none() | st.binary())
+    @rule(pattern=st.none() | patterns)
     def keys_(self, pattern):
         self._compare('keys', pattern)
 
@@ -116,135 +103,26 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def renamenx(self, key, newkey):
         self._compare('renamenx', key, newkey)
 
-    # List commands
-    # TODO: blocking commands
 
-    @rule(key=keys, index=st.integers())
-    def lindex(self, key, index):
-        self._compare('lindex', key, index)
+class ConnectionMachine(BaseMachine):
+    # TODO: tests for select, swapdb
+    values = BaseMachine.values
 
-    @rule(key=keys, where=st.sampled_from(['before', 'after', 'BEFORE', 'AFTER']) | st.binary(),
-          pivot=values, value=values)
-    def linsert(self, key, where, pivot, value):
-        self._compare('linsert', key, where, pivot, value)
+    @rule(value=values)
+    def echo(self, value):
+        self._compare('echo', value)
 
-    @rule(key=keys)
-    def llen(self, key):
-        self._compare('llen', key)
+    @rule(args=st.lists(values, max_size=2))
+    def ping(self, args):
+        self._compare('execute_command', b'ping', *args)
 
-    @rule(key=keys)
-    def lpop(self, key):
-        self._compare('lpop', key)
 
-    @rule(key=keys, values=st.lists(values))
-    def lpush(self, key, values):
-        self._compare('lpush', key, *values)
+TestConnection = ConnectionMachine.TestCase
 
-    @rule(key=keys, values=st.lists(values))
-    def lpushx(self, key, values):
-        self._compare('lpushx', key, *values)
 
-    @rule(key=keys, start=st.integers(), stop=st.integers())
-    def lrange(self, key, start, stop):
-        self._compare('llrange', key, start, stop)
-
-    @rule(key=keys, count=st.integers(), value=values)
-    def lrem(self, key, count, value):
-        self._compare('lrem', key, count, value)
-
-    @rule(key=keys, index=st.integers(), value=values)
-    def lset(self, key, index, value):
-        self._compare('lset', key, index, value)
-
-    @rule(key=keys, start=st.integers(), stop=st.integers())
-    def ltrim(self, key, start, stop):
-        self._compare('ltrim', key, start, stop)
-
-    @rule(key=keys)
-    def rpop(self, key):
-        self._compare('rpop', key)
-
-    @rule(src=keys, dst=keys)
-    def rpoplpush(self, src, dst):
-        self._compare('rpoplpush', src, dst)
-
-    @rule(key=keys, values=st.lists(values))
-    def rpush(self, key, values):
-        self._compare('rpush', key, *values)
-
-    @rule(key=keys, values=st.lists(values))
-    def rpushx(self, key, values):
-        self._compare('rpushx', key, *values)
-
-    # Sorted set commands
-
-    @rule(key=keys, items=st.lists(st.tuples(scores, fields)))
-    def zadd(self, key, items):
-        # TODO: test xx, nx, ch, incr
-        # TODO: support redis-py 3
-        print(key, items)
-        flat_items = itertools.chain(*items)
-        self._compare('zadd', *flat_items)
-
-    @rule(key=keys)
-    def zcard(self, key):
-        self._compare('zcard', key)
-
-    @rule(key=keys, min=score_tests, max=score_tests)
-    def zcount(self, key, min, max):
-        self._compare('zcount', key, min, max)
-
-    @rule(key=keys, increment=scores, member=fields)
-    def zincrby(self, key, increment, member):
-        self._compare('zincrby', key, increment, member)
-
-    @rule(key=keys, min=string_tests, max=string_tests)
-    def zlexcount(self, key, min, max):
-        self._compare('zlexcount', key, min, max)
-
-    @rule(key=keys, start=st.integers(), stop=st.integers(), withscores=st.booleans())
-    def zrange(self, key, start, stop, withscores):
-        self._compare('zrange', key, start, stop, withscores)
-
-    @rule(key=keys, start=st.integers(), stop=st.integers(), withscores=st.booleans())
-    def zrevrange(self, key, start, stop, withscores):
-        self._compare('zrevrange', key, start, stop, withscores)
-
-    @rule(key=keys, min=string_tests, max=string_tests,
-          start=st.none() | st.integers(), count=st.none() | st.integers())
-    def zrangebylex(self, key, min, max, start, count):
-        self._compare('zrangebylex', min, max, start, count)
-
-    @rule(key=keys, min=string_tests, max=string_tests,
-          start=st.none() | st.integers(), count=st.none() | st.integers())
-    def zrevrangebylex(self, key, min, max, start, count):
-        self._compare('zrevrangebylex', min, max, start, count)
-
-    # Transaction commands
-    # TODO: create separate test case for transactions. They're not a good
-    # fit for this state machine since they move return values later.
-
-    @rule()
-    def multi(self):
-        self._compare('multi')
-
-    @rule()
-    def discard(self):
-        self._compare('discard')
-
-    @rule()
-    def exec(self):
-        self._compare('exec')
-
-    @rule(key=keys)
-    def watch(self, key):
-        self._compare('watch', key)
-
-    @rule()
-    def unwatch(self):
-        self._compare('unwatch')
-
-    # String commands
+class StringMachine(BaseMachine):
+    keys = BaseMachine.keys
+    values = BaseMachine.values
 
     @rule(key=keys, value=values)
     def append(self, key, value):
@@ -283,15 +161,15 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def get(self, key):
         self._compare('get', key)
 
-    @rule(key=keys, offset=st.integers())
+    @rule(key=keys, offset=counts)
     def getbit(self, key, offset):
         self._compare('getbit', key, offset)
 
-    @rule(key=keys, start=st.integers(), end=st.integers())
+    @rule(key=keys, start=counts, end=counts)
     def getrange(self, key, start, end):
         self._compare('getrange', key, start, end)
 
-    @rule(key=keys, start=st.integers(), end=st.integers())
+    @rule(key=keys, start=counts, end=counts)
     def substr(self, key, start, end):
         self._compare('substr', key, start, end)
 
@@ -329,7 +207,7 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def setnx(self, key, value):
         self._compare('setnx', key, value)
 
-    @rule(key=keys, offset=st.integers(), value=values)
+    @rule(key=keys, offset=counts, value=values)
     def setrange(self, key, offset, value):
         self._compare('setrange', key, offset, value)
 
@@ -337,7 +215,14 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def strlen(self, key):
         self._compare('strlen', key)
 
-    # Hash commands
+
+TestString = StringMachine.TestCase
+
+
+class HashMachine(BaseMachine):
+    keys = BaseMachine.keys
+    values = BaseMachine.values
+    fields = BaseMachine.fields
 
     @rule(key=keys, field=st.lists(fields))
     def hdel(self, key, field):
@@ -351,8 +236,183 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def hset(self, key, field, value):
         self._compare('hset', key, field, value)
 
-    # Server commands
 
+TestHash = HashMachine.TestCase
+
+
+class ListMachine(BaseMachine):
+    keys = BaseMachine.keys
+    values = BaseMachine.values
+
+    # TODO: blocking commands
+
+    @rule(key=keys, index=counts)
+    def lindex(self, key, index):
+        self._compare('lindex', key, index)
+
+    @rule(key=keys, where=st.sampled_from(['before', 'after', 'BEFORE', 'AFTER']) | st.binary(),
+          pivot=values, value=values)
+    def linsert(self, key, where, pivot, value):
+        self._compare('linsert', key, where, pivot, value)
+
+    @rule(key=keys)
+    def llen(self, key):
+        self._compare('llen', key)
+
+    @rule(key=keys)
+    def lpop(self, key):
+        self._compare('lpop', key)
+
+    @rule(key=keys, values=st.lists(values))
+    def lpush(self, key, values):
+        self._compare('lpush', key, *values)
+
+    @rule(key=keys, values=st.lists(values))
+    def lpushx(self, key, values):
+        self._compare('lpushx', key, *values)
+
+    @rule(key=keys, start=counts, stop=counts)
+    def lrange(self, key, start, stop):
+        self._compare('lrange', key, start, stop)
+
+    @rule(key=keys, count=counts, value=values)
+    def lrem(self, key, count, value):
+        self._compare('lrem', key, count, value)
+
+    @rule(key=keys, index=counts, value=values)
+    def lset(self, key, index, value):
+        self._compare('lset', key, index, value)
+
+    @rule(key=keys, start=counts, stop=counts)
+    def ltrim(self, key, start, stop):
+        self._compare('ltrim', key, start, stop)
+
+    @rule(key=keys)
+    def rpop(self, key):
+        self._compare('rpop', key)
+
+    @rule(src=keys, dst=keys)
+    def rpoplpush(self, src, dst):
+        self._compare('rpoplpush', src, dst)
+
+    @rule(key=keys, values=st.lists(values))
+    def rpush(self, key, values):
+        self._compare('rpush', key, *values)
+
+    @rule(key=keys, values=st.lists(values))
+    def rpushx(self, key, values):
+        self._compare('rpushx', key, *values)
+
+
+TestList = ListMachine.TestCase
+
+
+class ZSetMachine(BaseMachine):
+    keys = BaseMachine.keys
+    fields = BaseMachine.fields
+    scores = hypothesis.stateful.Bundle('scores')
+
+    score_tests = scores | st.builds(lambda x: b'(' + repr(x).encode(), scores)
+    string_tests = (
+        st.sampled_from([b'+', b'-'])
+        | st.builds(operator.add, st.sampled_from([b'(', b'[']), fields))
+
+    @rule(target=scores, value=st.floats(width=32))
+    def make_score(self, value):
+        return value
+
+    @rule(key=keys, items=st.lists(st.tuples(scores, fields)))
+    def zadd(self, key, items):
+        # TODO: test xx, nx, ch, incr
+        # TODO: support redis-py 3
+        flat_items = itertools.chain(*items)
+        self._compare('zadd', key, *flat_items)
+
+    @rule(key=keys)
+    def zcard(self, key):
+        self._compare('zcard', key)
+
+    @rule(key=keys, min=score_tests, max=score_tests)
+    def zcount(self, key, min, max):
+        self._compare('zcount', key, min, max)
+
+    @rule(key=keys, increment=scores, member=fields)
+    def zincrby(self, key, increment, member):
+        self._compare('zincrby', key, member, increment)
+
+    @rule(key=keys, start=counts, stop=counts, withscores=st.booleans())
+    def zrange(self, key, start, stop, withscores):
+        self._compare('zrange', key, start, stop, withscores=withscores)
+
+    @rule(key=keys, start=counts, stop=counts, withscores=st.booleans())
+    def zrevrange(self, key, start, stop, withscores):
+        self._compare('zrevrange', key, start, stop, withscores)
+
+
+TestZSet = ZSetMachine.TestCase
+
+
+class ZSetNoScoresMachine(BaseMachine):
+    keys = BaseMachine.keys
+    fields = BaseMachine.fields
+
+    string_tests = (
+        st.sampled_from([b'+', b'-'])
+        | st.builds(operator.add, st.sampled_from([b'(', b'[']), fields))
+
+    @rule(key=keys, items=st.lists(fields))
+    def zadd_zero_score(self, key, items):
+        # TODO: test xx, nx, ch, incr
+        # TODO: support redis-py 3
+        flat_items = itertools.chain(*[(0, item) for item in items])
+        self._compare('zadd', key, *flat_items)
+
+    @rule(key=keys, min=string_tests, max=string_tests)
+    def zlexcount(self, key, min, max):
+        self._compare('zlexcount', key, min, max)
+
+    @rule(key=keys, min=string_tests, max=string_tests,
+          start=st.none() | counts, count=st.none() | counts)
+    def zrangebylex(self, key, min, max, start, count):
+        self._compare('zrangebylex', key, min, max, start, count)
+
+    @rule(key=keys, min=string_tests, max=string_tests,
+          start=st.none() | counts, count=st.none() | counts)
+    def zrevrangebylex(self, key, max, min, start, count):
+        self._compare('zrevrangebylex', key, max, min, start, count)
+
+
+TestZSetNoScores = ZSetNoScoresMachine.TestCase
+
+
+class TransactionMachine(StringMachine):
+    keys = BaseMachine.keys
+
+    @rule()
+    def multi(self):
+        self._compare('multi')
+
+    @rule()
+    def discard(self):
+        self._compare('discard')
+
+    @rule()
+    def exec(self):
+        self._compare('exec')
+
+    @rule(key=keys)
+    def watch(self, key):
+        self._compare('watch', key)
+
+    @rule()
+    def unwatch(self):
+        self._compare('unwatch')
+
+
+TestTransaction = TransactionMachine.TestCase
+
+
+class ServerMachine(StringMachine):
     @rule(asynchronous=st.booleans())
     def flushdb(self, asynchronous):
         self._compare('flushdb', asynchronous=asynchronous)
@@ -361,14 +421,19 @@ class HypothesisStrictRedis(hypothesis.stateful.RuleBasedStateMachine):
     def flushall(self, asynchronous):
         self._compare('flushall', asynchronous=asynchronous)
 
-    # Other tests
 
-    @rule(command=st.text(), args=st.lists(st.binary() | st.text()))
+TestServer = ServerMachine.TestCase
+
+
+class JointMachine(TransactionMachine, ServerMachine, ConnectionMachine,
+                   StringMachine, HashMachine, ListMachine,
+                   ZSetMachine):
+    # redis-py splits the command on spaces, and hangs if that ends up
+    # being an empty list
+    @rule(command=st.text().filter(lambda x: bool(x.split())),
+          args=st.lists(st.binary() | st.text()))
     def bad_command(self, command, args):
-        # redis-py splits the command on spaces, and hangs if that ends up
-        # being an empty list
-        st.assume(command.split())
         self._compare('execute_command', command, *args)
 
 
-TestHypothesisStrictRedis = HypothesisStrictRedis.TestCase
+TestJoint = JointMachine.TestCase

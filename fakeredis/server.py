@@ -74,17 +74,18 @@ def compile_pattern(pattern):
     L = len(pattern)
     while i < L:
         c = pattern[i]
+        i += 1
         if c == '?':
             parts.append('.')
         elif c == '*':
             parts.append('.*')
         elif c == '\\':
-            if i < L - 1:
-                i += 1
+            if i == L:
+                i -= 1
             parts.append(re.escape(pattern[i]))
+            i += 1
         elif c == '[':
             parts.append('[')
-            i += 1
             if i < L and pattern[i] == '^':
                 i += 1
                 parts.append('^')
@@ -94,8 +95,9 @@ def compile_pattern(pattern):
                     i += 1
                     parts.append(re.escape(pattern[i]))
                 elif pattern[i] == ']':
+                    i += 1
                     break
-                elif i + 2 <= L and pattern[i + 1] == '-':
+                elif i + 2 < L and pattern[i + 1] == '-':
                     start = pattern[i]
                     end = pattern[i + 2]
                     if start > end:
@@ -116,8 +118,7 @@ def compile_pattern(pattern):
                     parts[-1] = '.'
             parts.append(']')
         else:
-            parts.append(re.escape(pattern[i]))
-        i += 1
+            parts.append(re.escape(c))
     parts.append('\\Z')
     regex = ''.join(parts).encode('latin-1')
     return re.compile(regex, re.S)
@@ -583,6 +584,18 @@ class FakeSocket(object):
             start = max(0, start + length)
         if end < 0:
             end = max(0, end + length)
+        end = min(end, length - 1)
+        return start, end + 1
+
+    @staticmethod
+    def _fix_range_zset(start, end, length):
+        # Redis handles negative slightly differently for zrange
+        if start < 0:
+            start = max(0, start + length)
+        if end < 0:
+            end += length
+        if start > end or start >= length:
+            return -1, -1
         end = min(end, length - 1)
         return start, end + 1
 
@@ -1159,10 +1172,10 @@ class FakeSocket(object):
 
     @command((Key(ZSet), Float, bytes))
     def zincrby(self, key, increment, member):
-        score = key.value.get(member) + increment
+        score = key.value.get(member, 0.0) + increment
         key.value[member] = score
         key.updated()
-        return Float.encode(score)
+        return Float.encode(score, False)
 
     @command((Key(ZSet), StringTest, StringTest))
     def zlexcount(self, key, min, max):
@@ -1171,8 +1184,8 @@ class FakeSocket(object):
     def _zrange(self, key, start, stop, reverse, *args):
         zset = key.value
         if len(args) > 1 or (args and args[0].lower() != b'withscores'):
-            raise redis.ResponseError(SYNTAX_ERRORG)
-        start, stop = self._fix_range(start, stop, len(zset))
+            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+        start, stop = self._fix_range_zset(start, stop, len(zset))
         if reverse:
             start, stop = len(zset) - stop, len(zset) - start
         items = zset.islice_score(start, stop, reverse)
@@ -1186,12 +1199,12 @@ class FakeSocket(object):
         return out
 
     @command((Key(ZSet), Int, Int), (bytes,))
-    def zrange(self, start, stop, *args):
-        return self._zrange(start, stop, False, *args)
+    def zrange(self, key, start, stop, *args):
+        return self._zrange(key, start, stop, False, *args)
 
     @command((Key(ZSet), Int, Int), (bytes,))
-    def zrevrange(self, start, stop, *args):
-        return self._zrange(start, stop, True, *args)
+    def zrevrange(self, key, start, stop, *args):
+        return self._zrange(key, start, stop, True, *args)
 
     def _zrangebylex(self, key, min, max, reverse, *args):
         if args:
@@ -1200,30 +1213,29 @@ class FakeSocket(object):
             offset = Int.decode(args[1])
             count = Int.decode(args[2])
         else:
-            offset = count = None
+            offset = 0
+            count = -1
         zset = key.value
         items = zset.irange_lex(min.value, max.value,
                                 inclusive=(not min.exclusive, not max.exclusive),
                                 reverse=reverse)
         out = []
-        # TODO: check handling of negative offset/count
         for item in items:
-            if offset is not None and offset > 0:
+            if offset:    # Note: not offset > 0, in order to match redis
                 offset -= 1
                 continue
-            if count is not None:
-                if count == 0:
-                    break
-                count -= 1
-            out.append(item[0])
+            if count == 0:
+                break
+            count -= 1
+            out.append(item)
         return out
 
-    @command((Key(ZSet), StringTest, StringTest), (bytes, Int, Int))
+    @command((Key(ZSet), StringTest, StringTest), (bytes,))
     def zrangebylex(self, key, min, max, *args):
         return self._zrangebylex(key, min, max, False, *args)
 
-    @command((Key(ZSet), StringTest, StringTest), (bytes, Int, Int))
-    def zrevrangebylex(self, key, min, max, *args):
+    @command((Key(ZSet), StringTest, StringTest), (bytes,))
+    def zrevrangebylex(self, key, max, min, *args):
         return self._zrangebylex(key, min, max, True, *args)
 
     # Server commands
