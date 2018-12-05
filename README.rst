@@ -16,6 +16,20 @@ many times you want to write unittests that do not talk to an external server
 (such as redis).  This module now allows tests to simply use this
 module as a reasonable substitute for redis.
 
+Note on redis-py 3
+==================
+
+redis-py 3 is a recent backwards-compatible update to redis-py. It is not yet
+supported by fakeredis, which only implements the redis-py 2 API.
+
+If you need to run unit tests against the redis-py 3 API, take a look at
+birdisle_. It embeds the redis server code into your process and supports
+redis-py 2 and 3. It is also a more accurate emulation of redis, because it
+is using the actual redis codebase. The downside is that it currently only
+supports Linux.
+
+.. _birdisle: https://birdisle.readthedocs.io/en/latest/
+
 
 How to Use
 ==========
@@ -116,7 +130,6 @@ server
 ------
 
  * bgrewriteaof
- * bgsave
  * client kill
  * client list
  * client getname
@@ -135,7 +148,6 @@ server
  * debug object
  * debug segfault
  * info
- * lastsave
  * memory doctor
  * memory help
  * memory malloc-stats
@@ -144,7 +156,6 @@ server
  * memory usage
  * monitor
  * role
- * save
  * shutdown
  * slaveof
  * slowlog
@@ -293,6 +304,33 @@ they have all been tagged as 'slow' so you can skip them by running::
 
 Revision history
 ================
+
+0.16.0
+------
+- `#224 <https://github.com/jamesls/fakeredis/pull/224>`_ Add __delitem__
+- Restrict to redis<3
+
+0.15.0
+------
+- `#219 <https://github.com/jamesls/fakeredis/pull/219>`_ Add SAVE, BGSAVE and LASTSAVE commands
+- `#222 <https://github.com/jamesls/fakeredis/pull/222>`_ Fix deprecation warnings in Python 3.7
+
+0.14.0
+------
+This release greatly improves support for threads: the bulk of commands are now
+thread-safe, ``lock`` has been rewritten to more closely match redis-py, and
+pubsub now supports ``run_in_thread``:
+
+- `#213 <https://github.com/jamesls/fakeredis/issues/217>`_ pipeline.watch runs transaction even if no commands are queued
+- `#214 <https://github.com/jamesls/fakeredis/pull/214>`_ Added pubsub.run_in_thread as it is implemented in redis-py
+- `#215 <https://github.com/jamesls/fakeredis/pull/215>`_ Keep pace with redis-py for zrevrange method
+- `#216 <https://github.com/jamesls/fakeredis/pull/216>`_ Update behavior of lock to behave closer to redis lock
+
+0.13.1
+------
+- `#208 <https://github.com/jamesls/fakeredis/pull/208>`_ eval's KEYS and ARGV are now lua tables
+- `#209 <https://github.com/jamesls/fakeredis/pull/209>`_ Redis operation that returns dict now converted to Lua table when called inside eval operation
+- `#212 <https://github.com/jamesls/fakeredis/pull/212>`_ Optimize ``_scan()``
 
 0.13.0.1
 --------

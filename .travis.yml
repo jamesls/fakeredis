@@ -5,8 +5,7 @@ python:
   - 3.5
   - 3.6
   - pypy
-  # Disabled because PyYAML is failing to compile against it
-  # - nightly
+  - nightly
 matrix:
   include:
     - python: 3.7
