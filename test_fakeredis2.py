@@ -84,9 +84,9 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     # - move
     # - randomkey
 
-    @rule(key=keys)
+    @rule(key=st.lists(keys))
     def delete(self, key):
-        self._compare('delete', key)
+        self._compare('delete', *key)
 
     @rule(key=keys)
     def exists(self, key):

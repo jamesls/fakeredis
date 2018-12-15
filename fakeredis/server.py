@@ -18,8 +18,8 @@ except ImportError:
     # Python 2.6, 2.7
     from collections import MutableMapping
 
+import six
 import redis
-from redis._compat import nativestr   # TODO don't depend on private
 
 from .zset import ZSet
 
@@ -51,8 +51,18 @@ EXECABORT_MSG = "Transaction discarded because of previous errors."
 MULTI_NESTED_MSG = "MULTI calls can not be nested"
 WITHOUT_MULTI_MSG = "{} without MULTI"
 WATCH_INSIDE_MULTI_MSG = "WATCH inside MULTI is not allowed"
-OK = b'OK'
-QUEUED = b'QUEUED'
+NEGATIVE_KEYS_MSG = "Number of keys can't be negative"
+TOO_MANY_KEYS_MSG = "Number of keys can't be greater than number of args"
+
+
+class SimpleString(object):
+    def __init__(self, value):
+        assert isinstance(value, bytes)
+        self.value = value
+
+
+OK = SimpleString(b'OK')
+QUEUED = SimpleString(b'QUEUED')
 
 
 # TODO: Python 2 support
@@ -286,7 +296,7 @@ class Int(object):
     def decode(cls, value):
         try:
             out = int(value)
-            if not cls.valid(out) or str(out).encode() != value:
+            if not cls.valid(out) or six.ensure_binary(str(out)) != value:
                 raise ValueError
         except ValueError:
             raise redis.ResponseError(cls.DECODE_ERROR)
@@ -295,7 +305,7 @@ class Int(object):
     @classmethod
     def encode(cls, value):
         if cls.valid(value):
-            return str(value).encode()
+            return six.ensure_binary(str(value))
         else:
             raise redis.ResponseError(cls.ENCODE_ERROR)
 
@@ -348,14 +358,14 @@ class Float(object):
     @classmethod
     def encode(cls, value, humanfriendly):
         if math.isinf(value):
-            return str(value).encode()
+            return six.ensure_binary(str(value))
         elif humanfriendly:
             # Algorithm from ld2string in redis
             out = '{:.17f}'.format(value)
             out = re.sub(r'(?:\.)?0+$', '', out)
-            return out.encode()
+            return six.ensure_binary(out)
         else:
-            return '{:.17g}'.format(value).encode()
+            return six.ensure_binary('{:.17g}'.format(value))
 
 
 class ScoreTest(object):
@@ -556,6 +566,27 @@ class FakeSocket(object):
             command_item.writeback()
         return result
 
+    def _decode_result(self, result):
+        if isinstance(result, list):
+            return [self._decode_result(r) for r in result]
+        elif isinstance(result, SimpleString):
+            return result.value
+        else:
+            return result
+
+    def _name_to_func(self, name):
+        # redis treats the command as NULL-terminated
+        if b'\0' in name:
+            name = name[:name.find(b'\0')]
+        name = six.ensure_str(name)
+        func_name = name.lower()
+        func = getattr(self, func_name, None)
+        if name.startswith('_') or not func or not hasattr(func, '_fakeredis_sig'):
+            # redis remaps \r or \n in an error to ' ' to make it legal protocol
+            clean_name = name.replace('\r', ' ').replace('\n', ' ')
+            raise redis.ResponseError(UNKNOWN_COMMAND_MSG.format(clean_name))
+        return func, func_name
+
     def sendall(self, command):
         try:
             if isinstance(command, list):
@@ -563,23 +594,14 @@ class FakeSocket(object):
             fields = self._parse_packed_command(command)
             if not fields:
                 return
-            name = fields[0]
-            # redis treats the command as NULL-terminated
-            if b'\0' in name:
-                name = name[:name.find(b'\0')]
-            name = nativestr(name)
-            func_name = name.lower()
-            func = getattr(self, func_name, None)
-            if name.startswith('_') or not func or not hasattr(func, '_fakeredis_sig'):
-                # redis remaps \r or \n in an error to ' ' to make it legal protocol
-                clean_name = name.replace('\r', ' ').replace('\n', ' ')
-                raise redis.ResponseError(UNKNOWN_COMMAND_MSG.format(clean_name))
+            func, func_name = self._name_to_func(fields[0])
             sig = func._fakeredis_sig
             with self._server.lock:
                 now = time.time()
                 for db in self._server.dbs.values():
                     db.time = now
                 sig.check_arity(fields[1:])
+                # TODO: make a signature attribute for transactions
                 if self._transaction is not None \
                         and func_name not in ('exec', 'discard', 'multi', 'watch'):
                     self._transaction.append((func, sig, fields[1:]))
@@ -593,6 +615,7 @@ class FakeSocket(object):
                 # e.g. watch inside multi
                 self._transaction_failed = True
             result = exc
+        result = self._decode_result(result)
         self.responses.put(result)
 
     def notify_watch(self):
@@ -659,12 +682,17 @@ class FakeSocket(object):
     # Key commands
     # TODO: lots
 
-    @command((Key(),), name='del')
-    def delete(self, key):
-        if not key:
-            return 0
+    @command((Key(),), (Key(),), name='del')
+    def delete(self, *keys):
+        ans = 0
+        done = set()
+        for key in keys:
+            if key and key.key not in done:
+                key.value = None
+                done.add(key.key)
+                ans += 1
         key.value = None
-        return 1
+        return ans
 
     @command((Key(),))
     def exists(self, key):
@@ -1182,6 +1210,7 @@ class FakeSocket(object):
             else:
                 stop += 1
             new_value = key.value[start:stop]
+            # TODO: check if this should actually be conditional
             if len(new_value) != len(key.value):
                 key.update(new_value)
         return OK
@@ -1406,6 +1435,155 @@ class FakeSocket(object):
             db.clear()
         # TODO: clear watches and/or pubsub as well?
         return OK
+
+    # Script commands
+    # TODO: eval, evalsha, script load, script exists, script flush
+    # (script debug and script kill will probably not be supported)
+
+    def _convert_redis_arg(self, lua_runtime, value):
+        from lupa import lua_type
+
+        if isinstance(value, bytes):
+            return six.ensure_binary(value)
+        elif isinstance(value, (int, float)):
+            return six.ensure_binary('{:.17g}'.format(value))
+        else:
+            # TODO: add a constant for this, and add the context
+            raise redis.ResponseError('Lua redis() command arguments must be strings or integers')
+
+    def _convert_redis_result(self, lua_runtime, result):
+        if isinstance(result, (bytes, int)):
+            return result
+        elif isinstance(result, SimpleString):
+            return lua_runtime.table_from({b"ok": result.value})
+        elif result is None:
+            return False
+        elif isinstance(result, dict):
+            converted = [
+                i
+                for item in result.items()
+                for i in item
+            ]
+            return lua_runtime.table_from(converted)
+        elif isinstance(result, set):
+            # Redis up to 4 (with default options) sorts sets when returning
+            # them to Lua, but only to make scripts deterministic for
+            # replication. Redis 5 no longer sorts, but we maintain the sort
+            # so that unit tests written against fakeredis are reproducible.
+            converted = sorted(
+                self._convert_redis_result(lua_runtime, item)
+                for item in result
+            )
+            return lua_runtime.table_from(converted)
+        elif isinstance(result, (list, tuple)):
+            converted = [
+                self._convert_redis_result(lua_runtime, item)
+                for item in result
+            ]
+            return lua_runtime.table_from(converted)
+        elif isinstance(result, bool):
+            return int(result)
+        elif isinstance(result, redis.ResponseError):
+            raise result
+        else:
+            raise RuntimeError("Unexpected return type from redis: {0}".format(type(result)))
+
+    def _convert_lua_result(self, result, nested=True):
+        from lupa import lua_type
+        if lua_type(result) == 'table':
+            for key in (b'ok', b'err'):
+                if key in result:
+                    msg = self._convert_lua_result(result[key])
+                    if not isinstance(msg, bytes):
+                        # TODO: put in a constant for this
+                        raise redis.ResponseError("wrong number or type of arguments")
+                    if key == b'ok':
+                        return SimpleString(msg)
+                    elif nested:
+                        return redis.ResponseError(msg)
+                    else:
+                        raise redis.ResponseError(msg)
+            # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
+            result_list = []
+            for index in itertools.count(1):
+                if index not in result:
+                    break
+                item = result[index]
+                result_list.append(self._convert_lua_result(item))
+            return result_list
+        elif isinstance(result, six.text_type):
+            return six.ensure_binary(result)
+        elif isinstance(result, float):
+            return int(result)
+        elif isinstance(result, bool):
+            return 1 if result else None
+        return result
+
+    def _check_for_lua_globals(self, lua_runtime, expected_globals):
+        actual_globals = set(lua_runtime.globals().keys())
+        if actual_globals != expected_globals:
+            # TODO: make a constant for this
+            raise redis.ResponseError(
+                b"Script attempted to set a global variables: %s" % b", ".join(
+                    actual_globals - expected_globals
+                )
+            )
+
+    def _lua_redis_call(self, lua_runtime, expected_globals, op, *args):
+        # Check if we've set any global variables before making any change.
+        self._check_for_lua_globals(lua_runtime, expected_globals)
+        func, func_name = self._name_to_func(op)
+        # TODO: certain commands are not allowed inside scripts. Set flags for this.
+        args = [self._convert_redis_arg(lua_runtime, arg) for arg in args]
+        result = self._run_command(func, func._fakeredis_sig, args)
+        return self._convert_redis_result(lua_runtime, result)
+
+    def _lua_redis_pcall(self, lua_runtime, expected_globals, op, *args):
+        try:
+            return self._lua_redis_call(lua_runtime, expected_globals, op, *args)
+        except Exception as ex:
+            return lua_runtime.table_from({b"err": str(ex)})
+
+    @command((bytes, Int), (bytes,))
+    def eval(self, script, numkeys, *keys_and_args):
+        from lupa import LuaRuntime, LuaError
+
+        if numkeys > len(keys_and_args):
+            raise redis.ResponseError(TOO_MANY_KEYS_MSG)
+        if numkeys < 0:
+            raise redis.ResponseError(NEGATIVE_KEYS_MSG)
+        lua_runtime = LuaRuntime(encoding=None, unpack_returned_tuples=True)
+
+        set_globals = lua_runtime.eval(
+            """
+            function(keys, argv, redis_call, redis_pcall)
+                redis = {}
+                redis.call = redis_call
+                redis.pcall = redis_pcall
+                redis.error_reply = function(msg) return {err=msg} end
+                redis.status_reply = function(msg) return {ok=msg} end
+                KEYS = keys
+                ARGV = argv
+            end
+            """
+        )
+        expected_globals = set()
+        set_globals(
+            lua_runtime.table_from(keys_and_args[:numkeys]),
+            lua_runtime.table_from(keys_and_args[numkeys:]),
+            functools.partial(self._lua_redis_call, lua_runtime, expected_globals),
+            functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals)
+        )
+        expected_globals.update(lua_runtime.globals().keys())
+
+        try:
+            result = lua_runtime.execute(script)
+        except LuaError as ex:
+            raise redis.ResponseError(str(ex))
+
+        self._check_for_lua_globals(lua_runtime, expected_globals)
+
+        return self._convert_lua_result(result, nested=False)
 
 
 setattr(FakeSocket, 'del', FakeSocket.delete)

@@ -648,9 +648,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('one'), None)
         self.assertEqual(self.redis.get('two'), None)
         self.assertEqual(self.redis.get('three'), b'three')
-        self.assertEqual(self.redis.delete('one', 'two'), False)
+        self.assertEqual(self.redis.delete('one', 'two'), 0)
         # If any keys are deleted, True is returned.
-        self.assertEqual(self.redis.delete('two', 'three'), True)
+        self.assertEqual(self.redis.delete('two', 'three', 'three'), 1)
         self.assertEqual(self.redis.get('three'), None)
 
     def test_delete_nonexistent_key(self):
