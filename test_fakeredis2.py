@@ -430,6 +430,10 @@ class ZSetMachine(BaseMachine):
     def zrevrange(self, key, start, stop, withscores):
         self._compare('zrevrange', key, start, stop, withscores)
 
+    @rule(key=keys, member=st.lists(fields))
+    def zrem(self, key, member):
+        self._compare('zrem', key, *member)
+
 
 TestZSet = ZSetMachine.TestCase
 

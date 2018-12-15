@@ -28,6 +28,14 @@ class ZSet(object):
     def __len__(self):
         return len(self._bylex)
 
+    def discard(self, key):
+        try:
+            score = self._bylex.pop(key)
+        except KeyError:
+            return
+        else:
+            self._byscore.remove((score, key))
+
     def zcount(self, min_, max_):
         pos1 = self._byscore.bisect_left(min_)
         pos2 = self._byscore.bisect_left(max_)

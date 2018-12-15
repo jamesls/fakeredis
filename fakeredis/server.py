@@ -1415,6 +1415,14 @@ class FakeSocket(object):
     def zrevrangebylex(self, key, max, min, *args):
         return self._zrangebylex(key, min, max, True, *args)
 
+    @command((Key(ZSet), bytes), (bytes,))
+    def zrem(self, key, *members):
+        old_size = len(key.value)
+        for member in members:
+            key.value.discard(member)
+        key.updated()
+        return old_size - len(key.value)
+
     # Server commands
     # TODO: lots
 
