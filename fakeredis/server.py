@@ -35,6 +35,7 @@ INVALID_INT_MSG = "value is not an integer or out of range"
 INVALID_FLOAT_MSG = "value is not a valid float"
 INVALID_OFFSET_MSG = "offset is out of range"
 INVALID_BIT_OFFSET_MSG = "bit offset is not an integer or out of range"
+INVALID_BIT_VALUE_MSG = "bit is not an integer or out of range"
 INVALID_DB_MSG = "DB index is out of range"
 INVALID_MIN_MAX_FLOAT_MSG = "min or max is not a float"
 INVALID_MIN_MAX_STR_MSG = "min or max not a valid string range item"
@@ -318,6 +319,14 @@ class BitOffset(Int):
     @classmethod
     def valid(cls, value):
         return 0 <= value < 8 * MAX_STRING_SIZE     # Redis imposes 512MB limit on keys
+
+
+class BitValue(Int):
+    DECODE_ERROR = INVALID_BIT_VALUE_MSG
+
+    @classmethod
+    def valid(cls, value):
+        return 0 <= value <= 1
 
 
 class DbIndex(Int):
@@ -925,6 +934,28 @@ class FakeSocket(object):
         except IndexError:
             return 0
         return 1 if (1 << actual_bitoffset) & actual_val else 0
+
+    @command((Key(bytes), BitOffset, BitValue))
+    def setbit(self, key, offset, value):
+        val = key.get(b'\x00')
+        byte = offset // 8
+        remaining = offset % 8
+        actual_bitoffset = 7 - remaining
+        if len(val) - 1 < byte:
+            # We need to expand val so that we can set the appropriate
+            # bit.
+            needed = byte - (len(val) - 1)
+            val += b'\x00' * needed
+        old_byte = byte_to_int(val[byte])
+        if value == 1:
+            new_byte = old_byte | (1 << actual_bitoffset)
+        else:
+            new_byte = old_byte & ~(1 << actual_bitoffset)
+        old_value = value if old_byte == new_byte else 1 - value
+        reconstructed = bytearray(val)
+        reconstructed[byte] = new_byte
+        key.value = bytes(reconstructed)
+        return old_value
 
     @command((Key(bytes), Int, Int))
     def getrange(self, key, start, end):

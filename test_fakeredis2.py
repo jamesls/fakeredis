@@ -172,6 +172,10 @@ class StringMachine(BaseMachine):
     def getbit(self, key, offset):
         self._compare('getbit', key, offset)
 
+    @rule(key=keys, offset=counts, value=st.integers(min_value=0, max_value=1) | st.integers())
+    def setbit(self, key, offset, value):
+        self._compare('setbit', key, offset, value)
+
     @rule(key=keys, start=counts, end=counts)
     def getrange(self, key, start, end):
         self._compare('getrange', key, start, end)
