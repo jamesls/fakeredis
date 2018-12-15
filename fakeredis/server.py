@@ -657,6 +657,50 @@ class FakeSocket(object):
         end = min(end, length - 1)
         return start, end + 1
 
+    def _scan(self, keys, cursor, *args):
+        """
+        This is the basis of most of the ``scan`` methods.
+
+        This implementation is KNOWN to be un-performant, as it requires
+        grabbing the full set of keys over which we are investigating subsets.
+
+        It also doesn't adhere to the guarantee that every key will be iterated
+        at least once even if the database is modified during the scan.
+        However, provided the database is not modified, every key will be
+        returned exactly once.
+        """
+        pattern = None
+        count = 10
+        if len(args) % 2 != 0:
+            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+        for i in range(0, len(args), 2):
+            if args[i].lower() == b'match':
+                pattern = args[i + 1]
+            elif args[i].lower() == b'count':
+                count = Int.decode(args[i + 1])
+                if count <= 0:
+                    raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            else:
+                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+
+        if cursor >= len(keys):
+            return [0, []]
+        data = sorted(keys)
+        result_cursor = cursor + count
+        result_data = []
+
+        if pattern is not None:
+            regex = compile_pattern(pattern)
+            for val in itertools.islice(data, cursor, result_cursor):
+                if regex.match(val):
+                    result_data.append(val)
+        else:
+            result_data = data[cursor:result_cursor]
+
+        if result_cursor >= len(data):
+            result_cursor = 0
+        return [result_cursor, result_data]
+
     # Connection commands
     # TODO: auth, quit
 
@@ -799,6 +843,10 @@ class FakeSocket(object):
             return 0
         self.rename(key, newkey)
         return 1
+
+    @command((Int,), (bytes, bytes))
+    def scan(self, cursor, *args):
+        return self._scan(self.keys(), cursor, *args)
 
     # Transaction commands
 
@@ -1077,7 +1125,7 @@ class FakeSocket(object):
         return len(key.get(b''))
 
     # Hash commands
-    # TODO: hincrby, hincrbyfloat, hscan
+    # TODO: hincrby, hincrbyfloat
 
     @command((Key(Hash), bytes), (bytes,))
     def hdel(self, key, *fields):
@@ -1120,6 +1168,15 @@ class FakeSocket(object):
             key.value[args[i]] = args[i + 1]
             key.updated()
         return OK
+
+    @command((Key(Hash), Int,), (bytes, bytes))
+    def hscan(self, key, cursor, *args):
+        cursor, keys = self._scan(key.value, cursor, *args)
+        items = []
+        for k in keys:
+            items.append(k)
+            items.append(key.value[k])
+        return [cursor, items]
 
     @command((Key(Hash), bytes, bytes))
     def hset(self, key, field, value):
@@ -1275,7 +1332,7 @@ class FakeSocket(object):
         return self.rpush(key, *values)
 
     # Set commands
-    # TODO: spop, srandmember, sscan
+    # TODO: spop, srandmember
 
     @command((Key(set), bytes), (bytes,))
     def sadd(self, key, *members):
@@ -1341,6 +1398,10 @@ class FakeSocket(object):
             key.value.discard(member)
             key.updated()
         return old_size - len(key.value)
+
+    @command((Key(set), Int), (bytes, bytes))
+    def sscan(self, key, cursor, *args):
+        return self._scan(key.value, cursor, *args)
 
     @command((Key(set),), (Key(set),))
     def sunion(self, *keys):
@@ -1453,6 +1514,10 @@ class FakeSocket(object):
             key.value.discard(member)
         key.updated()
         return old_size - len(key.value)
+
+    @command((Key(ZSet), Int), (bytes, bytes))
+    def zscan(self, key, cursor, *args):
+        return self._scan(key.value.items, cursor, *args)
 
     # Server commands
     # TODO: lots
