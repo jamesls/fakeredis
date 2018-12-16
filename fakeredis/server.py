@@ -1002,7 +1002,7 @@ class FakeSocket(object):
         old_value = value if old_byte == new_byte else 1 - value
         reconstructed = bytearray(val)
         reconstructed[byte] = new_byte
-        key.value = bytes(reconstructed)
+        key.update(bytes(reconstructed))
         return old_value
 
     @command((Key(bytes), Int, Int))
@@ -1125,7 +1125,6 @@ class FakeSocket(object):
         return len(key.get(b''))
 
     # Hash commands
-    # TODO: hincrby, hincrbyfloat
 
     @command((Key(Hash), bytes), (bytes,))
     def hdel(self, key, *fields):
@@ -1149,6 +1148,23 @@ class FakeSocket(object):
     @command((Key(Hash),))
     def hgetall(self, key):
         return list(itertools.chain(*key.value.items()))
+
+    @command((Key(Hash), bytes, Int))
+    def hincrby(self, key, field, amount):
+        c = Int.decode(key.value.get(field, b'0')) + amount
+        key.value[field] = Int.encode(c)
+        key.updated()
+        return c
+
+    @command((Key(Hash), bytes, bytes))
+    def hincrbyfloat(self, key, field, amount):
+        c = Float.decode(key.value.get(field, b'0')) + Float.decode(amount)
+        if not math.isfinite(c):
+            raise redis.ResponseError(NONFINITE_MSG)
+        encoded = Float.encode(c, True)
+        key.value[field] = encoded
+        key.updated()
+        return encoded
 
     @command((Key(Hash),))
     def hkeys(self, key):

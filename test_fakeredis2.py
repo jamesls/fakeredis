@@ -249,6 +249,13 @@ class HashMachine(BaseMachine):
     def hgetall(self, key):
         self._compare('hgetall', key)
 
+    @rule(key=keys, field=fields, increment=st.integers())
+    def hincrby(self, key, field, increment):
+        self._compare('hincrby', key, field, increment)
+
+    # TODO: add a test for hincrbyfloat. See incrbyfloat for why this is
+    # problematic
+
     @rule(key=keys)
     def hkeys(self, key):
         self._compare('hkeys', key)
