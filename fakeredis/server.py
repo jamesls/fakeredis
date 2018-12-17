@@ -1733,7 +1733,7 @@ class FakeConnection(redis.Connection):
         self._description_args = {'db': self.db}
         self._connect_callbacks = []
         self._buffer_cutoff = 6000
-        self._server = FakeServer()
+        self._server = server
         # self._parser isn't used for anything, but some of the
         # base class methods depend on it and it's easier not to
         # override them.
