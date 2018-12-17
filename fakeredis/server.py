@@ -915,7 +915,7 @@ class FakeSocket(object):
             raise redis.ResponseError(WATCH_INSIDE_MULTI_MSG)
         for key in keys:
             if key not in self._watches:
-                self._watches.add((key, self._db))
+                self._watches.add((key.key, self._db))
                 self._db.add_watch(key.key, self)
         return OK
 
