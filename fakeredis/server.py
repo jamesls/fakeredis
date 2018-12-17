@@ -54,6 +54,7 @@ WITHOUT_MULTI_MSG = "{} without MULTI"
 WATCH_INSIDE_MULTI_MSG = "WATCH inside MULTI is not allowed"
 NEGATIVE_KEYS_MSG = "Number of keys can't be negative"
 TOO_MANY_KEYS_MSG = "Number of keys can't be greater than number of args"
+TIMEOUT_NEGATIVE_MSG = "timeout is negative"
 
 
 class SimpleString(object):
@@ -215,10 +216,11 @@ class CommandItem(object):
 
 
 class Database(MutableMapping):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, lock, *args, **kwargs):
         self._dict = dict(*args, **kwargs)
         self.time = 0.0
         self._watches = defaultdict(set)      # key to set of connections
+        self.condition = threading.Condition(lock)
 
     def swap(self, other):
         self._dict, other._dict = other._dict, self._dict
@@ -228,6 +230,7 @@ class Database(MutableMapping):
     def notify_watch(self, key):
         for sock in self._watches.get(key, set()):
             sock.notify_watch()
+        self.condition.notify_all()
 
     def add_watch(self, key, sock):
         self._watches[key].add(sock)
@@ -289,10 +292,12 @@ class Int(object):
 
     DECODE_ERROR = INVALID_INT_MSG
     ENCODE_ERROR = OVERFLOW_MSG
+    MIN_VALUE = -2**63
+    MAX_VALUE = 2**63 - 1
 
     @classmethod
     def valid(cls, value):
-        return -2**63 <= value < 2**63
+        return cls.MIN_VALUE <= value <= cls.MAX_VALUE
 
     @classmethod
     def decode(cls, value):
@@ -316,28 +321,29 @@ class BitOffset(Int):
     """Argument converter for unsigned bit positions"""
 
     DECODE_ERROR = INVALID_BIT_OFFSET_MSG
-
-    @classmethod
-    def valid(cls, value):
-        return 0 <= value < 8 * MAX_STRING_SIZE     # Redis imposes 512MB limit on keys
+    MIN_VALUE = 0
+    MAX_VALUE = 8 * MAX_STRING_SIZE - 1     # Redis imposes 512MB limit on keys
 
 
 class BitValue(Int):
     DECODE_ERROR = INVALID_BIT_VALUE_MSG
-
-    @classmethod
-    def valid(cls, value):
-        return 0 <= value <= 1
+    MIN_VALUE = 0
+    MAX_VALUE = 1
 
 
 class DbIndex(Int):
-    """Argument converted for databased indices"""
+    """Argument converter for database indices"""
 
     DECODE_ERROR = INVALID_DB_MSG
+    MIN_VALUE = 0
+    MAX_VALUE = 15
 
-    @classmethod
-    def valid(cls, value):
-        return 0 <= value < 16
+
+class Timeout(Int):
+    """Argument converter for timeouts"""
+
+    DECODE_ERROR = TIMEOUT_NEGATIVE_MSG
+    MIN_VALUE = 0
 
 
 class Float(object):
@@ -527,8 +533,8 @@ def command(*args, **kwargs):
 
 class FakeServer(object):
     def __init__(self):
-        self.dbs = defaultdict(Database)
         self.lock = threading.Lock()
+        self.dbs = defaultdict(lambda: Database(self.lock))
 
 
 class FakeSocket(object):
@@ -1231,6 +1237,50 @@ class FakeSocket(object):
 
     # List commands
     # TODO: blocking commands
+
+    def _bpop_pass(self, keys, op, first_pass):
+        for key in keys:
+            item = CommandItem(key, self._db, item=self._db.get(key), default=[])
+            if not isinstance(item.value, list):
+                if first_pass:
+                    raise redis.ResponseError(WRONGTYPE_MSG)
+                else:
+                    continue
+            if item.value:
+                ret = op(item.value)
+                item.updated()
+                item.writeback()
+                return [key, ret]
+        return None
+
+    def _bpop(self, keys, timeout, op):
+        ret = self._bpop_pass(keys, op, True)
+        if ret is not None:
+            return ret
+        # TODO: bail out here if inside a transaction
+        if timeout:
+            deadline = time.time() + timeout
+        else:
+            deadline = None
+        while True:
+            timeout = deadline - time.time() if deadline is not None else None
+            if not self._db.condition.wait(timeout=timeout):
+                return None     # Timeout expired
+            ret = self._bpop_pass(keys, op, False)
+            if ret is not None:
+                return ret
+
+    @command((bytes, bytes), (bytes,))
+    def blpop(self, *args):
+        keys = args[:-1]
+        timeout = Timeout.decode(args[-1])
+        return self._bpop(keys, timeout, lambda lst: lst.pop(0))
+
+    @command((bytes, bytes), (bytes,))
+    def brpop(self, *args):
+        keys = args[:-1]
+        timeout = Timeout.decode(args[-1])
+        return self._bpop(keys, timeout, lambda lst: lst.pop())
 
     @command((Key(list, None), Int))
     def lindex(self, key, index):
