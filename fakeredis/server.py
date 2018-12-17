@@ -602,6 +602,35 @@ class FakeSocket(object):
         else:
             return result
 
+    def _blocking(self, timeout, func):
+        """Run a function until it succeeds or timeout is reached.
+
+        The timeout must be an integer, and 0 means infinite. The function
+        is called with a boolean to indicate whether this is the first call.
+        If it returns None it is considered to have "failed" and is retried
+        each time the condition variable is notified, until the timeout is
+        reached.
+
+        Returns the function return value, or None if the timeout was reached.
+        """
+        ret = func(True)
+        if ret is not None:
+            return ret
+        # TODO: check if this is part of a transaction
+        if timeout:
+            deadline = time.time() + timeout
+        else:
+            deadline = None
+        while True:
+            timeout = deadline - time.time() if deadline is not None else None
+            if timeout <= 0:
+                return None
+            if not self._db.condition.wait(timeout=timeout):
+                return None     # Timeout expired
+            ret = func(False)
+            if ret is not None:
+                return ret
+
     def _name_to_func(self, name):
         # redis treats the command as NULL-terminated
         if b'\0' in name:
@@ -1253,34 +1282,45 @@ class FakeSocket(object):
                 return [key, ret]
         return None
 
-    def _bpop(self, keys, timeout, op):
-        ret = self._bpop_pass(keys, op, True)
-        if ret is not None:
-            return ret
-        # TODO: bail out here if inside a transaction
-        if timeout:
-            deadline = time.time() + timeout
-        else:
-            deadline = None
-        while True:
-            timeout = deadline - time.time() if deadline is not None else None
-            if not self._db.condition.wait(timeout=timeout):
-                return None     # Timeout expired
-            ret = self._bpop_pass(keys, op, False)
-            if ret is not None:
-                return ret
+    def _bpop(self, args, op):
+        keys = args[:-1]
+        timeout = Timeout.decode(args[-1])
+        return self._blocking(timeout, functools.partial(self._bpop_pass, keys, op))
 
     @command((bytes, bytes), (bytes,))
     def blpop(self, *args):
-        keys = args[:-1]
-        timeout = Timeout.decode(args[-1])
-        return self._bpop(keys, timeout, lambda lst: lst.pop(0))
+        return self._bpop(args, lambda lst: lst.pop(0))
 
     @command((bytes, bytes), (bytes,))
     def brpop(self, *args):
-        keys = args[:-1]
-        timeout = Timeout.decode(args[-1])
-        return self._bpop(keys, timeout, lambda lst: lst.pop())
+        return self._bpop(args, lambda lst: lst.pop())
+
+    def _brpoplpush_pass(self, source, destination, first_pass):
+        src = CommandItem(source, self._db, item=self._db.get(source), default=[])
+        if not isinstance(src.value, list):
+            if first_pass:
+                raise redis.ResponseError(WRONGTYPE_MSG)
+            else:
+                return None
+        if not src.value:
+            return None    # Empty list
+        dst = CommandItem(destination, self._db, item=self._db.get(destination), default=[])
+        if not isinstance(dst.value, list):
+            raise redis.ResponseError(WRONGTYPE_MSG)
+        el = src.value.pop()
+        dst.value.insert(0, el)
+        src.updated()
+        src.writeback()
+        if destination != source:
+            # Ensure writeback only happens once
+            dst.updated()
+            dst.writeback()
+        return el
+
+    @command((bytes, bytes, Timeout))
+    def brpoplpush(self, source, destination, timeout):
+        return self._blocking(timeout,
+                              functools.partial(self._brpoplpush_pass, source, destination))
 
     @command((Key(list, None), Int))
     def lindex(self, key, index):
