@@ -555,9 +555,10 @@ class FakeSocket(object):
         self.responses = None
 
     @staticmethod
-    def _parse_packed_command(command):
-        fp = io.BytesIO(command)
+    def _parse_packed_command(fp):
         line = fp.readline()
+        if line == b'':
+            return None
         assert line[:1] == b'*'        # array
         assert line[-2:] == b'\r\n'
         n_fields = int(line[1:-2])
@@ -608,36 +609,36 @@ class FakeSocket(object):
             raise redis.ResponseError(UNKNOWN_COMMAND_MSG.format(clean_name))
         return func, func_name
 
-    def sendall(self, command):
-        try:
-            if isinstance(command, list):
-                command = b''.join(command)
-            fields = self._parse_packed_command(command)
-            if not fields:
-                return
-            func, func_name = self._name_to_func(fields[0])
-            sig = func._fakeredis_sig
-            with self._server.lock:
-                now = time.time()
-                for db in self._server.dbs.values():
-                    db.time = now
-                sig.check_arity(fields[1:])
-                # TODO: make a signature attribute for transactions
-                if self._transaction is not None \
-                        and func_name not in ('exec', 'discard', 'multi', 'watch'):
-                    self._transaction.append((func, sig, fields[1:]))
-                    result = QUEUED
-                else:
-                    result = self._run_command(func, sig, fields[1:])
-                # TODO: decode results if requested
-        except redis.ResponseError as exc:
-            if self._transaction is not None:
-                # TODO: should not apply if the exception is from _run_command
-                # e.g. watch inside multi
-                self._transaction_failed = True
-            result = exc
-        result = self._decode_result(result)
-        self.responses.put(result)
+    def sendall(self, data):
+        fp = io.BytesIO(data)
+        while True:
+            try:
+                fields = self._parse_packed_command(fp)
+                if not fields:
+                    break
+                func, func_name = self._name_to_func(fields[0])
+                sig = func._fakeredis_sig
+                with self._server.lock:
+                    now = time.time()
+                    for db in self._server.dbs.values():
+                        db.time = now
+                    sig.check_arity(fields[1:])
+                    # TODO: make a signature attribute for transactions
+                    if self._transaction is not None \
+                            and func_name not in ('exec', 'discard', 'multi', 'watch'):
+                        self._transaction.append((func, sig, fields[1:]))
+                        result = QUEUED
+                    else:
+                        result = self._run_command(func, sig, fields[1:])
+                    # TODO: decode results if requested
+            except redis.ResponseError as exc:
+                if self._transaction is not None:
+                    # TODO: should not apply if the exception is from _run_command
+                    # e.g. watch inside multi
+                    self._transaction_failed = True
+                result = exc
+            result = self._decode_result(result)
+            self.responses.put(result)
 
     def notify_watch(self):
         self._watch_notified = True
