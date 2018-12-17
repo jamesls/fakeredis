@@ -940,7 +940,7 @@ class FakeStrictRedis(object):
 
         now = datetime.now()
         if now > exp_time:
-            return None
+            return -2  # expired key acts as if it didn't exist
         else:
             return long(round(((exp_time - now).days * 3600 * 24 +
                         (exp_time - now).seconds +
