@@ -64,6 +64,7 @@ class SimpleString(object):
 
 OK = SimpleString(b'OK')
 QUEUED = SimpleString(b'QUEUED')
+PONG = SimpleString(b'PONG')
 
 
 # TODO: Python 2 support
@@ -505,6 +506,16 @@ class Signature(object):
         return args, command_items
 
 
+def valid_response_type(value):
+    if value is not None and not isinstance(value, (bytes, SimpleString, redis.ResponseError,
+                                                    int, list)):
+        return False
+    if isinstance(value, list):
+        if any(not valid_response_type(item) for item in value):
+            return False
+    return True
+
+
 def command(*args, **kwargs):
     def decorator(func):
         name = kwargs.pop('name', func.__name__)
@@ -569,6 +580,7 @@ class FakeSocket(object):
             else:
                 args, command_items = ret
                 result = func(*args)
+                assert valid_response_type(result)
         except redis.ResponseError as exc:
             result = exc
         for command_item in command_items:
@@ -712,7 +724,7 @@ class FakeSocket(object):
     def ping(self, *args):
         # TODO: behaves differently on a pubsub connection
         if len(args) == 0:
-            return "PONG"
+            return PONG
         elif len(args) == 1:
             return args[0]
         else:
@@ -1478,7 +1490,7 @@ class FakeSocket(object):
             out = []
             for item in items:
                 out.append(item[1])
-                out.append(item[0])
+                out.append(Float.encode(item[0], False))
         else:
             out = [item[1] for item in items]
         return out
