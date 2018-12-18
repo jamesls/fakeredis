@@ -1691,7 +1691,7 @@ class FakeSocket(object):
         return self._setop(lambda a, b: a | b, dst, *keys)
 
     # Sorted set commands
-    # TODO: blocking commands, set operations, zpopmin/zpopmax
+    # TODO: blocking commands, set operations, zscore, zpopmin/zpopmax
     @command((Key(ZSet), bytes, bytes), (bytes,))
     def zadd(self, key, *args):
         # TODO: handle NX, XX, CH, INCR
@@ -1785,6 +1785,20 @@ class FakeSocket(object):
     @command((Key(ZSet), StringTest, StringTest), (bytes,))
     def zrevrangebylex(self, key, max, min, *args):
         return self._zrangebylex(key, min, max, True, *args)
+
+    @command((Key(ZSet), bytes))
+    def zrank(self, key, member):
+        try:
+            return key.value.rank(member)
+        except KeyError:
+            return None
+
+    @command((Key(ZSet), bytes))
+    def zrevrank(self, key, member):
+        try:
+            return len(key.value) - 1 - key.value.rank(member)
+        except KeyError:
+            return None
 
     @command((Key(ZSet), bytes), (bytes,))
     def zrem(self, key, *members):

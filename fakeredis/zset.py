@@ -65,5 +65,8 @@ class ZSet(object):
     def irange_lex(self, start, stop, inclusive=(True, True), reverse=False):
         return self._bylex.irange(start, stop, inclusive=inclusive, reverse=reverse)
 
+    def rank(self, member):
+        return self._byscore.index((self._bylex[member], member))
+
     def items(self):
         return self._bylex.items()
