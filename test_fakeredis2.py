@@ -110,6 +110,10 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     def renamenx(self, key, newkey):
         self._compare('renamenx', key, newkey)
 
+    @rule(key=keys)
+    def type(self, key):
+        self._compare('type', key)
+
 
 class ConnectionMachine(BaseMachine):
     # TODO: tests for select, swapdb

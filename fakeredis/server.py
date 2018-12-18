@@ -856,6 +856,23 @@ class FakeSocket(object):
         return self._ttl(key, 1000.0)
 
     @command((Key(),))
+    def type(self, key):
+        if key.value is None:
+            return SimpleString(b'none')
+        elif isinstance(key.value, bytes):
+            return SimpleString(b'string')
+        elif isinstance(key.value, list):
+            return SimpleString(b'list')
+        elif isinstance(key.value, set):
+            return SimpleString(b'set')
+        elif isinstance(key.value, ZSet):
+            return SimpleString(b'zset')
+        elif isinstance(key.value, dict):
+            return SimpleString(b'hash')
+        else:
+            assert False
+
+    @command((Key(),))
     def persist(self, key):
         if key.expireat is None:
             return 0
