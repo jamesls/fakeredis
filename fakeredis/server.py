@@ -1691,7 +1691,8 @@ class FakeSocket(object):
         return self._setop(lambda a, b: a | b, dst, *keys)
 
     # Sorted set commands
-    # TODO: blocking commands, set operations, zscore, zpopmin/zpopmax
+    # TODO: blocking commands, set operations, zrem*, z[rev]rangebyscore, zpopmin/zpopmax,
+    # probably some that I've missed
     @command((Key(ZSet), bytes, bytes), (bytes,))
     def zadd(self, key, *args):
         # TODO: handle NX, XX, CH, INCR
@@ -1811,6 +1812,13 @@ class FakeSocket(object):
     @command((Key(ZSet), Int), (bytes, bytes))
     def zscan(self, key, cursor, *args):
         return self._scan(key.value.items, cursor, *args)
+
+    @command((Key(ZSet), bytes))
+    def zscore(self, key, member):
+        try:
+            return Float.encode(key.value[member], False)
+        except KeyError:
+            return None
 
     # Server commands
     # TODO: lots

@@ -457,6 +457,10 @@ class ZSetMachine(BaseMachine):
     def zrem(self, key, member):
         self._compare('zrem', key, *member)
 
+    @rule(key=keys, member=fields)
+    def zscore(self, key, member):
+        self._compare('zscore', key, member)
+
     # TODO: zscan
 
 
