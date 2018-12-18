@@ -66,6 +66,7 @@ class SimpleString(object):
 OK = SimpleString(b'OK')
 QUEUED = SimpleString(b'QUEUED')
 PONG = SimpleString(b'PONG')
+BGSAVE_STARTED = SimpleString(b'Background saving started')
 
 
 # TODO: Python 2 support
@@ -535,6 +536,7 @@ class FakeServer(object):
     def __init__(self):
         self.lock = threading.Lock()
         self.dbs = defaultdict(lambda: Database(self.lock))
+        self.lastsave = int(time.time())
 
 
 class FakeSocket(object):
@@ -623,7 +625,7 @@ class FakeSocket(object):
             deadline = None
         while True:
             timeout = deadline - time.time() if deadline is not None else None
-            if timeout <= 0:
+            if timeout is not None and timeout <= 0:
                 return None
             if not self._db.condition.wait(timeout=timeout):
                 return None     # Timeout expired
@@ -1641,6 +1643,11 @@ class FakeSocket(object):
     # Server commands
     # TODO: lots
 
+    @command(())
+    def bgsave(self):
+        self._server.lastsave = int(time.time())
+        return BGSAVE_STARTED
+
     @command((), (bytes,))
     def flushdb(self, *args):
         if args:
@@ -1657,6 +1664,15 @@ class FakeSocket(object):
         for db in self._server.dbs.values():
             db.clear()
         # TODO: clear watches and/or pubsub as well?
+        return OK
+
+    @command(())
+    def lastsave(self):
+        return self._server.lastsave
+
+    @command(())
+    def save(self):
+        self._server.lastsave = int(time.time())
         return OK
 
     # Script commands

@@ -511,6 +511,10 @@ TestTransaction = TransactionMachine.TestCase
 
 
 class ServerMachine(StringMachine):
+    @rule()
+    def bgsave(self):
+        self._compare('bgsave')
+
     @rule(asynchronous=st.booleans())
     def flushdb(self, asynchronous):
         self._compare('flushdb', asynchronous=asynchronous)
@@ -518,6 +522,15 @@ class ServerMachine(StringMachine):
     @rule(asynchronous=st.booleans())
     def flushall(self, asynchronous):
         self._compare('flushall', asynchronous=asynchronous)
+
+    # TODO: result is non-deterministic
+    # @rule()
+    # def lastsave(self):
+    #     self._compare('lastsave')
+
+    @rule()
+    def save(self):
+        self._compare('save')
 
 
 TestServer = ServerMachine.TestCase
