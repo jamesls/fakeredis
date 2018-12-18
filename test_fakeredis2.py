@@ -547,5 +547,8 @@ class JointMachine(TransactionMachine, ServerMachine, ConnectionMachine,
     def bad_command(self, command, args):
         self._compare('execute_command', command, *args)
 
+    # TODO: introduce rule for SORT. It'll need a rather complex
+    # strategy to cover all the cases.
+
 
 TestJoint = JointMachine.TestCase

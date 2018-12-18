@@ -43,6 +43,7 @@ STRING_OVERFLOW_MSG = "string exceeds maximum allowed size (512MB)"
 OVERFLOW_MSG = "increment or decrement would overflow"
 NONFINITE_MSG = "increment would produce NaN or Infinity"
 SCORE_NAN_MSG = "resulting score is not a number (NaN)"
+INVALID_SORT_FLOAT_MSG = "One or more scores can't be converted into double"
 SRC_DST_SAME_MSG = "source and destination objects are the same"
 NO_KEY_MSG = "no such key"
 INDEX_ERROR_MSG = "index out of range"
@@ -355,11 +356,17 @@ class Float(object):
     long double.
     """
 
+    DECODE_ERROR = INVALID_FLOAT_MSG
+
     @classmethod
-    def decode(cls, value):
+    def decode(cls, value, allow_leading_whitespace=False):
         try:
-            if value[:1].isspace():
-                raise ValueError       # redis explicitly rejects this
+            # redis explicitly disallows leading whitespace, and implicitly
+            # rejects trailing whitespace, except for sorting
+            if not allow_leading_whitespace and value[:1].isspace():
+                raise ValueError
+            if value[-1:].isspace():
+                raise ValueError
             out = float(value)
             if math.isnan(out):
                 raise ValueError
@@ -370,7 +377,7 @@ class Float(object):
                 raise ValueError
             return out
         except ValueError:
-            raise redis.ResponseError(INVALID_FLOAT_MSG)
+            raise redis.ResponseError(cls.DECODE_ERROR)
 
     @classmethod
     def encode(cls, value, humanfriendly):
@@ -383,6 +390,14 @@ class Float(object):
             return six.ensure_binary(out)
         else:
             return six.ensure_binary('{:.17g}'.format(value))
+
+
+class SortFloat(Float):
+    DECODE_ERROR = INVALID_SORT_FLOAT_MSG
+
+    @classmethod
+    def decode(cls, value):
+        return super(SortFloat, cls).decode(value, allow_leading_whitespace=True)
 
 
 class ScoreTest(object):
@@ -897,6 +912,132 @@ class FakeSocket(object):
     @command((Int,), (bytes, bytes))
     def scan(self, cursor, *args):
         return self._scan(list(self._db), cursor, *args)
+
+    def _lookup_key(self, key, pattern):
+        """Python implementation of lookupKeyByPattern from redis"""
+        if pattern == b'#':
+            return key
+        p = pattern.find(b'*')
+        if p == -1:
+            return None
+        prefix = pattern[:p]
+        suffix = pattern[p+1:]
+        arrow = suffix.find(b'->', 0, -1)
+        if arrow != -1:
+            field = suffix[arrow+2:]
+            suffix = suffix[:arrow]
+        else:
+            field = None
+        new_key = prefix + key + suffix
+        item = CommandItem(new_key, self._db, item=self._db.get(new_key))
+        if item.value is None:
+            return None
+        if field is not None:
+            if not isinstance(item.value, dict):
+                return None
+            return item.value.get(field)
+        else:
+            if not isinstance(item.value, bytes):
+                return None
+            return item.value
+
+    @command((Key(),), (bytes,))
+    def sort(self, key, *args):
+        i = 0
+        desc = False
+        alpha = False
+        limit_start = 0
+        limit_count = -1
+        store = None
+        sortby = None
+        dontsort = False
+        get = []
+        if key.value is not None:
+            if not isinstance(key.value, (set, list, ZSet)):
+                raise redis.ResponseError(WRONGTYPE_MSG)
+
+        while i < len(args):
+            arg = args[i].lower()
+            if arg == b'asc':
+                desc = False
+            elif arg == b'desc':
+                desc = True
+            elif arg == b'alpha':
+                alpha = True
+            elif arg == b'limit' and i + 2 < len(args):
+                try:
+                    limit_start = Int.decode(args[i + 1])
+                    limit_count = Int.decode(args[i + 2])
+                except redis.ResponseError:
+                    raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                else:
+                    i += 2
+            elif arg == b'store' and i + 1 < len(args):
+                store = args[i + 1]
+                i += 1
+            elif arg == b'by' and i + 1 < len(args):
+                sortby = args[i + 1]
+                if b'*' not in sortby:
+                    dontsort = True
+                i += 1
+            elif arg == b'get' and i + 1 < len(args):
+                get.append(args[i + 1])
+                i += 1
+            else:
+                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            i += 1
+
+        # TODO: force sorting if the object is a set and either in Lua or
+        # storing to a key, to match redis behaviour.
+        items = list(key.value) if key.value is not None else []
+
+        # These transformations are based on the redis implementation, but
+        # changed to produce a half-open range.
+        start = max(limit_start, 0)
+        end = len(items) if limit_count < 0 else start + limit_count
+        if start >= len(items):
+            start = end = len(items) - 1
+        end = min(end, len(items))
+
+        if not get:
+            get.append(b'#')
+        if sortby is None:
+            sortby = b'#'
+
+        if not dontsort:
+            if alpha:
+                def sort_key(v):
+                    byval = self._lookup_key(v, sortby)
+                    # TODO: use locale.strxfrm when not storing? But then need
+                    # to decode too.
+                    if byval is None:
+                        byval = BeforeAny()
+                    return byval
+
+            else:
+                def sort_key(v):
+                    byval = self._lookup_key(v, sortby)
+                    score = SortFloat.decode(byval) if byval is not None else 0.0
+                    return (score, v)
+
+            items.sort(key=sort_key, reverse=desc)
+        elif isinstance(key.value, (list, ZSet)):
+            items.reverse()
+
+        out = []
+        for row in items[start:end]:
+            for g in get:
+                v = self._lookup_key(row, g)
+                if store is not None and v is None:
+                    v = b''
+                out.append(v)
+        if store is not None:
+            item = CommandItem(store, self._db, item=self._db.get(store))
+            item.value = out
+            item.writeback()
+            return len(out)
+        else:
+            return out
 
     # Transaction commands
 

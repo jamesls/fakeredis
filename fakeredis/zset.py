@@ -28,6 +28,13 @@ class ZSet(object):
     def __len__(self):
         return len(self._bylex)
 
+    def __iter__(self):
+        def gen():
+            for score, value in self._byscore:
+                yield value
+
+        return gen
+
     def discard(self, key):
         try:
             score = self._bylex.pop(key)
