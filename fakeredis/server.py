@@ -47,6 +47,7 @@ INVALID_SORT_FLOAT_MSG = "One or more scores can't be converted into double"
 SRC_DST_SAME_MSG = "source and destination objects are the same"
 NO_KEY_MSG = "no such key"
 INDEX_ERROR_MSG = "index out of range"
+ZUNIONSTORE_KEYS_MSG = "at least 1 input key is needed for ZUNIONSTORE/ZINTERSTORE"
 WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
 UNKNOWN_COMMAND_MSG = "unknown command '{}'"
 EXECABORT_MSG = "Transaction discarded because of previous errors."
@@ -1819,6 +1820,80 @@ class FakeSocket(object):
             return Float.encode(key.value[member], False)
         except KeyError:
             return None
+
+    @staticmethod
+    def _get_zset(value):
+        if isinstance(value, set):
+            zset = ZSet()
+            for item in value:
+                zset[item] = 1.0
+            return zset
+        elif isinstance(value, ZSet):
+            return value
+        else:
+            raise redis.ResponseError(WRONGTYPE_MSG)
+
+    def _zunioninter(self, func, dest, numkeys, *args):
+        if numkeys < 1:
+            raise redis.ResponseError(ZUNIONSTORE_KEYS_MSG)
+        if numkeys > len(args):
+            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+        aggregate = b'sum'
+        sets = []
+        for i in range(numkeys):
+            item = CommandItem(args[i], self._db, item=self._db.get(args[i]), default=ZSet())
+            sets.append(self._get_zset(item.value))
+        weights = [1.0] * numkeys
+
+        i = numkeys
+        while i < len(args):
+            arg = args[i].lower()
+            if arg == b'weights' and i + numkeys < len(args):
+                weights = [Float.decode(x) for x in args[i + 1 : i + numkeys + 1]]
+                i += numkeys + 1
+            elif arg == b'aggregate' and i + 1 < len(args):
+                aggregate = args[i + 1].lower()
+                if aggregate not in (b'sum', b'min', b'max'):
+                    raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                i += 2
+            else:
+                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+
+        out_members = set(sets[0])
+        for s in sets[1:]:
+            if func == 'ZUNIONSTORE':
+                out_members |= set(s)
+            else:
+                out_members.intersection_update(s)
+
+        out = ZSet()
+        for s, w in zip(sets, weights):
+            for member, score in s.items():
+                score *= w
+                if member not in out_members:
+                    continue
+                if member in out:
+                    old = out[member]
+                    if aggregate == b'sum':
+                        score += old
+                    elif aggregate == b'max':
+                        score = max(score, old)
+                    elif aggregate == b'min':
+                        score = min(score, old)
+                    else:
+                        assert False
+                out[member] = score
+
+        dest.value = out
+        return len(out)
+
+    @command((Key(), Int, bytes), (bytes,))
+    def zunionstore(self, dest, numkeys, *args):
+        return self._zunioninter('ZUNIONSTORE', dest, numkeys, *args)
+
+    @command((Key(), Int, bytes), (bytes,))
+    def zinterstore(self, dest, numkeys, *args):
+        return self._zunioninter('ZINTERSTORE', dest, numkeys, *args)
 
     # Server commands
     # TODO: lots

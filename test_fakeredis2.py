@@ -461,7 +461,7 @@ class ZSetMachine(BaseMachine):
     def zscore(self, key, member):
         self._compare('zscore', key, member)
 
-    # TODO: zscan
+    # TODO: zscan, zunionstore, zinterstore
 
 
 TestZSet = ZSetMachine.TestCase

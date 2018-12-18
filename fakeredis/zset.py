@@ -33,7 +33,7 @@ class ZSet(object):
             for score, value in self._byscore:
                 yield value
 
-        return gen
+        return gen()
 
     def discard(self, key):
         try:
