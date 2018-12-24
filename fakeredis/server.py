@@ -10,6 +10,7 @@ import re
 import warnings
 import functools
 import itertools
+import hashlib
 from collections import defaultdict
 try:
     # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
@@ -48,15 +49,17 @@ SRC_DST_SAME_MSG = "source and destination objects are the same"
 NO_KEY_MSG = "no such key"
 INDEX_ERROR_MSG = "index out of range"
 ZUNIONSTORE_KEYS_MSG = "at least 1 input key is needed for ZUNIONSTORE/ZINTERSTORE"
-WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
-UNKNOWN_COMMAND_MSG = "unknown command '{}'"
+WRONG_ARGS_MSG = "wrong number of arguments for '{0}' command"
+UNKNOWN_COMMAND_MSG = "unknown command '{0}'"
 EXECABORT_MSG = "Transaction discarded because of previous errors."
 MULTI_NESTED_MSG = "MULTI calls can not be nested"
-WITHOUT_MULTI_MSG = "{} without MULTI"
+WITHOUT_MULTI_MSG = "{0} without MULTI"
 WATCH_INSIDE_MULTI_MSG = "WATCH inside MULTI is not allowed"
 NEGATIVE_KEYS_MSG = "Number of keys can't be negative"
 TOO_MANY_KEYS_MSG = "Number of keys can't be greater than number of args"
 TIMEOUT_NEGATIVE_MSG = "timeout is negative"
+NO_MATCHING_SCRIPT_MSG = "No matching script. Please use EVAL."
+BAD_SUBCOMMAND_MSG = "Unknown {0} subcommand or wrong # of args."
 
 
 class SimpleString(object):
@@ -552,6 +555,7 @@ class FakeServer(object):
     def __init__(self):
         self.lock = threading.Lock()
         self.dbs = defaultdict(lambda: Database(self.lock))
+        self.script_cache = {}
         self.lastsave = int(time.time())
 
 
@@ -2047,6 +2051,8 @@ class FakeSocket(object):
             raise redis.ResponseError(TOO_MANY_KEYS_MSG)
         if numkeys < 0:
             raise redis.ResponseError(NEGATIVE_KEYS_MSG)
+        sha1 = six.ensure_binary(hashlib.sha1(script).hexdigest())
+        self._server.script_cache[sha1] = script
         lua_runtime = LuaRuntime(encoding=None, unpack_returned_tuples=True)
 
         set_globals = lua_runtime.eval(
@@ -2079,6 +2085,26 @@ class FakeSocket(object):
         self._check_for_lua_globals(lua_runtime, expected_globals)
 
         return self._convert_lua_result(result, nested=False)
+
+    @command((bytes, Int), (bytes,))
+    def evalsha(self, sha1, numkeys, *keys_and_args):
+        try:
+            script = self._server.script_cache[sha1]
+        except KeyError:
+            raise redis.exceptions.NoScriptError(NO_MATCHING_SCRIPT_MSG)
+        return self.eval(script, numkeys, *keys_and_args)
+
+    @command((bytes,), (bytes,))
+    def script(self, subcmd, *args):
+        if subcmd.lower() == b'load':
+            if len(args) != 1:
+                raise redis.ResponseError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
+            script = args[0]
+            sha1 = six.ensure_binary(hashlib.sha1(script).hexdigest())
+            self._server.script_cache[sha1] = script
+            return sha1
+        else:
+            raise redis.ResponseError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
 
 
 setattr(FakeSocket, 'del', FakeSocket.delete)
