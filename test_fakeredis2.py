@@ -2,6 +2,7 @@ import time
 import itertools
 import operator
 import sys
+import unittest
 
 import hypothesis
 from hypothesis.stateful import rule
@@ -18,6 +19,48 @@ counts = st.integers(min_value=-3, max_value=3) | st.integers()
 # The filter is to work around https://github.com/antirez/redis/issues/5632
 patterns = (st.text(alphabet=st.sampled_from('[]^$*.?-azAZ\\\r\n\t'))
             | st.binary().filter(lambda x: b'\0' not in x))
+
+
+class WrappedException(object):
+    """Wraps an exception for the purposes of comparison."""
+    def __init__(self, exc):
+        self.wrapped = exc
+
+    def __str__(self):
+        return str(self.wrapped)
+
+    def __repr__(self):
+        return 'WrappedException({0!r})'.format(self.wrapped)
+
+    def __eq__(self, other):
+        if not isinstance(other, WrappedException):
+            return NotImplemented
+        if type(self.wrapped) != type(other.wrapped):
+            return False
+        # TODO: re-enable after more carefully handling order of error checks
+        # return self.wrapped.args == other.wrapped.args
+        return True
+
+    def __ne__(self, other):
+        if not isinstance(other, WrappedException):
+            return NotImplemented
+        return not self == other
+
+
+def wrap_exceptions(obj):
+    if isinstance(obj, list):
+        return [wrap_exceptions(item) for item in obj]
+    elif isinstance(obj, Exception):
+        return WrappedException(obj)
+    else:
+        return obj
+
+
+def sort_list(lst):
+    if isinstance(lst, list):
+        return sorted(lst)
+    else:
+        return lst
 
 
 @hypothesis.settings(max_examples=1000, timeout=hypothesis.unlimited)
@@ -37,27 +80,23 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
         self.fake.connection_pool.disconnect()
         super(BaseMachine, self).teardown()
 
+    def _evaluate(self, client, cmd, *args, **kwargs):
+        normalize = kwargs.pop('normalize', lambda x: x)
+        try:
+            result = normalize(client.execute_command(cmd, *args))
+            exc = None
+        except Exception as e:
+            result = exc = e
+        return wrap_exceptions(result), exc
+
     def _compare(self, cmd, *args, **kwargs):
-        fake_exc = None
-        real_exc = None
+        fake_result, fake_exc = self._evaluate(self.fake, cmd, *args, **kwargs)
+        real_result, real_exc = self._evaluate(self.real, cmd, *args, **kwargs)
 
-        try:
-            fake_result = getattr(self.fake, cmd)(*args, **kwargs)
-        except Exception as exc:
-            fake_exc = exc
-
-        try:
-            real_result = getattr(self.real, cmd)(*args, **kwargs)
-        except Exception as exc:
-            real_exc = exc
-
-        if real_exc is not None:
-            if type(fake_exc) != type(real_exc):
-                raise fake_exc
-            # TODO reenable after implementing tools to control error check ordering
-            #assert_equal(fake_exc.args, real_exc.args)
-        elif fake_exc is not None:
+        if fake_exc is not None and real_exc is None:
             raise fake_exc
+        elif real_exc is not None and fake_exc is None:
+            assert_equal(real_exc, fake_exc, "Expected exception {0} not raised".format(real_exc))
         else:
             assert_equal(fake_result, real_result)
 
@@ -125,7 +164,7 @@ class ConnectionMachine(BaseMachine):
 
     @rule(args=st.lists(values, max_size=2))
     def ping(self, args):
-        self._compare('execute_command', b'ping', *args)
+        self._compare('ping', *args)
 
 
 TestConnection = ConnectionMachine.TestCase
@@ -150,14 +189,14 @@ class StringMachine(BaseMachine):
         if amount is None:
             self._compare('decr', key)
         else:
-            self._compare('decr', key, amount=amount)
+            self._compare('decrby', key, amount)
 
     @rule(key=keys, amount=st.none() | values)
     def incr(self, key, amount):
         if amount is None:
             self._compare('incr', key)
         else:
-            self._compare('incr', key, amount=amount)
+            self._compare('incrby', key, amount)
 
     # Disabled for now because Python can't exactly model the long doubles.
     # TODO: make a more targeted test that checks the basics.
@@ -206,7 +245,12 @@ class StringMachine(BaseMachine):
 
     @rule(key=keys, value=values, nx=st.booleans(), xx=st.booleans())
     def set(self, key, value, nx, xx):
-        self._compare('set', key, value, nx=nx, xx=xx)
+        args = ['set', key, value]
+        if nx:
+            args.append('nx')
+        if xx:
+            args.append('xx')
+        self._compare(*args)
 
     @rule(key=keys, value=values, seconds=st.integers(min_value=1000000000))
     def setex(self, key, seconds, value):
@@ -377,7 +421,7 @@ class SetMachine(BaseMachine):
 
     @rule(key=st.lists(keys), op=st.sampled_from(['sdiff', 'sinter', 'sunion']))
     def setop(self, key, op):
-        self._compare(op, *key)
+        self._compare(op, *key, normalize=sort_list)
 
     @rule(dst=keys, key=st.lists(keys),
           op=st.sampled_from(['sdiffstore', 'sinterstore', 'sunionstore']))
@@ -390,7 +434,7 @@ class SetMachine(BaseMachine):
 
     @rule(key=keys)
     def smembers(self, key):
-        self._compare('smembers')
+        self._compare('smembers', key, normalize=sort_list)
 
     @rule(src=keys, dst=keys, member=fields)
     def smove(self, src, dst, member):
@@ -439,7 +483,8 @@ class ZSetMachine(BaseMachine):
 
     @rule(key=keys, start=counts, stop=counts, withscores=st.booleans())
     def zrange(self, key, start, stop, withscores):
-        self._compare('zrange', key, start, stop, withscores=withscores)
+        extra = ['withscores'] if withscores else []
+        self._compare('zrange', key, start, stop, *extra)
 
     @rule(key=keys, start=counts, stop=counts, withscores=st.booleans())
     def zrevrange(self, key, start, stop, withscores):
@@ -506,40 +551,44 @@ class TransactionMachine(StringMachine):
 
     @rule()
     def multi(self):
-        self._compare('execute_command', 'multi')
+        self._compare('multi')
 
     @rule()
     def discard(self):
-        self._compare('execute_command', 'discard')
+        self._compare('discard')
 
     @rule()
     def exec(self):
-        self._compare('execute_command', 'exec')
+        self._compare('exec')
 
     @rule(key=keys)
     def watch(self, key):
-        self._compare('execute_command', 'watch', key)
+        self._compare('watch', key)
 
     @rule()
     def unwatch(self):
-        self._compare('execute_command', 'unwatch')
+        self._compare('unwatch')
 
 
 TestTransaction = TransactionMachine.TestCase
 
 
 class ServerMachine(StringMachine):
-    @rule()
-    def bgsave(self):
-        self._compare('bgsave')
+    # TODO: real redis raises an error if there is a save already in progress.
+    # Find a better way to test this.
+    # @rule()
+    # def bgsave(self):
+    #     self._compare('bgsave')
 
     @rule(asynchronous=st.booleans())
     def flushdb(self, asynchronous):
-        self._compare('flushdb', asynchronous=asynchronous)
+        extra = ['async'] if asynchronous else []
+        self._compare('flushdb', *extra)
 
     @rule(asynchronous=st.booleans())
     def flushall(self, asynchronous):
-        self._compare('flushall', asynchronous=asynchronous)
+        extra = ['async'] if asynchronous else []
+        self._compare('flushall', *extra)
 
     # TODO: result is non-deterministic
     # @rule()
@@ -558,12 +607,13 @@ class JointMachine(TransactionMachine, ServerMachine, ConnectionMachine,
                    StringMachine, HashMachine, ListMachine,
                    SetMachine, ZSetMachine):
     # TODO: rule inheritance isn't working!
+
     # redis-py splits the command on spaces, and hangs if that ends up
     # being an empty list
     @rule(command=st.text().filter(lambda x: bool(x.split())),
           args=st.lists(st.binary() | st.text()))
     def bad_command(self, command, args):
-        self._compare('execute_command', command, *args)
+        self._compare(command, *args)
 
     # TODO: introduce rule for SORT. It'll need a rather complex
     # strategy to cover all the cases.

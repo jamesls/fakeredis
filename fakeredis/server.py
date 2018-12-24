@@ -653,7 +653,8 @@ class FakeSocket(object):
         # redis treats the command as NULL-terminated
         if b'\0' in name:
             name = name[:name.find(b'\0')]
-        name = six.ensure_str(name)
+        # Using Latin-1 ensures we never get a UnicodeDecodeError
+        name = six.ensure_str(name, encoding='latin-1')
         func_name = name.lower()
         func = getattr(self, func_name, None)
         if name.startswith('_') or not func or not hasattr(func, '_fakeredis_sig'):
@@ -782,7 +783,7 @@ class FakeSocket(object):
         elif len(args) == 1:
             return args[0]
         else:
-            raise redis.ResponseError(WRONG_ARGS_MSG)
+            raise redis.ResponseError(WRONG_ARGS_MSG.format('ping'))
 
     @command((DbIndex,))
     def select(self, index):
