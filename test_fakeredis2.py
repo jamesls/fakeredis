@@ -505,6 +505,10 @@ class ZSetMachine(BaseMachine):
     def zrem(self, key, member):
         self._compare('zrem', key, *member)
 
+    @rule(key=keys, start=counts, stop=counts)
+    def zrembyrank(self, key, start, stop):
+        self._compare('zremrangebyrank', key, start, stop)
+
     @rule(key=keys, member=fields)
     def zscore(self, key, member):
         self._compare('zscore', key, member)

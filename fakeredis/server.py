@@ -1881,6 +1881,18 @@ class FakeSocket(object):
         key.updated()
         return old_size - len(key.value)
 
+    @command((Key(ZSet), Int, Int))
+    def zremrangebyrank(self, key, start, stop):
+        zset = key.value
+        old_size = len(zset)
+        start, stop = self._fix_range(start, stop, len(zset))
+        # TODO: this could be done more efficiently if bylex could be removed
+        items = list(zset.islice_score(start, stop))
+        for item in items:
+            zset.discard(item[1])
+        key.updated()
+        return old_size - len(zset)
+
     @command((Key(ZSet), Int), (bytes, bytes))
     def zscan(self, key, cursor, *args):
         return self._scan(key.value.items, cursor, *args)
