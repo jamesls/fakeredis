@@ -8,6 +8,7 @@ import os
 import sys
 import threading
 
+import six
 from nose.plugins.skip import SkipTest
 from nose.plugins.attrib import attr
 import redis
@@ -78,6 +79,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     decode_responses = False
 
     def setUp(self):
+        self.server = fakeredis.FakeServer()
         self.redis = self.create_redis()
 
     def tearDown(self):
@@ -89,7 +91,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             return self.assertCountEqual(a, b)
 
     def create_redis(self, db=0):
-        return fakeredis.FakeStrictRedis(db=db)
+        return fakeredis.FakeStrictRedis(db=db, server=self.server)
 
     def _round_str(self, x):
         self.assertIsInstance(x, bytes)
@@ -2712,7 +2714,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.addCleanup(p.reset)
 
         p.watch('greet', 'foo')
-        nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
+        nextf = six.ensure_binary(p.get('foo')) + b'baz'
         # Simulate change happening on another thread.
         self.redis.rpush('greet', 'world')
         # Begin pipelining.
@@ -2730,7 +2732,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             # Only watch one of the 2 keys.
             p.watch('foo')
-            nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
+            nextf = six.ensure_binary(p.get('foo')) + b'baz'
             # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
             p.multi()
@@ -2749,7 +2751,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             # Also watch a nonexistent key.
             p.watch('foo', 'bam')
-            nextf = fakeredis.to_bytes(p.get('foo')) + b'baz'
+            nextf = six.ensure_binary(p.get('foo')) + b'baz'
             # Simulate change happening on another thread.
             self.redis.rpush('greet', 'world')
             p.multi()
