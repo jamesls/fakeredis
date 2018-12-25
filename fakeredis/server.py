@@ -641,6 +641,7 @@ class FakeSocket(object):
         return result
 
     def _decode_result(self, result):
+        """Turn SimpleString into native string, recursively"""
         if isinstance(result, list):
             return [self._decode_result(r) for r in result]
         elif isinstance(result, SimpleString):
@@ -2256,7 +2257,7 @@ class FakeSocket(object):
             if self not in subs:
                 subs.add(self)
                 self._pubsub += 1
-            msg = self._decode_result([mtype, channel, self._pubsub])
+            msg = [mtype, channel, self._pubsub]
             self.responses.put(msg)
         return NoResponse()
 
@@ -2273,7 +2274,7 @@ class FakeSocket(object):
                 if not subs:
                     del subscribers[channel]
                 self._pubsub -= 1
-            msg = self._decode_result([mtype, channel, self._pubsub])
+            msg = [mtype, channel, self._pubsub]
             self.responses.put(msg)
         return NoResponse()
 
@@ -2296,7 +2297,7 @@ class FakeSocket(object):
     @command((bytes, bytes))
     def publish(self, channel, message):
         receivers = 0
-        msg = self._decode_result([b'message', channel, message])
+        msg = [b'message', channel, message]
         subs = self._server.subscribers.get(channel, set())
         for sock in subs:
             sock.responses.put(msg)
@@ -2304,7 +2305,7 @@ class FakeSocket(object):
         for (pattern, socks) in self._server.psubscribers.items():
             regex = compile_pattern(pattern)
             if regex.match(channel):
-                msg = self._decode_result([b'pmessage', pattern, channel, message])
+                msg = [b'pmessage', pattern, channel, message]
                 for sock in socks:
                     sock.responses.put(msg)
                     receivers += 1
@@ -2353,11 +2354,19 @@ class FakeConnection(redis.Connection):
             self.connect()
         return bool(self._sock.responses.qsize())
 
+    def _decode(self, response):
+        if isinstance(response, list):
+            return [self._decode(item) for item in response]
+        elif isinstance(response, bytes):
+            return self.encoder.decode(response)
+        else:
+            return response
+
     def read_response(self):
         response = self._sock.responses.get()
         if isinstance(response, redis.ResponseError):
             raise response
-        return response
+        return self._decode(response)
 
 
 class FakeRedisMixin(object):

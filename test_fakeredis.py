@@ -3701,6 +3701,7 @@ class TestFakeRedis(unittest.TestCase):
     decode_responses = False
 
     def setUp(self):
+        self.server = fakeredis.FakeServer()
         self.redis = self.create_redis()
 
     def tearDown(self):
@@ -3712,7 +3713,7 @@ class TestFakeRedis(unittest.TestCase):
         self.assertLessEqual(value, end, msg)
 
     def create_redis(self, db=0):
-        return fakeredis.FakeRedis(db=db)
+        return fakeredis.FakeRedis(db=db, server=self.server)
 
     def test_setex(self):
         self.assertEqual(self.redis.setex('foo', 'bar', 100), True)
@@ -4096,27 +4097,42 @@ class DecodeMixin(object):
     decode_responses = True
 
     def _round_str(self, x):
-        self.assertIsInstance(x, fakeredis.text_type)
+        self.assertIsInstance(x, six.text_type)
         return round(float(x))
 
+    @classmethod
+    def _decode(cls, value):
+        if isinstance(value, list):
+            return [cls._decode(item) for item in value]
+        elif isinstance(value, tuple):
+            return tuple([cls._decode(item) for item in value])
+        elif isinstance(value, set):
+            return set(cls._decode(item) for item in value)
+        elif isinstance(value, dict):
+            return {cls._decode(k): cls._decode(v) for k, v in value.items()}
+        elif isinstance(value, bytes):
+            return value.decode()
+        else:
+            return value
+
     def assertEqual(self, a, b, msg=None):
-        super(DecodeMixin, self).assertEqual(a, fakeredis._decode(b), msg)
+        super(DecodeMixin, self).assertEqual(a, self._decode(b), msg)
 
     def assertIn(self, member, container, msg=None):
-        super(DecodeMixin, self).assertIn(fakeredis._decode(member), container)
+        super(DecodeMixin, self).assertIn(self._decode(member), container)
 
     def assertItemsEqual(self, a, b):
-        super(DecodeMixin, self).assertItemsEqual(a, fakeredis._decode(b))
+        super(DecodeMixin, self).assertItemsEqual(a, self._decode(b))
 
 
 class TestFakeStrictRedisDecodeResponses(DecodeMixin, TestFakeStrictRedis):
     def create_redis(self, db=0):
-        return fakeredis.FakeStrictRedis(db=db, decode_responses=True)
+        return fakeredis.FakeStrictRedis(db=db, decode_responses=True, server=self.server)
 
 
 class TestFakeRedisDecodeResponses(DecodeMixin, TestFakeRedis):
     def create_redis(self, db=0):
-        return fakeredis.FakeRedis(db=db, decode_responses=True)
+        return fakeredis.FakeRedis(db=db, decode_responses=True, server=self.server)
 
 
 @redis_must_be_running
