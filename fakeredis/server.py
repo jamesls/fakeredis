@@ -1642,7 +1642,6 @@ class FakeSocket(object):
         return self.rpush(key, *values)
 
     # Set commands
-    # TODO: spop, srandmember
 
     @command((Key(set), bytes), (bytes,))
     def sadd(self, key, *members):
@@ -1700,6 +1699,38 @@ class FakeSocket(object):
             dst.value.add(member)
             dst.updated()   # TODO: is it updated if member was already present?
             return 1
+
+    @command((Key(set),), (Int,))
+    def spop(self, key, count=None):
+        if count is None:
+            if not key.value:
+                return None
+            item = random.sample(key.value, 1)[0]
+            key.value.remove(item)
+            key.updated()
+            return item
+        else:
+            if count < 0:
+                raise redis.ResponseError(INDEX_ERROR_MSG)
+            items = self.srandmember(key, count)
+            for item in items:
+                key.value.remove(item)
+                key.updated()   # Inside the loop because redis special-cases count=0
+            return items
+
+    @command((Key(set),), (Int,))
+    def srandmember(self, key, count=None):
+        if count is None:
+            if not key.value:
+                return None
+            else:
+                return random.sample(key.value, 1)[0]
+        elif count >= 0:
+            count = min(count, len(key.value))
+            return random.sample(key.value, count)
+        else:
+            items = list(key.value)
+            return [random.choice(items) for _ in range(-count)]
 
     @command((Key(set), bytes), (bytes,))
     def srem(self, key, *members):
