@@ -4217,34 +4217,6 @@ class TestInitArgs(unittest.TestCase):
         self.assertEqual(db.get('foo'), 'bar')
 
 
-class TestImportation(unittest.TestCase):
-    def test_searches_for_c_stdlib_and_raises_if_missing(self):
-        """
-        Verifies that fakeredis checks for multiple C library implementations
-        looking for a strtod implementation and that it fails fast when neither
-        is found.
-        """
-
-        import ctypes.util
-
-        # Patch manually since unittest.mock.patch is not available in old Python versions
-        old_find_library = ctypes.util.find_library
-
-        searched_libraries = set()
-
-        try:
-            ctypes.util.find_library = lambda library: searched_libraries.add(library)
-
-            with self.assertRaises(ImportError):
-                reload(fakeredis)
-
-            self.assertEqual(set(['c', 'msvcrt', 'System']), searched_libraries)
-        finally:
-            ctypes.util.find_library = old_find_library
-
-            reload(fakeredis)
-
-
 class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     def create_redis(self):
         return fakeredis.FakeStrictRedis(db=0, connected=False)
