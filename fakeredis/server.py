@@ -1779,7 +1779,7 @@ class FakeSocket(object):
         return OK
 
     # Sorted set commands
-    # TODO: blocking commands, set operations, zrem*, z[rev]rangebyscore, zpopmin/zpopmax,
+    # TODO: set operations, zrem*, [b]zpopmin/zpopmax,
     # probably some that I've missed
 
     @staticmethod
@@ -1940,26 +1940,21 @@ class FakeSocket(object):
 
     @command((Key(ZSet), StringTest, StringTest))
     def zremrangebylex(self, key, min, max):
-        zset = key.value
-        old_size = len(zset)
-        items = list(zset.irange_lex(min.value, max.value,
-                                     inclusive=(not min.exclusive, not max.exclusive)))
-        for item in items:
-            zset.discard(item)
-        key.updated()
-        return old_size - len(zset)
+        items = key.value.irange_lex(min.value, max.value,
+                                     inclusive=(not min.exclusive, not max.exclusive))
+        return self.zrem(key, *items)
+
+    @command((Key(ZSet), ScoreTest, ScoreTest))
+    def zremrangebyscore(self, key, min, max):
+        items = key.value.irange_score(min.lower_bound, max.upper_bound)
+        return self.zrem(key, *[item[1] for item in items])
 
     @command((Key(ZSet), Int, Int))
     def zremrangebyrank(self, key, start, stop):
         zset = key.value
-        old_size = len(zset)
         start, stop = self._fix_range(start, stop, len(zset))
-        # TODO: this could be done more efficiently if bylex could be removed
-        items = list(zset.islice_score(start, stop))
-        for item in items:
-            zset.discard(item[1])
-        key.updated()
-        return old_size - len(zset)
+        items = zset.islice_score(start, stop)
+        return self.zrem(key, *[item[1] for item in items])
 
     @command((Key(ZSet), Int), (bytes, bytes))
     def zscan(self, key, cursor, *args):

@@ -509,6 +509,10 @@ class ZSetMachine(BaseMachine):
     def zremrangebyrank(self, key, start, stop):
         self._compare('zremrangebyrank', key, start, stop)
 
+    @rule(key=keys, min=score_tests, max=score_tests)
+    def zremrangebyscore(self, key, min, max):
+        self._compare('zremrangebyscore', key, min, max)
+
     @rule(key=keys, member=fields)
     def zscore(self, key, member):
         self._compare('zscore', key, member)
@@ -549,9 +553,9 @@ class ZSetNoScoresMachine(BaseMachine):
             start, count = limit
             self._compare(cmd, key, min, max, 'limit', start, count)
 
-    @rule(key=keys, min=string_tests, mxa=string_tests)
+    @rule(key=keys, min=string_tests, max=string_tests)
     def zremrangebylex(self, key, min, max):
-        self._compare('zremrangebylex', key, min_max)
+        self._compare('zremrangebylex', key, min, max)
 
 
 TestZSetNoScores = ZSetNoScoresMachine.TestCase
