@@ -11,6 +11,7 @@ import warnings
 import functools
 import itertools
 import hashlib
+import weakref
 from collections import defaultdict
 try:
     # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
@@ -60,12 +61,18 @@ TOO_MANY_KEYS_MSG = "Number of keys can't be greater than number of args"
 TIMEOUT_NEGATIVE_MSG = "timeout is negative"
 NO_MATCHING_SCRIPT_MSG = "No matching script. Please use EVAL."
 BAD_SUBCOMMAND_MSG = "Unknown {0} subcommand or wrong # of args."
+BAD_COMMAND_IN_PUBSUB_MSG = \
+    "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT allowed in this context"
 
 
 class SimpleString(object):
     def __init__(self, value):
         assert isinstance(value, bytes)
         self.value = value
+
+class NoResponse(object):
+    """Returned by pub/sub commands to indicate that no response should be returned"""
+    pass
 
 
 OK = SimpleString(b'OK')
@@ -532,12 +539,14 @@ class Signature(object):
         return args, command_items
 
 
-def valid_response_type(value):
+def valid_response_type(value, nested=False):
+    if isinstance(value, NoResponse) and not nested:
+        return True
     if value is not None and not isinstance(value, (bytes, SimpleString, redis.ResponseError,
                                                     int, list)):
         return False
     if isinstance(value, list):
-        if any(not valid_response_type(item) for item in value):
+        if any(not valid_response_type(item, True) for item in value):
             return False
     return True
 
@@ -555,7 +564,11 @@ class FakeServer(object):
     def __init__(self):
         self.lock = threading.Lock()
         self.dbs = defaultdict(lambda: Database(self.lock))
+        # Maps SHA1 to script source
         self.script_cache = {}
+        # Maps channel/pattern to weak set of sockets
+        self.subscribers = defaultdict(weakref.WeakSet)
+        self.psubscribers = defaultdict(weakref.WeakSet)
         self.lastsave = int(time.time())
 
 
@@ -569,6 +582,7 @@ class FakeSocket(object):
         self._transaction_failed = False
         self._watch_notified = False
         self._watches = set()
+        self._pubsub = 0      # Count of subscriptions
         self.responses = queue.Queue()
 
     def shutdown(self, flags):
@@ -608,6 +622,10 @@ class FakeSocket(object):
                 result = ret[0]
             else:
                 args, command_items = ret
+                if self._pubsub and sig.name not in [
+                        'ping', 'subscribe', 'unsubscribe',
+                        'psubscribe', 'punsubscribe', 'quit']:
+                    raise redis.ResponseError(BAD_COMMAND_IN_PUBSUB_MSG)
                 result = func(*args)
                 assert valid_response_type(result)
         except redis.ResponseError as exc:
@@ -696,7 +714,8 @@ class FakeSocket(object):
                     self._transaction_failed = True
                 result = exc
             result = self._decode_result(result)
-            self.responses.put(result)
+            if not isinstance(result, NoResponse):
+                self.responses.put(result)
 
     def notify_watch(self):
         self._watch_notified = True
@@ -1936,7 +1955,7 @@ class FakeSocket(object):
         return OK
 
     # Script commands
-    # TODO: eval, evalsha, script load, script exists, script flush
+    # TODO: script exists, script flush
     # (script debug and script kill will probably not be supported)
 
     def _convert_redis_arg(self, lua_runtime, value):
@@ -2106,6 +2125,68 @@ class FakeSocket(object):
         else:
             raise redis.ResponseError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
 
+    # Pubsub commands
+    # TODO: pubsub command
+
+    def _subscribe(self, channels, subscribers, mtype):
+        for channel in channels:
+            subs = subscribers[channel]
+            if self not in subs:
+                subs.add(self)
+                self._pubsub += 1
+            msg = self._decode_result([mtype, channel, self._pubsub])
+            self.responses.put(msg)
+        return NoResponse()
+
+    def _unsubscribe(self, channels, subscribers, mtype):
+        if not channels:
+            channels = []
+            for (channel, subs) in subscribers.items():
+                if self in subs:
+                    channels.append(channel)
+        for channel in channels:
+            subs = subscribers.get(channel, set())
+            if self in subs:
+                subs.remove(self)
+                if not subs:
+                    del subscribers[channel]
+                self._pubsub -= 1
+            msg = self._decode_result([mtype, channel, self._pubsub])
+            self.responses.put(msg)
+        return NoResponse()
+
+    @command((bytes,), (bytes,))
+    def psubscribe(self, *patterns):
+        return self._subscribe(patterns, self._server.psubscribers, b'psubscribe')
+
+    @command((bytes,), (bytes,))
+    def subscribe(self, *channels):
+        return self._subscribe(channels, self._server.subscribers, b'subscribe')
+
+    @command((), (bytes,))
+    def punsubscribe(self, *patterns):
+        return self._unsubscribe(patterns, self._server.psubscribers, b'punsubscribe')
+
+    @command((), (bytes,))
+    def unsubscribe(self, *channels):
+        return self._unsubscribe(channels, self._server.subscribers, b'unsubscribe')
+
+    @command((bytes, bytes))
+    def publish(self, channel, message):
+        receivers = 0
+        msg = self._decode_result([b'message', channel, message])
+        subs = self._server.subscribers.get(channel, set())
+        for sock in subs:
+            sock.responses.put(msg)
+            receivers += 1
+        for (pattern, socks) in self._server.psubscribers.items():
+            regex = compile_pattern(pattern)
+            if regex.match(channel):
+                msg = self._decode_result([b'pmessage', pattern, channel, message])
+                for sock in socks:
+                    sock.responses.put(msg)
+                    receivers += 1
+        return receivers
 
 setattr(FakeSocket, 'del', FakeSocket.delete)
 delattr(FakeSocket, 'delete')
