@@ -1752,6 +1752,32 @@ class FakeSocket(object):
     def sunionstore(self, dst, *keys):
         return self._setop(lambda a, b: a | b, dst, *keys)
 
+    # Hyperloglog commands
+    # These are not quite the same as the real redis ones, which are
+    # approximate and store the results in a string. Instead, it is implemented
+    # on top of sets.
+
+    @command((Key(set),), (bytes,))
+    def pfadd(self, key, *elements):
+        result = self.sadd(key, *elements)
+        # Per the documentation:
+        # - 1 if at least 1 HyperLogLog internal register was altered. 0 otherwise.
+        return 1 if result > 0 else 0
+
+    @command((Key(set),), (Key(set),))
+    def pfcount(self, *keys):
+        """
+        Return the approximated cardinality of
+        the set observed by the HyperLogLog at key(s).
+        """
+        return len(self.sunion(*keys))
+
+    @command((Key(set), Key(set)), (Key(set),))
+    def pfmerge(self, dest, *sources):
+        "Merge N different HyperLogLogs into a single one."
+        self.sunionstore(dest, *sources)
+        return OK
+
     # Sorted set commands
     # TODO: blocking commands, set operations, zrem*, z[rev]rangebyscore, zpopmin/zpopmax,
     # probably some that I've missed
