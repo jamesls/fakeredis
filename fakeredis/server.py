@@ -1881,6 +1881,17 @@ class FakeSocket(object):
         key.updated()
         return old_size - len(key.value)
 
+    @command((Key(ZSet), StringTest, StringTest))
+    def zremrangebylex(self, key, min, max):
+        zset = key.value
+        old_size = len(zset)
+        items = list(zset.irange_lex(min.value, max.value,
+                                     inclusive=(not min.exclusive, not max.exclusive)))
+        for item in items:
+            zset.discard(item)
+        key.updated()
+        return old_size - len(zset)
+
     @command((Key(ZSet), Int, Int))
     def zremrangebyrank(self, key, start, stop):
         zset = key.value
