@@ -481,22 +481,25 @@ class ZSetMachine(BaseMachine):
     def zincrby(self, key, increment, member):
         self._compare('zincrby', key, member, increment)
 
-    @rule(key=keys, start=counts, stop=counts, withscores=st.booleans())
-    def zrange(self, key, start, stop, withscores):
+    @rule(key=keys, start=counts, stop=counts, withscores=st.booleans(), reverse=st.booleans())
+    def zrange(self, key, start, stop, withscores, reverse):
         extra = ['withscores'] if withscores else []
-        self._compare('zrange', key, start, stop, *extra)
+        cmd = 'zrevrange' if reverse else 'zrange'
+        self._compare(cmd, key, start, stop, *extra)
 
-    @rule(key=keys, start=counts, stop=counts, withscores=st.booleans())
-    def zrevrange(self, key, start, stop, withscores):
-        self._compare('zrevrange', key, start, stop, withscores)
+    @rule(key=keys, min=score_tests, max=score_tests, withscores=st.booleans(),
+          limit=st.none() | st.tuples(counts, counts), reverse=st.booleans())
+    def zrangebyscore(self, key, min, max, limit, withscores, reverse):
+        extra = ['limit', limit[0], limit[1]] if limit else []
+        if withscores:
+            extra.append('withscores')
+        cmd = 'zrevrangebyscore' if reverse else 'zrangebyscore'
+        self._compare(cmd, key, min, max, *extra)
 
-    @rule(key=keys, member=fields)
-    def zrank(self, key, member):
-        self._compare('zrank', key, member)
-
-    @rule(key=keys, member=fields)
-    def zrevrank(self, key, member):
-        self._compare('zrevrank', key, member)
+    @rule(key=keys, member=fields, reverse=st.booleans())
+    def zrank(self, key, member, reverse):
+        cmd = 'zrevrank' if reverse else 'zrank'
+        self._compare(cmd, key, member)
 
     @rule(key=keys, member=st.lists(fields))
     def zrem(self, key, member):
@@ -506,7 +509,7 @@ class ZSetMachine(BaseMachine):
     def zscore(self, key, member):
         self._compare('zscore', key, member)
 
-    # TODO: zscan, zunionstore, zinterstore
+    # TODO: zscan, zunionstore, zinterstore, probably more
 
 
 TestZSet = ZSetMachine.TestCase
@@ -540,7 +543,7 @@ class ZSetNoScoresMachine(BaseMachine):
             self._compare(cmd, key, min, max)
         else:
             start, count = limit
-            self._compare(cmd, key, min, max, start, count)
+            self._compare(cmd, key, min, max, 'limit', start, count)
 
 
 TestZSetNoScores = ZSetNoScoresMachine.TestCase

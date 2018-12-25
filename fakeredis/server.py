@@ -427,6 +427,12 @@ class ScoreTest(object):
         except redis.ResponseError:
             raise redis.ResponseError(INVALID_MIN_MAX_FLOAT_MSG)
 
+    def __str__(self):
+        if self.exclusive:
+            return '({0!r}'.format(self.value)
+        else:
+            return repr(self.value)
+
     @property
     def lower_bound(self):
         return (self.value, AfterAny() if self.exclusive else BeforeAny())
@@ -1718,6 +1724,31 @@ class FakeSocket(object):
     # Sorted set commands
     # TODO: blocking commands, set operations, zrem*, z[rev]rangebyscore, zpopmin/zpopmax,
     # probably some that I've missed
+
+    @staticmethod
+    def _limit_items(items, offset, count):
+        out = []
+        for item in items:
+            if offset:    # Note: not offset > 0, in order to match redis
+                offset -= 1
+                continue
+            if count == 0:
+                break
+            count -= 1
+            out.append(item)
+        return out
+
+    @staticmethod
+    def _apply_withscores(items, withscores):
+        if withscores:
+            out = []
+            for item in items:
+                out.append(item[1])
+                out.append(Float.encode(item[0], False))
+        else:
+            out = [item[1] for item in items]
+        return out
+
     @command((Key(ZSet), bytes, bytes), (bytes,))
     def zadd(self, key, *args):
         # TODO: handle NX, XX, CH, INCR
@@ -1757,20 +1788,15 @@ class FakeSocket(object):
 
     def _zrange(self, key, start, stop, reverse, *args):
         zset = key.value
+        # TODO: does redis allow multiple WITHSCORES?
         if len(args) > 1 or (args and args[0].lower() != b'withscores'):
             raise redis.ResponseError(SYNTAX_ERROR_MSG)
         start, stop = self._fix_range(start, stop, len(zset))
         if reverse:
             start, stop = len(zset) - stop, len(zset) - start
         items = zset.islice_score(start, stop, reverse)
-        if args:
-            out = []
-            for item in items:
-                out.append(item[1])
-                out.append(Float.encode(item[0], False))
-        else:
-            out = [item[1] for item in items]
-        return out
+        items = self._apply_withscores(items, bool(args))
+        return items
 
     @command((Key(ZSet), Int, Int), (bytes,))
     def zrange(self, key, start, stop, *args):
@@ -1793,16 +1819,8 @@ class FakeSocket(object):
         items = zset.irange_lex(min.value, max.value,
                                 inclusive=(not min.exclusive, not max.exclusive),
                                 reverse=reverse)
-        out = []
-        for item in items:
-            if offset:    # Note: not offset > 0, in order to match redis
-                offset -= 1
-                continue
-            if count == 0:
-                break
-            count -= 1
-            out.append(item)
-        return out
+        items = self._limit_items(items, offset, count)
+        return items
 
     @command((Key(ZSet), StringTest, StringTest), (bytes,))
     def zrangebylex(self, key, min, max, *args):
@@ -1811,6 +1829,35 @@ class FakeSocket(object):
     @command((Key(ZSet), StringTest, StringTest), (bytes,))
     def zrevrangebylex(self, key, max, min, *args):
         return self._zrangebylex(key, min, max, True, *args)
+
+    def _zrangebyscore(self, key, min, max, reverse, *args):
+        withscores = False
+        offset = 0
+        count = -1
+        i = 0
+        while i < len(args):
+            if args[i].lower() == b'withscores':
+                withscores = True
+                i += 1
+            elif args[i].lower() == b'limit' and i + 2 < len(args):
+                offset = Int.decode(args[i + 1])
+                count = Int.decode(args[i + 2])
+                i += 3
+            else:
+                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+        zset = key.value
+        items = list(zset.irange_score(min.lower_bound, max.upper_bound, reverse=reverse))
+        items = self._limit_items(items, offset, count)
+        items = self._apply_withscores(items, withscores)
+        return items
+
+    @command((Key(ZSet), ScoreTest, ScoreTest), (bytes,))
+    def zrangebyscore(self, key, min, max, *args):
+        return self._zrangebyscore(key, min, max, False, *args)
+
+    @command((Key(ZSet), ScoreTest, ScoreTest), (bytes,))
+    def zrevrangebyscore(self, key, max, min, *args):
+        return self._zrangebyscore(key, min, max, True, *args)
 
     @command((Key(ZSet), bytes))
     def zrank(self, key, member):
