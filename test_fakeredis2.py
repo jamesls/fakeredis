@@ -295,7 +295,7 @@ class HashMachine(BaseMachine):
 
     @rule(key=keys)
     def hgetall(self, key):
-        self._compare('hgetall', key)
+        self._compare('hgetall', key, normalize=sort_list)
 
     @rule(key=keys, field=fields, increment=st.integers())
     def hincrby(self, key, field, increment):
@@ -306,7 +306,7 @@ class HashMachine(BaseMachine):
 
     @rule(key=keys)
     def hkeys(self, key):
-        self._compare('hkeys', key)
+        self._compare('hkeys', key, normalize=sort_list)
 
     @rule(key=keys)
     def hlen(self, key):
@@ -334,7 +334,7 @@ class HashMachine(BaseMachine):
 
     @rule(key=keys)
     def hvals(self, key):
-        self._compare('hvals', key)
+        self._compare('hvals', key, normalize=sort_list)
 
 
 TestHash = HashMachine.TestCase
@@ -573,7 +573,7 @@ class TransactionMachine(StringMachine):
         self._compare('discard')
 
     @rule()
-    def exec(self):
+    def exec_(self):
         self._compare('exec')
 
     @rule(key=keys)

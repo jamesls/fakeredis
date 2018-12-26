@@ -44,9 +44,6 @@ except:
         pass
 
 
-DEFAULT_ENCODING = fakeredis.DEFAULT_ENCODING
-
-
 def redis_must_be_running(cls):
     # This can probably be improved.  This will determines
     # at import time if the tests should be run, but we probably
@@ -119,12 +116,12 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_saving_non_ascii_chars_as_value(self):
         self.assertEqual(self.redis.set('foo', 'Ñandu'), True)
         self.assertEqual(self.redis.get('foo'),
-                         u'Ñandu'.encode(DEFAULT_ENCODING))
+                         u'Ñandu'.encode('utf-8'))
 
     def test_saving_unicode_type_as_value(self):
         self.assertEqual(self.redis.set('foo', u'Ñandu'), True)
         self.assertEqual(self.redis.get('foo'),
-                         u'Ñandu'.encode(DEFAULT_ENCODING))
+                         u'Ñandu'.encode('utf-8'))
 
     def test_saving_non_ascii_chars_as_key(self):
         self.assertEqual(self.redis.set('Ñandu', 'foo'), True)

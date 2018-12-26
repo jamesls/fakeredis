@@ -1,7 +1,6 @@
 import os
 import sys
 import io
-import queue
 import time
 import threading
 import math
@@ -21,13 +20,14 @@ except ImportError:
     from collections import MutableMapping
 
 import six
+from six.moves import queue
 import redis
 
 from .zset import ZSet
 
 
-DEFAULT_ENCODING = sys.getdefaultencoding()    # TODO: Python 2 support
 MAX_STRING_SIZE = 512 * 1024 * 1024
+INF = float('inf')
 
 INVALID_EXPIRE_MSG = "invalid expire time in {}"
 WRONGTYPE_MSG = \
@@ -81,10 +81,21 @@ PONG = SimpleString(b'PONG')
 BGSAVE_STARTED = SimpleString(b'Background saving started')
 
 
-# TODO: Python 2 support
-def byte_to_int(b):
-    assert isinstance(b, int)
-    return b
+if six.PY2:
+    def isfinite(value):
+        return not math.isinf(value) and not math.isnan(value)
+
+    # Not the same as six.byte2int, which takes a bytes in both Python 2+3.
+    # This takes an integer in Python 3.
+    def byte_to_int(value):
+        return ord(value)
+else:
+    def isfinite(value):
+        return math.isfinite(value)
+
+    def byte_to_int(value):
+        assert isinstance(value, int)
+        return value
 
 
 def compile_pattern(pattern):
@@ -384,7 +395,7 @@ class Float(object):
             # Values that over- or underflow- are explicitly rejected by
             # redis. This is a crude hack to determine whether the input
             # may have been such a value.
-            if out in (math.inf, -math.inf, 0.0) and re.match(b'^[^a-zA-Z]*[1-9]', value):
+            if out in (INF, -INF, 0.0) and re.match(b'^[^a-zA-Z]*[1-9]', value):
                 raise ValueError
             return out
         except ValueError:
@@ -672,7 +683,9 @@ class FakeSocket(object):
             timeout = deadline - time.time() if deadline is not None else None
             if timeout is not None and timeout <= 0:
                 return None
-            if not self._db.condition.wait(timeout=timeout):
+            # Python <3.2 doesn't return a status from wait. On Python 3.2+
+            # we bail out early on False.
+            if self._db.condition.wait(timeout=timeout) is False:
                 return None     # Timeout expired
             ret = func(False)
             if ret is not None:
@@ -693,6 +706,7 @@ class FakeSocket(object):
         return func, func_name
 
     def sendall(self, data):
+        data = six.ensure_binary(data, encoding='ascii')
         fp = io.BytesIO(data)
         while True:
             try:
@@ -1114,7 +1128,7 @@ class FakeSocket(object):
         return OK
 
     @command(())
-    def exec(self):
+    def exec_(self):
         if self._transaction is None:
             raise redis.ResponseError(WITHOUT_MULTI_MSG.format('EXEC'))
         if self._transaction_failed:
@@ -1201,7 +1215,7 @@ class FakeSocket(object):
     def incrbyfloat(self, key, amount):
         # TODO: introduce convert_order so that we can specify amount is Float
         c = Float.decode(key.get(b'0')) + Float.decode(amount)
-        if not math.isfinite(c):
+        if not isfinite(c):
             raise redis.ResponseError(NONFINITE_MSG)
         encoded = Float.encode(c, True)
         key.update(encoded)
@@ -1399,7 +1413,7 @@ class FakeSocket(object):
     @command((Key(Hash), bytes, bytes))
     def hincrbyfloat(self, key, field, amount):
         c = Float.decode(key.value.get(field, b'0')) + Float.decode(amount)
-        if not math.isfinite(c):
+        if not isfinite(c):
             raise redis.ResponseError(NONFINITE_MSG)
         encoded = Float.encode(c, True)
         key.value[field] = encoded
@@ -2315,6 +2329,8 @@ setattr(FakeSocket, 'del', FakeSocket.delete)
 delattr(FakeSocket, 'delete')
 setattr(FakeSocket, 'set', FakeSocket.set_)
 delattr(FakeSocket, 'set_')
+setattr(FakeSocket, 'exec', FakeSocket.exec_)
+delattr(FakeSocket, 'exec_')
 
 
 class _DummyParser(object):

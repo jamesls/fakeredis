@@ -1,1 +1,1 @@
-from .server import FakeServer, FakeRedis, FakeStrictRedis, DEFAULT_ENCODING   # noqa: F401
+from .server import FakeServer, FakeRedis, FakeStrictRedis   # noqa: F401
