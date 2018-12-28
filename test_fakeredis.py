@@ -509,6 +509,8 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     @redis2_only
     def test_mget_none(self):
+        self.redis.set('foo', 'one')
+        self.redis.set('bar', 'two')
         self.assertEqual(self.redis.mget('foo', 'bar', None),
                          [b'one', b'two', None])
 
@@ -2807,29 +2809,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         p.set('bar', 'five')
         self.assertEqual(p.execute(), [True])
 
-    def test_pipeline_proxies_to_redis_object(self):
-        p = self.redis.pipeline()
-        self.assertTrue(hasattr(p, 'zadd'))
-        with self.assertRaises(AttributeError):
-            p.non_existent_attribute
-
-    def test_pipeline_as_context_manager(self):
-        self.redis.set('foo', 'bar')
-        with self.redis.pipeline() as p:
-            p.watch('foo')
-            self.assertTrue(isinstance(p, redis.client.Pipeline)
-                            or p.need_reset)
-            p.multi()
-            p.set('foo', 'baz')
-            p.execute()
-
-        # Usually you would consider the pipeline to
-        # have been destroyed
-        # after the with statement, but we need to check
-        # it was reset properly:
-        self.assertTrue(isinstance(p, redis.client.Pipeline)
-                        or not p.need_reset)
-
     def test_pipeline_transaction_shortcut(self):
         # This example taken pretty much from the redis-py documentation.
         self.redis.set('OUR-SEQUENCE-KEY', 13)
@@ -4187,16 +4166,12 @@ class TestRealStrictRedisDecodeResponses(TestFakeStrictRedisDecodeResponses):
 
 
 class TestInitArgs(unittest.TestCase):
-    def test_can_accept_any_kwargs(self):
-        fakeredis.FakeRedis(foo='bar', bar='baz')
-        fakeredis.FakeStrictRedis(foo='bar', bar='baz')
-
     def test_singleton(self):
-        r1 = fakeredis.FakeStrictRedis(singleton=False)
-        r2 = fakeredis.FakeStrictRedis(singleton=False)
-        r3 = fakeredis.FakeStrictRedis()
-        r4 = fakeredis.FakeStrictRedis()
-        r3.flushall()
+        shared_server = fakeredis.FakeServer()
+        r1 = fakeredis.FakeStrictRedis()
+        r2 = fakeredis.FakeStrictRedis()
+        r3 = fakeredis.FakeStrictRedis(server=shared_server)
+        r4 = fakeredis.FakeStrictRedis(server=shared_server)
 
         r1.set('foo', 'bar')
         r3.set('bar', 'baz')
@@ -4673,7 +4648,7 @@ class TestPubSubConnected(unittest.TestCase):
     def tearDown(self):
         del self.pubsub
 
-    def test_basic_subscript(self):
+    def test_basic_subscribe(self):
         with self.assertRaises(redis.ConnectionError):
             self.pubsub.subscribe('logs')
 
