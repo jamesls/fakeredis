@@ -3726,6 +3726,8 @@ class TestFakeRedis(unittest.TestCase):
     decode_responses = False
 
     def setUp(self):
+        if REDIS3:
+            raise SkipTest('Legacy redis class does not apply to redis-py 3+')
         self.server = fakeredis.FakeServer()
         self.redis = self.create_redis()
 
@@ -3749,7 +3751,7 @@ class TestFakeRedis(unittest.TestCase):
             self.redis.setex('foo', 'bar', timedelta(seconds=100)), True)
         self.assertEqual(self.redis.get('foo'), b'bar')
 
-    def test_lrem_postitive_count(self):
+    def test_lrem_positive_count(self):
         self.redis.lpush('foo', 'same')
         self.redis.lpush('foo', 'same')
         self.redis.lpush('foo', 'different')
@@ -3796,32 +3798,32 @@ class TestFakeRedis(unittest.TestCase):
         self.assertEqual(self.redis.lrem('foo', 'one'), 0)
 
     def test_zadd_deprecated(self):
-        result = self.zadd('foo', 'one', 1)
+        result = self.redis.zadd('foo', 'one', 1)
         self.assertEqual(result, 1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'one'])
 
     def test_zadd_missing_required_params(self):
         with self.assertRaises(redis.RedisError):
             # Missing the 'score' param.
-            self.zadd('foo', 'one')
+            self.redis.zadd('foo', 'one')
         with self.assertRaises(redis.RedisError):
             # Missing the 'value' param.
-            self.zadd('foo', None, score=1)
+            self.redis.zadd('foo', None, score=1)
         with self.assertRaises(redis.RedisError):
-            self.zadd('foo')
+            self.redis.zadd('foo')
 
     def test_zadd_with_single_keypair(self):
-        result = self.zadd('foo', bar=1)
+        result = self.redis.zadd('foo', bar=1)
         self.assertEqual(result, 1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'bar'])
 
     def test_zadd_with_multiple_keypairs(self):
-        result = self.zadd('foo', bar=1, baz=9)
+        result = self.redis.zadd('foo', bar=1, baz=9)
         self.assertEqual(result, 2)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'bar', b'baz'])
 
     def test_zadd_with_name_is_non_string(self):
-        result = self.zadd('foo', 1, 9)
+        result = self.redis.zadd('foo', 1, 9)
         self.assertEqual(result, 1)
         self.assertEqual(self.redis.zrange('foo', 0, -1), [b'1'])
 
