@@ -13,6 +13,7 @@ import fakeredis
 int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
 float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
 counts = st.integers(min_value=-3, max_value=3) | st.integers()
+dbnums = st.integers(min_value=0, max_value=3) | st.integers()
 # The filter is to work around https://github.com/antirez/redis/issues/5632
 patterns = (st.text(alphabet=st.sampled_from('[]^$*.?-azAZ\\\r\n\t'))
             | st.binary().filter(lambda x: b'\0' not in x))
@@ -117,12 +118,12 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     # Key commands
     # TODO: add special testing for
     # - expiry-related commands
-    # - move
     # - randomkey
+    # - scan
 
     @rule(key=st.lists(keys))
     def delete(self, key):
-        self._compare('delete', *key)
+        self._compare('del', *key)
 
     @rule(key=keys)
     def exists(self, key):
@@ -133,6 +134,10 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     # @rule(pattern=st.none() | patterns)
     # def keys_(self, pattern):
     #     self._compare('keys', pattern)
+
+    @rule(key=keys, db=dbnums)
+    def move(self, key, db):
+        self._compare('move', key, db)
 
     @rule(key=keys)
     def persist(self, key):
@@ -145,6 +150,25 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     @rule(key=keys, newkey=keys)
     def renamenx(self, key, newkey):
         self._compare('renamenx', key, newkey)
+
+    @rule(key=keys, asc=st.booleans(), desc=st.booleans(), alpha=st.booleans(),
+          limit=st.none() | st.tuples(counts, counts))
+    def sort(self, key, asc, desc, alpha, limit):
+        # TODO:
+        # - Needs more tests for BY, GET and STORE
+        # - Need to figure out what to about ties, as the sort is unstable.
+        #   For now it's handled by sort_list normalization, but that makes
+        #   the test much weaker, and we can't test STORE.
+        args = []
+        if asc:
+            args.append('asc')
+        if desc:
+            args.append('desc')
+        if alpha:
+            args.append('alpha')
+        if limit is not None:
+            args += ['limit', limit[0], limit[1]]
+        self._compare('sort', key, *args, normalize=sort_list)
 
     @rule(key=keys)
     def type(self, key):
@@ -162,6 +186,10 @@ class ConnectionMachine(BaseMachine):
     @rule(args=st.lists(values, max_size=2))
     def ping(self, args):
         self._compare('ping', *args)
+
+    @rule(index1=dbnums, index2=dbnums)
+    def swapdb(self, index1, index2):
+        self._compare('swapdb', index1, index2)
 
 
 TestConnection = ConnectionMachine.TestCase
@@ -232,13 +260,11 @@ class StringMachine(BaseMachine):
     def mget(self, keys):
         self._compare('mget', *keys)
 
-    @rule(items=st.dictionaries(keys, values))
-    def mset(self, items):
-        self._compare('mset', items)
-
-    @rule(items=st.dictionaries(keys, values))
-    def msetnx(self, items):
-        self._compare('msetnx', items)
+    @rule(items=st.lists(st.tuples(keys, values)), nx=st.booleans())
+    def mset(self, items, nx):
+        flat_items = itertools.chain(*items)
+        cmd = 'msetnx' if nx else 'mset'
+        self._compare(cmd, *flat_items)
 
     @rule(key=keys, value=values, nx=st.booleans(), xx=st.booleans())
     def set(self, key, value, nx, xx):
@@ -313,9 +339,10 @@ class HashMachine(BaseMachine):
     def hmget(self, key, field):
         self._compare('hmget', key, *field)
 
-    @rule(key=keys, items=st.dictionaries(fields, values))
+    @rule(key=keys, items=st.lists(st.tuples(fields, values)))
     def hmset(self, key, items):
-        self._compare('hmset', key, items)
+        flat_items = itertools.chain(*items)
+        self._compare('hmset', key, *flat_items)
 
     @rule(key=keys, field=fields, value=values)
     def hset(self, key, field, value):
@@ -405,6 +432,10 @@ TestList = ListMachine.TestCase
 
 
 class SetMachine(BaseMachine):
+    # TODO:
+    # - find a way to test srandmember, spop which are random
+    # - sscan
+
     keys = BaseMachine.keys
     fields = BaseMachine.fields
 
@@ -515,6 +546,18 @@ class ZSetMachine(BaseMachine):
         self._compare('zscore', key, member)
 
     # TODO: zscan, zunionstore, zinterstore, probably more
+    @rule(command=st.sampled_from(['zunionstore', 'zinterstore']),
+          key=keys, dest=keys, sources=st.lists(st.tuples(keys, float_as_bytes)),
+          weights=st.booleans(), aggregate=st.sampled_from([None, 'sum', 'min', 'max']))
+    def zunioninterstore(self, command, key, dest, sources, weights, aggregate):
+        args = [dest, len(sources)]
+        args += [source[0] for source in sources]
+        if weights:
+            args.append('weights')
+            args += [source[1] for source in sources]
+        if aggregate:
+            args += ['aggregate', aggregate]
+        self._compare(command, *args)
 
 
 TestZSet = ZSetMachine.TestCase

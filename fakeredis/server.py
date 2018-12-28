@@ -419,7 +419,14 @@ class SortFloat(Float):
 
     @classmethod
     def decode(cls, value):
-        return super(SortFloat, cls).decode(value, allow_leading_whitespace=True)
+        # redis has some quirks in sorting.
+        # See https://github.com/antirez/redis/issues/5706
+        if b'\0' in value:
+            value = value[:value.find(b'\0')]
+        if value == b'':
+            return 0.0
+        else:
+            return super(SortFloat, cls).decode(value, allow_leading_whitespace=True)
 
 
 class ScoreTest(object):
@@ -941,7 +948,7 @@ class FakeSocket(object):
         if not key or key.key in self._server.dbs[db]:
             return 0
         # TODO: what is the interaction with expiry and WATCH?
-        self._server.dbs[db][key] = key.item
+        self._server.dbs[db][key.key] = self._server.dbs[self._db_num][key.key]
         key.value = None   # Causes deletion
         return 1
 
