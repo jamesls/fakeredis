@@ -1,5 +1,4 @@
 import os
-import sys
 import io
 import time
 import threading
@@ -69,6 +68,7 @@ class SimpleString(object):
     def __init__(self, value):
         assert isinstance(value, bytes)
         self.value = value
+
 
 class NoResponse(object):
     """Returned by pub/sub commands to indicate that no response should be returned"""
@@ -938,7 +938,7 @@ class FakeSocket(object):
     def move(self, key, db):
         if db == self._db_num:
             raise redis.ResponseError(SRC_DST_SAME_MSG)
-        if not item or key.key in self._server.dbs[db]:
+        if not key or key.key in self._server.dbs[db]:
             return 0
         # TODO: what is the interaction with expiry and WATCH?
         self._server.dbs[db][key] = key.item
@@ -2010,7 +2010,7 @@ class FakeSocket(object):
         while i < len(args):
             arg = args[i].lower()
             if arg == b'weights' and i + numkeys < len(args):
-                weights = [Float.decode(x) for x in args[i + 1 : i + numkeys + 1]]
+                weights = [Float.decode(x) for x in args[i + 1:i + numkeys + 1]]
                 i += numkeys + 1
             elif arg == b'aggregate' and i + 1 < len(args):
                 aggregate = args[i + 1].lower()
@@ -2096,8 +2096,6 @@ class FakeSocket(object):
     # (script debug and script kill will probably not be supported)
 
     def _convert_redis_arg(self, lua_runtime, value):
-        from lupa import lua_type
-
         if isinstance(value, bytes):
             return six.ensure_binary(value)
         elif isinstance(value, (int, float)):
@@ -2324,6 +2322,7 @@ class FakeSocket(object):
                     sock.responses.put(msg)
                     receivers += 1
         return receivers
+
 
 setattr(FakeSocket, 'del', FakeSocket.delete)
 delattr(FakeSocket, 'delete')

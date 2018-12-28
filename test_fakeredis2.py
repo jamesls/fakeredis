@@ -1,8 +1,5 @@
-import time
 import itertools
 import operator
-import sys
-import unittest
 
 import hypothesis
 from hypothesis.stateful import rule
@@ -35,7 +32,7 @@ class WrappedException(object):
     def __eq__(self, other):
         if not isinstance(other, WrappedException):
             return NotImplemented
-        if type(self.wrapped) != type(other.wrapped):
+        if type(self.wrapped) != type(other.wrapped):    # noqa: E721
             return False
         # TODO: re-enable after more carefully handling order of error checks
         # return self.wrapped.args == other.wrapped.args
