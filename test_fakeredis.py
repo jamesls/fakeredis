@@ -4241,8 +4241,6 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
         with self.assertRaises(redis.ConnectionError):
             self.redis.append('key', 'value')
 
-        self.assertEqual(self.redis._db, {}, 'DB should be empty')
-
     def test_bitcount(self):
         with self.assertRaises(redis.ConnectionError):
             self.redis.bitcount('key', 0, 20)
@@ -4250,8 +4248,6 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     def test_decr(self):
         with self.assertRaises(redis.ConnectionError):
             self.redis.decr('key', 2)
-
-        self.assertEqual(self.redis._db, {}, 'DB should be empty')
 
     def test_exists(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4303,7 +4299,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_mset(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.mset(('key', 'value'))
+            self.redis.mset({'key': 'value'})
 
     def test_msetnx(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4314,21 +4310,14 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
             self.redis.persist('key')
 
     def test_rename(self):
-        self.redis.connected = True
+        server = self.redis.connection_pool.connection_kwargs['server']
+        server.connected = True
         self.redis.set('key1', 'value')
-        self.redis.connected = False
+        server.connected = False
         with self.assertRaises(redis.ConnectionError):
             self.redis.rename('key1', 'key2')
-        self.redis.connected = True
+        server.connected = True
         self.assertTrue(self.redis.exists('key1'))
-
-    def test_watch(self):
-        with self.assertRaises(redis.ConnectionError):
-            self.redis.watch()
-
-    def test_unwatch(self):
-        with self.assertRaises(redis.ConnectionError):
-            self.redis.unwatch()
 
     def test_eval(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4512,7 +4501,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_zadd(self):
         with self.assertRaises(redis.ConnectionError):
-            self.zadd('name')
+            self.redis.zadd('name', 3, 3)
 
     def test_zcard(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4524,7 +4513,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_zincrby(self):
         with self.assertRaises(redis.ConnectionError):
-            self.zincrby('name', 1, 'value')
+            self.redis.zincrby('name', 1, 1)
 
     def test_zinterstore(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4588,7 +4577,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_pipeline(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.pipeline()
+            self.redis.pipeline().watch('key')
 
     def test_transaction(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4599,11 +4588,12 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_lock(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.lock('name')
+            with self.redis.lock('name'):
+                pass
 
     def test_pubsub(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.pubsub()
+            self.redis.pubsub().subscribe('channel')
 
     def test_pfadd(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4615,7 +4605,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_scan(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.scan()
+            list(self.redis.scan())
 
     def test_sscan(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4627,46 +4617,42 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_scan_iter(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.scan_iter()
+            list(self.redis.scan_iter())
 
     def test_sscan_iter(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.sscan_iter('name')
+            list(self.redis.sscan_iter('name'))
 
     def test_hscan_iter(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.hscan_iter('name')
+            list(self.redis.hscan_iter('name'))
 
 
 class TestPubSubConnected(unittest.TestCase):
-    def create_redis(self):
-        return fakeredis.FakePubSub(connected=False)
-
     def setUp(self):
-        self.pubsub = self.create_redis()
-
-    def tearDown(self):
-        del self.pubsub
+        self.server = fakeredis.FakeServer()
+        self.server.connected = False
+        self.redis = fakeredis.FakeStrictRedis(server=self.server)
+        self.pubsub = self.redis.pubsub()
 
     def test_basic_subscribe(self):
         with self.assertRaises(redis.ConnectionError):
             self.pubsub.subscribe('logs')
 
     def test_subscript_conn_lost(self):
-        self.pubsub.connected = True
+        self.server.connected = True
         self.pubsub.subscribe('logs')
-        self.pubsub.connected = False
+        self.server.connected = False
         with self.assertRaises(redis.ConnectionError):
             self.pubsub.get_message()
 
-    def test_put_listen(self):
-        self.pubsub.connected = True
-        count = self.pubsub.put('logs', 'mymessage', 'subscribe')
-        self.assertEqual(count, 1, 'Message could should be 1')
-        self.pubsub.connected = False
+    def test_publish_listen(self):
+        self.server.connected = True
+        self.pubsub.subscribe('logs')
+        self.server.connected = False
         with self.assertRaises(redis.ConnectionError):
             self.pubsub.get_message()
-        self.pubsub.connected = True
+        self.server.connected = True
         msg = self.pubsub.get_message()
         check = {
             'type': 'subscribe',

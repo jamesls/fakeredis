@@ -594,6 +594,7 @@ class FakeServer(object):
         self.subscribers = defaultdict(weakref.WeakSet)
         self.psubscribers = defaultdict(weakref.WeakSet)
         self.lastsave = int(time.time())
+        self.connected = True
 
 
 class FakeSocket(object):
@@ -713,6 +714,8 @@ class FakeSocket(object):
         return func, func_name
 
     def sendall(self, data):
+        if not self._server.connected:
+            raise redis.ConnectionError("FakeRedis is emulating a connection error.")
         data = six.ensure_binary(data, encoding='ascii')
         fp = io.BytesIO(data)
         while True:
@@ -2357,6 +2360,7 @@ class FakeConnection(redis.Connection):
         self.db = db
         self.password = password
         self.encoder = redis.connection.Encoder(encoding, encoding_errors, decode_responses)
+        self.retry_on_timeout = False
         self._description_args = {'db': self.db}
         self._connect_callbacks = []
         self._buffer_cutoff = 6000
@@ -2371,6 +2375,8 @@ class FakeConnection(redis.Connection):
         return FakeSocket(self._server)
 
     def can_read(self, timeout=0):
+        if not self._server.connected:
+            return True
         # TODO: handle timeout (needed for pub/sub)
         if not self._sock:
             self.connect()
@@ -2402,7 +2408,8 @@ class FakeRedisMixin(object):
                  decode_responses=False, retry_on_timeout=False,
                  ssl=False, ssl_keyfile=None, ssl_certfile=None,
                  ssl_cert_reqs=None, ssl_ca_certs=None,
-                 max_connections=None, server=None):
+                 max_connections=None, server=None,
+                 connected=True):
         if not connection_pool:
             # Adapted from redis-py
             if charset is not None:
@@ -2416,6 +2423,7 @@ class FakeRedisMixin(object):
 
             if server is None:
                 server = FakeServer()
+                server.connected = connected
             kwargs = {
                 'db': db,
                 'password': password,
