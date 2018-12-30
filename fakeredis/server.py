@@ -448,7 +448,7 @@ class ScoreTest(object):
 
     def __str__(self):
         if self.exclusive:
-            return '({0!r}'.format(self.value)
+            return '({!r}'.format(self.value)
         else:
             return repr(self.value)
 
@@ -2150,7 +2150,7 @@ class FakeSocket(object):
         elif isinstance(result, redis.ResponseError):
             raise result
         else:
-            raise RuntimeError("Unexpected return type from redis: {0}".format(type(result)))
+            raise RuntimeError("Unexpected return type from redis: {}".format(type(result)))
 
     def _convert_lua_result(self, result, nested=True):
         from lupa import lua_type
