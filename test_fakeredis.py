@@ -4639,28 +4639,21 @@ class TestPubSubConnected(unittest.TestCase):
         with self.assertRaises(redis.ConnectionError):
             self.pubsub.subscribe('logs')
 
-    def test_subscript_conn_lost(self):
+    def test_subscription_conn_lost(self):
         self.server.connected = True
         self.pubsub.subscribe('logs')
         self.server.connected = False
-        with self.assertRaises(redis.ConnectionError):
-            self.pubsub.get_message()
-
-    def test_publish_listen(self):
-        self.server.connected = True
-        self.pubsub.subscribe('logs')
-        self.server.connected = False
-        with self.assertRaises(redis.ConnectionError):
-            self.pubsub.get_message()
-        self.server.connected = True
+        # The initial message is already in the pipe
         msg = self.pubsub.get_message()
         check = {
             'type': 'subscribe',
             'pattern': None,
             'channel': b'logs',
-            'data': 'mymessage'
+            'data': 1
         }
         self.assertEqual(msg, check, 'Message was not published to channel')
+        with self.assertRaises(redis.ConnectionError):
+            self.pubsub.get_message()
 
 
 if __name__ == '__main__':

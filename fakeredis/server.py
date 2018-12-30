@@ -62,6 +62,7 @@ NO_MATCHING_SCRIPT_MSG = "No matching script. Please use EVAL."
 BAD_SUBCOMMAND_MSG = "Unknown {0} subcommand or wrong # of args."
 BAD_COMMAND_IN_PUBSUB_MSG = \
     "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT allowed in this context"
+CONNECTION_ERROR_MSG = "FakeRedis is emulating a connection error."
 
 
 class SimpleString(object):
@@ -715,7 +716,7 @@ class FakeSocket(object):
 
     def sendall(self, data):
         if not self._server.connected:
-            raise redis.ConnectionError("FakeRedis is emulating a connection error.")
+            raise redis.ConnectionError(CONNECTION_ERROR_MSG)
         data = six.ensure_binary(data, encoding='ascii')
         fp = io.BytesIO(data)
         while True:
@@ -2372,6 +2373,8 @@ class FakeConnection(redis.Connection):
         self._sock = None
 
     def _connect(self):
+        if not self._server.connected:
+            raise redis.ConnectionError(CONNECTION_ERROR_MSG)
         return FakeSocket(self._server)
 
     def can_read(self, timeout=0):
@@ -2391,7 +2394,13 @@ class FakeConnection(redis.Connection):
             return response
 
     def read_response(self):
-        response = self._sock.responses.get()
+        if not self._server.connected:
+            try:
+                response = self._sock.responses.get_nowait()
+            except queue.Empty:
+                raise redis.ConnectionError(CONNECTION_ERROR_MSG)
+        else:
+            response = self._sock.responses.get()
         if isinstance(response, redis.ResponseError):
             raise response
         return self._decode(response)
