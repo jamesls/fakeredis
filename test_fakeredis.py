@@ -4209,7 +4209,7 @@ class TestInitArgs(unittest.TestCase):
         # In ValueError, should default to 0
         db = fakeredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/a')
-        self.assertEqual(db._db_num, 0)
+        self.assertEqual(db.connection_pool.connection_kwargs['db'], 0)
 
     def test_can_pass_through_extra_args(self):
         db = fakeredis.FakeStrictRedis.from_url(

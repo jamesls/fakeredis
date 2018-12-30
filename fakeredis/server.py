@@ -2452,6 +2452,21 @@ class FakeRedisMixin(object):
             ssl, ssl_keyfile, ssl_certfile, ssl_cert_reqs, ssl_ca_certs,
             max_connections)
 
+    @classmethod
+    def from_url(cls, url, db=None, **kwargs):
+        server = kwargs.pop('server', None)
+        if server is None:
+            server = FakeServer()
+        self = super(FakeRedisMixin, cls).from_url(url, db, **kwargs)
+        # Now override how it creates connections
+        pool = self.connection_pool
+        pool.connection_class = FakeConnection
+        pool.connection_kwargs['server'] = server
+        for key in ['password', 'host', 'port', 'path']:
+            if key in pool.connection_kwargs:
+                del pool.connection_kwargs[key]
+        return self
+
 
 class FakeStrictRedis(FakeRedisMixin, redis.StrictRedis):
     pass
