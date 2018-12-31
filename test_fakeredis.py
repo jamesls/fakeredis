@@ -4113,7 +4113,7 @@ class DecodeMixin(object):
         elif isinstance(value, dict):
             return {cls._decode(k): cls._decode(v) for k, v in value.items()}
         elif isinstance(value, bytes):
-            return value.decode()
+            return value.decode('utf-8')
         else:
             return value
 

@@ -99,6 +99,8 @@ else:
         assert isinstance(value, int)
         return value
 
+    long = int
+
 
 def compile_pattern(pattern):
     """Compile a glob pattern (e.g. for keys) to a bytes regex.
@@ -569,7 +571,7 @@ def valid_response_type(value, nested=False):
     if isinstance(value, NoResponse) and not nested:
         return True
     if value is not None and not isinstance(value, (bytes, SimpleString, redis.ResponseError,
-                                                    int, list)):
+                                                    int, long, list)):
         return False
     if isinstance(value, list):
         if any(not valid_response_type(item, True) for item in value):
@@ -662,11 +664,13 @@ class FakeSocket(object):
         return result
 
     def _decode_result(self, result):
-        """Turn SimpleString into native string, recursively"""
+        """Turn SimpleString into native string and int into long, recursively"""
         if isinstance(result, list):
             return [self._decode_result(r) for r in result]
         elif isinstance(result, SimpleString):
             return result.value
+        elif six.PY2 and isinstance(result, int):
+            return long(result)
         else:
             return result
 
