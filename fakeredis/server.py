@@ -49,8 +49,8 @@ SRC_DST_SAME_MSG = "source and destination objects are the same"
 NO_KEY_MSG = "no such key"
 INDEX_ERROR_MSG = "index out of range"
 ZUNIONSTORE_KEYS_MSG = "at least 1 input key is needed for ZUNIONSTORE/ZINTERSTORE"
-WRONG_ARGS_MSG = "wrong number of arguments for '{0}' command"
-UNKNOWN_COMMAND_MSG = "unknown command '{0}'"
+WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
+UNKNOWN_COMMAND_MSG = "unknown command '{}'"
 EXECABORT_MSG = "Transaction discarded because of previous errors."
 MULTI_NESTED_MSG = "MULTI calls can not be nested"
 WITHOUT_MULTI_MSG = "{0} without MULTI"
@@ -59,7 +59,8 @@ NEGATIVE_KEYS_MSG = "Number of keys can't be negative"
 TOO_MANY_KEYS_MSG = "Number of keys can't be greater than number of args"
 TIMEOUT_NEGATIVE_MSG = "timeout is negative"
 NO_MATCHING_SCRIPT_MSG = "No matching script. Please use EVAL."
-BAD_SUBCOMMAND_MSG = "Unknown {0} subcommand or wrong # of args."
+GLOBAL_VARIABLE_MSG = "Script attempted to set global variables: {}"
+BAD_SUBCOMMAND_MSG = "Unknown {} subcommand or wrong # of args."
 BAD_COMMAND_IN_PUBSUB_MSG = \
     "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT allowed in this context"
 CONNECTION_ERROR_MSG = "FakeRedis is emulating a connection error."
@@ -704,8 +705,7 @@ class FakeSocket(object):
         # redis treats the command as NULL-terminated
         if b'\0' in name:
             name = name[:name.find(b'\0')]
-        # Using Latin-1 ensures we never get a UnicodeDecodeError
-        name = six.ensure_str(name, encoding='latin-1')
+        name = six.ensure_str(name, encoding='utf-8', errors='replace')
         func_name = name.lower()
         func = getattr(self, func_name, None)
         if name.startswith('_') or not func or not hasattr(func, '_fakeredis_sig'):
@@ -2186,12 +2186,9 @@ class FakeSocket(object):
     def _check_for_lua_globals(self, lua_runtime, expected_globals):
         actual_globals = set(lua_runtime.globals().keys())
         if actual_globals != expected_globals:
-            # TODO: make a constant for this
-            raise redis.ResponseError(
-                b"Script attempted to set a global variables: %s" % b", ".join(
-                    actual_globals - expected_globals
-                )
-            )
+            unexpected = [six.ensure_str(var, 'utf-8', 'replace')
+                          for var in actual_globals - expected_globals]
+            raise redis.ResponseError(GLOBAL_VARIABLE_MSG.format(", ".join(unexpected)))
 
     def _lua_redis_call(self, lua_runtime, expected_globals, op, *args):
         # Check if we've set any global variables before making any change.
