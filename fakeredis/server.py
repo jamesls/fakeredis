@@ -504,8 +504,6 @@ class AfterAny(object):
 
 class Key(object):
     """Marker to indicate that argument in signature is a key"""
-    # TODO: add argument to specify a return value if the key is not found
-
     UNSPECIFIED = object()
 
     def __init__(self, type_=None, missing_return=UNSPECIFIED):
@@ -870,7 +868,6 @@ class FakeSocket(object):
                 key.value = None
                 done.add(key.key)
                 ans += 1
-        key.value = None
         return ans
 
     @command((Key(),))
@@ -1684,10 +1681,15 @@ class FakeSocket(object):
     def scard(self, key):
         return len(key.value)
 
-    def _setop(self, op, dst, key, *keys):
+    def _setop(self, op, stop_when_empty, dst, key, *keys):
         ans = key.value.copy()
         for other in keys:
-            ans = op(ans, other.value)
+            if stop_when_empty and not ans:
+                break
+            value = other.value if other.value is not None else set()
+            if not isinstance(value, set):
+                raise redis.ResponseError(WRONGTYPE_MSG)
+            ans = op(ans, value)
         if dst is None:
             return list(ans)
         else:
@@ -1696,19 +1698,19 @@ class FakeSocket(object):
 
     @command((Key(set),), (Key(set),))
     def sdiff(self, *keys):
-        return self._setop(lambda a, b: a - b, None, *keys)
+        return self._setop(lambda a, b: a - b, False, None, *keys)
 
     @command((Key(), Key(set)), (Key(set),))
     def sdiffstore(self, dst, *keys):
-        return self._setop(lambda a, b: a - b, dst, *keys)
+        return self._setop(lambda a, b: a - b, False, dst, *keys)
 
-    @command((Key(set),), (Key(set),))
+    @command((Key(set, missing_return=[]),), (Key(),))
     def sinter(self, *keys):
-        return self._setop(lambda a, b: a & b, None, *keys)
+        return self._setop(lambda a, b: a & b, True, None, *keys)
 
-    @command((Key(), Key(set)), (Key(set),))
+    @command((Key(), Key(set)), (Key(),))
     def sinterstore(self, dst, *keys):
-        return self._setop(lambda a, b: a & b, dst, *keys)
+        return self._setop(lambda a, b: a & b, True, dst, *keys)
 
     @command((Key(set), bytes))
     def sismember(self, key, member):
@@ -1776,11 +1778,11 @@ class FakeSocket(object):
 
     @command((Key(set),), (Key(set),))
     def sunion(self, *keys):
-        return self._setop(lambda a, b: a | b, None, *keys)
+        return self._setop(lambda a, b: a | b, False, None, *keys)
 
     @command((Key(), Key(set)), (Key(set),))
     def sunionstore(self, dst, *keys):
-        return self._setop(lambda a, b: a | b, dst, *keys)
+        return self._setop(lambda a, b: a | b, False, dst, *keys)
 
     # Hyperloglog commands
     # These are not quite the same as the real redis ones, which are
