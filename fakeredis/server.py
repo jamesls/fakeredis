@@ -862,7 +862,7 @@ class FakeSocket(object):
     # TODO: lots
 
     @command((Key(),), (Key(),), name='del')
-    def delete(self, *keys):
+    def del_(self, *keys):
         ans = 0
         done = set()
         for key in keys:
@@ -1142,7 +1142,7 @@ class FakeSocket(object):
         self._clear_watches()
         return OK
 
-    @command(())
+    @command((), name='exec')
     def exec_(self):
         if self._transaction is None:
             raise redis.ResponseError(WITHOUT_MULTI_MSG.format('EXEC'))
@@ -1310,7 +1310,7 @@ class FakeSocket(object):
             args[i].value = args[i + 1]
         return 1
 
-    @command((Key(), bytes), (bytes,))
+    @command((Key(), bytes), (bytes,), name='set')
     def set_(self, key, value, *args):
         i = 0
         ex = None
@@ -2336,8 +2336,8 @@ class FakeSocket(object):
         return receivers
 
 
-setattr(FakeSocket, 'del', FakeSocket.delete)
-delattr(FakeSocket, 'delete')
+setattr(FakeSocket, 'del', FakeSocket.del_)
+delattr(FakeSocket, 'del_')
 setattr(FakeSocket, 'set', FakeSocket.set_)
 delattr(FakeSocket, 'set_')
 setattr(FakeSocket, 'exec', FakeSocket.exec_)
