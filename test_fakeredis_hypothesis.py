@@ -1,5 +1,7 @@
+from __future__ import print_function, division, absolute_import
 import itertools
 import operator
+import functools
 
 import hypothesis
 from hypothesis.stateful import rule
@@ -10,15 +12,25 @@ import redis
 import fakeredis
 
 
+keys = hypothesis.stateful.Bundle('keys')
+fields = hypothesis.stateful.Bundle('fields')
+values = hypothesis.stateful.Bundle('values')
+scores = hypothesis.stateful.Bundle('scores')
+
 int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
 float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
 counts = st.integers(min_value=-3, max_value=3) | st.integers()
+limits = st.just(()) | st.tuples(st.just('limit'), counts, counts)
 # Redis has an integer overflow bug in swapdb, so we confine the numbers to
 # a limited range (https://github.com/antirez/redis/issues/5737).
 dbnums = st.integers(min_value=0, max_value=3) | st.integers(min_value=-1000, max_value=1000)
 # The filter is to work around https://github.com/antirez/redis/issues/5632
 patterns = (st.text(alphabet=st.sampled_from('[]^$*.?-azAZ\\\r\n\t'))
             | st.binary().filter(lambda x: b'\0' not in x))
+score_tests = scores | st.builds(lambda x: b'(' + repr(x).encode(), scores)
+string_tests = (
+    st.sampled_from([b'+', b'-'])
+    | st.builds(operator.add, st.sampled_from([b'(', b'[']), fields))
 
 
 class WrappedException(object):
@@ -63,10 +75,204 @@ def sort_list(lst):
         return lst
 
 
+def flatten(args):
+    if isinstance(args, (list, tuple)):
+        for arg in args:
+            for item in flatten(arg):
+                yield item
+    elif args is not None:
+        yield args
+
+
+class Command(object):
+    def __init__(self, *args, **kwargs):
+        self.args = tuple(flatten(args))
+        self.normalize = kwargs.pop('normalize', None)
+        if kwargs:
+            raise TypeError('Unexpected keyword args {}'.format(kwargs))
+
+    def __str__(self):
+        parts = [repr(arg) for arg in self.args]
+        if self.normalize is not None:
+            parts.append('normalize={!r}'.format(self.normalize))
+        return 'Command({})'.format(', '.join(parts))
+
+
+def commands(*args, **kwargs):
+    return st.builds(functools.partial(Command, **kwargs), *args)
+
+
+# TODO: all expiry-related commands
+common_commands = (
+    commands(st.sampled_from(['del', 'exists', 'persist', 'type']), keys)
+    | commands(st.just('keys'), st.just('*'))
+    # Disabled for now due to redis giving wrong answers
+    # (https://github.com/antirez/redis/issues/5632)
+    # | st.tuples(st.just('keys'), patterns)
+    | commands(st.just('move'), keys, dbnums)
+    | commands(st.sampled_from(['rename', 'renamenx']), keys, keys)
+    | commands(st.just('sort'), keys,
+               st.none() | st.just('asc'),
+               st.none() | st.just('desc'),
+               st.none() | st.just('alpha'),
+               limits)
+)
+
+# TODO: tests for select
+connection_commands = (
+    commands(st.just('echo'), values)
+    | commands(st.just('ping'), st.lists(values, max_size=2))
+    | commands(st.just('swapdb'), dbnums, dbnums)
+)
+
+string_commands = (
+    commands(st.just('append'), keys, values)
+    | commands(st.just('bitcount'), keys)
+    | commands(st.just('bitcount'), keys, values, values)
+    | commands(st.sampled_from(['incr', 'decr']), keys)
+    | commands(st.sampled_from(['incrby', 'decrby']), keys, values)
+    # Disabled for now because Python can't exactly model the long doubles.
+    # TODO: make a more targeted test that checks the basics.
+    # TODO: check how it gets stringified, without relying on hypothesis
+    # to get generate a get call before it gets overwritten.
+    # | commands(st.just('incrbyfloat'), keys, st.floats(width=32))
+    | commands(st.just('get'), keys)
+    | commands(st.just('getbit'), keys, counts)
+    | commands(st.just('setbit'), keys, counts,
+               st.integers(min_value=0, max_value=1) | st.integers())
+    | commands(st.sampled_from(['substr', 'getrange']), keys, counts, counts)
+    | commands(st.just('getset'), keys, values)
+    | commands(st.just('mget'), st.lists(keys))
+    | commands(st.sampled_from(['mset', 'msetnx']), st.lists(st.tuples(keys, values)))
+    | commands(st.just('set'), keys, values,
+               st.none() | st.just('nx'), st.none() | st.just('xx'))
+    | commands(st.just('setex'), keys, st.integers(min_value=1000000000), values)
+    | commands(st.just('psetex'), keys, st.integers(min_value=1000000000000), values)
+    | commands(st.just('setnx'), keys, values)
+    | commands(st.just('setrange'), keys, counts, values)
+    | commands(st.just('strlen'), keys)
+)
+
+# TODO: add a test for hincrbyfloat. See incrbyfloat for why this is
+# problematic.
+hash_commands = (
+    commands(st.just('hdel'), keys, st.lists(fields))
+    | commands(st.just('hexists'), keys, fields)
+    | commands(st.just('hget'), keys, fields)
+    | commands(st.sampled_from(['hgetall', 'hkeys', 'hvals']), keys, normalize=sort_list)
+    | commands(st.just('hincrby'), keys, fields, st.integers())
+    | commands(st.just('hlen'), keys)
+    | commands(st.just('hmget'), keys, st.lists(fields))
+    | commands(st.just('hmset'), keys, st.lists(st.tuples(fields, values)))
+    | commands(st.sampled_from(['hset', 'hsetnx']), keys, fields, values)
+    | commands(st.just('hstrlen'), keys, fields)
+)
+
+# TODO: blocking commands
+list_commands = (
+    commands(st.just('lindex'), keys, counts)
+    | commands(st.just('linsert'),
+               st.sampled_from(['before', 'after', 'BEFORE', 'AFTER']) | st.binary(),
+               values, values)
+    | commands(st.just('llen'), keys)
+    | commands(st.sampled_from(['lpop', 'rpop']), keys)
+    | commands(st.sampled_from(['lpush', 'lpushx', 'rpush', 'rpushx']), keys, st.lists(values))
+    | commands(st.just('lrange'), keys, counts, counts)
+    | commands(st.just('lrem'), keys, counts, counts)
+    | commands(st.just('lset'), keys, counts, values)
+    | commands(st.just('ltrim'), keys, counts, counts)
+    | commands(st.just('rpoplpush'), keys, keys)
+)
+
+# TODO:
+# - find a way to test srandmember, spop which are random
+# - sscan
+set_commands = (
+    commands(st.just('sadd'), keys, st.lists(fields))
+    | commands(st.just('scard'), keys)
+    | commands(st.sampled_from(['sdiff', 'sinter', 'sunion']), st.lists(keys), normalize=sort_list)
+    | commands(st.sampled_from(['sdiffstore', 'sinterstore', 'sunionstore']),
+               keys, st.lists(keys), normalize=sort_list)
+    | commands(st.just('sismember'), keys, fields)
+    | commands(st.just('smembers'), keys, normalize=sort_list)
+    | commands(st.just('smove'), keys, keys, fields)
+    | commands(st.just('srem'), keys, st.lists(fields))
+)
+
+
+def build_zstore(command, dest, sources, weights, aggregate):
+    args = [command, dest, len(sources)]
+    args += [source[0] for source in sources]
+    if weights:
+        args.append('weights')
+        args += [source[1] for source in sources]
+    if aggregate:
+        args += ['aggregate', aggregate]
+    return args
+
+
+# TODO: zscan, zpopmin/zpopmax, bzpopmin/bzpopmax, probably more
+zset_commands = (
+    # TODO: test xx, nx, ch, incr
+    commands(st.just('zadd'), st.lists(st.tuples(scores, fields)))
+    | commands(st.just('zcard'), keys)
+    | commands(st.just('zcount'), keys, score_tests, score_tests)
+    | commands(st.just('zincrby'), keys, scores, fields)
+    | commands(st.sampled_from(['zrange', 'zrevrange']), keys, counts, counts,
+               st.none() | st.just('withscores'))
+    | commands(st.sampled_from(['zrangebyscore', 'zrevrangebyscore']),
+               keys, score_tests, score_tests,
+               limits,
+               st.none() | st.just('withscores'))
+    | commands(st.sampled_from(['zrank', 'zrevrank']), keys, fields)
+    | commands(st.just('zrem'), keys, st.lists(fields))
+    | commands(st.just('zremrangebyrank'), keys, counts, counts)
+    | commands(st.just('zremrangebyscore'), keys, score_tests, score_tests)
+    | commands(st.just('zscore'), keys, fields)
+    | st.builds(build_zstore,
+                command=st.sampled_from(['zunionstore', 'zinterstore']),
+                dest=keys, sources=st.lists(st.tuples(keys, float_as_bytes)),
+                weights=st.booleans(),
+                aggregate=st.sampled_from([None, 'sum', 'min', 'max']))
+)
+
+zset_no_score_commands = (
+    # TODO: test xx, nx, ch, incr
+    commands(st.just('zadd'), keys, st.lists(st.tuples(st.just(0), fields)))
+    | commands(st.just('zlexcount'), keys, string_tests, string_tests)
+    | commands(st.sampled_from(['zrangebylex', 'zrevrangebylex']),
+               keys, string_tests, string_tests,
+               limits)
+    | commands(st.just('zremrangebylex'), keys, string_tests, string_tests)
+)
+
+transaction_commands = (
+    commands(st.sampled_from(['multi', 'discard', 'exec', 'unwatch']))
+    | commands(st.just('watch'), keys)
+)
+
+server_commands = (
+    # TODO: real redis raises an error if there is a save already in progress.
+    # Find a better way to test this.
+    # commands(st.just('bgsave'))
+    commands(st.sampled_from(['flushdb', 'flushall']), st.sampled_from([[], 'async']))
+    # TODO: result is non-deterministic
+    # | commands(st.just('lastsave'))
+    | commands(st.just('save'))
+)
+
+bad_commands = (
+    # redis-py splits the command on spaces, and hangs if that ends up
+    # being an empty list
+    commands(st.text().filter(lambda x: bool(x.split())),
+             st.lists(st.binary() | st.text()))
+)
+
+
 @hypothesis.settings(max_examples=1000, timeout=hypothesis.unlimited)
-class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
+class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
     def __init__(self):
-        super(BaseMachine, self).__init__()
+        super(CommonMachine, self).__init__()
         self.fake = fakeredis.FakeStrictRedis()
         self.real = redis.StrictRedis('localhost', port=6379)
         try:
@@ -78,20 +284,21 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     def teardown(self):
         self.real.connection_pool.disconnect()
         self.fake.connection_pool.disconnect()
-        super(BaseMachine, self).teardown()
+        super(CommonMachine, self).teardown()
 
-    def _evaluate(self, client, cmd, *args, **kwargs):
-        normalize = kwargs.pop('normalize', lambda x: x)
+    def _evaluate(self, client, command):
         try:
-            result = normalize(client.execute_command(cmd, *args))
+            result = command.normalize(client.execute_command(*command.args))
+            if command.normalize is not None:
+                result = command.normalize(result)
             exc = None
         except Exception as e:
             result = exc = e
         return wrap_exceptions(result), exc
 
-    def _compare(self, cmd, *args, **kwargs):
-        fake_result, fake_exc = self._evaluate(self.fake, cmd, *args, **kwargs)
-        real_result, real_exc = self._evaluate(self.real, cmd, *args, **kwargs)
+    def _compare(self, command):
+        fake_result, fake_exc = self._evaluate(self.fake, command)
+        real_result, real_exc = self._evaluate(self.real, command)
 
         if fake_exc is not None and real_exc is None:
             raise fake_exc
@@ -99,11 +306,6 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
             assert_equal(real_exc, fake_exc, "Expected exception {0} not raised".format(real_exc))
         else:
             assert_equal(fake_result, real_result)
-
-    keys = hypothesis.stateful.Bundle('keys')
-    fields = hypothesis.stateful.Bundle('fields')
-    values = hypothesis.stateful.Bundle('values')
-    scores = hypothesis.stateful.Bundle('scores')
 
     @rule(target=keys, key=st.binary())
     def make_key(self, key):
@@ -117,561 +319,99 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
     def make_value(self, value):
         return value
 
-    # Key commands
-    # TODO: add special testing for
-    # - expiry-related commands
-    # - randomkey
-    # - scan
-
-    @rule(key=st.lists(keys))
-    def delete(self, key):
-        self._compare('del', *key)
-
-    @rule(key=keys)
-    def exists(self, key):
-        self._compare('exists', key)
-
-    # Disabled for now due to redis giving wrong answers
-    # (https://github.com/antirez/redis/issues/5632)
-    # @rule(pattern=st.none() | patterns)
-    # def keys_(self, pattern):
-    #     self._compare('keys', pattern)
-
-    @rule(key=keys, db=dbnums)
-    def move(self, key, db):
-        self._compare('move', key, db)
-
-    @rule(key=keys)
-    def persist(self, key):
-        self._compare('persist', key)
-
-    @rule(key=keys, newkey=keys)
-    def rename(self, key, newkey):
-        self._compare('rename', key, newkey)
-
-    @rule(key=keys, newkey=keys)
-    def renamenx(self, key, newkey):
-        self._compare('renamenx', key, newkey)
-
-    @rule(key=keys, asc=st.booleans(), desc=st.booleans(), alpha=st.booleans(),
-          limit=st.none() | st.tuples(counts, counts))
-    def sort(self, key, asc, desc, alpha, limit):
-        # TODO:
-        # - Needs more tests for BY, GET and STORE
-        # - Need to figure out what to about ties, as the sort is unstable.
-        #   For now it's handled by sort_list normalization, but that makes
-        #   the test much weaker, and we can't test STORE.
-        args = []
-        if asc:
-            args.append('asc')
-        if desc:
-            args.append('desc')
-        if alpha:
-            args.append('alpha')
-        if limit is not None:
-            args += ['limit', limit[0], limit[1]]
-        self._compare('sort', key, *args, normalize=sort_list)
-
-    @rule(key=keys)
-    def type(self, key):
-        self._compare('type', key)
+    @rule(target=scores, value=st.floats(width=32))
+    def make_score(self, value):
+        return value
 
 
-class ConnectionMachine(BaseMachine):
+class ConnectionMachine(CommonMachine):
+    @rule(command=connection_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
     # TODO: tests for select
-    values = BaseMachine.values
-
-    @rule(value=values)
-    def echo(self, value):
-        self._compare('echo', value)
-
-    @rule(args=st.lists(values, max_size=2))
-    def ping(self, args):
-        self._compare('ping', *args)
-
-    @rule(index1=dbnums, index2=dbnums)
-    def swapdb(self, index1, index2):
-        self._compare('swapdb', index1, index2)
 
 
 TestConnection = ConnectionMachine.TestCase
 
 
-class StringMachine(BaseMachine):
-    keys = BaseMachine.keys
-    values = BaseMachine.values
-
-    @rule(key=keys, value=values)
-    def append(self, key, value):
-        self._compare('append', key, value)
-
-    @rule(key=keys,
-          start=st.none() | values,
-          end=st.none() | values)
-    def bitcount(self, key, start, end):
-        self._compare('bitcount', key, start, end)
-
-    @rule(key=keys, amount=st.none() | values)
-    def decr(self, key, amount):
-        if amount is None:
-            self._compare('decr', key)
-        else:
-            self._compare('decrby', key, amount)
-
-    @rule(key=keys, amount=st.none() | values)
-    def incr(self, key, amount):
-        if amount is None:
-            self._compare('incr', key)
-        else:
-            self._compare('incrby', key, amount)
-
-    # Disabled for now because Python can't exactly model the long doubles.
-    # TODO: make a more targeted test that checks the basics.
-    # @rule(key=keys, amount=st.floats(width=32))
-    # def incrbyfloat(self, key, amount):
-    #     self._compare('incrbyfloat', key, amount)
-    #     # Check how it gets stringified, without relying on hypothesis
-    #     # to get generate a get call before it gets overwritten.
-    #     self._compare('get', key)
-
-    @rule(key=keys)
-    def get(self, key):
-        self._compare('get', key)
-
-    @rule(key=keys, offset=counts)
-    def getbit(self, key, offset):
-        self._compare('getbit', key, offset)
-
-    @rule(key=keys, offset=counts, value=st.integers(min_value=0, max_value=1) | st.integers())
-    def setbit(self, key, offset, value):
-        self._compare('setbit', key, offset, value)
-
-    @rule(key=keys, start=counts, end=counts)
-    def getrange(self, key, start, end):
-        self._compare('getrange', key, start, end)
-
-    @rule(key=keys, start=counts, end=counts)
-    def substr(self, key, start, end):
-        self._compare('substr', key, start, end)
-
-    @rule(key=keys, value=values)
-    def getset(self, key, value):
-        self._compare('getset', key, value)
-
-    @rule(keys=st.lists(keys))
-    def mget(self, keys):
-        self._compare('mget', *keys)
-
-    @rule(items=st.lists(st.tuples(keys, values)), nx=st.booleans())
-    def mset(self, items, nx):
-        flat_items = itertools.chain(*items)
-        cmd = 'msetnx' if nx else 'mset'
-        self._compare(cmd, *flat_items)
-
-    @rule(key=keys, value=values, nx=st.booleans(), xx=st.booleans())
-    def set(self, key, value, nx, xx):
-        args = ['set', key, value]
-        if nx:
-            args.append('nx')
-        if xx:
-            args.append('xx')
-        self._compare(*args)
-
-    @rule(key=keys, value=values, seconds=st.integers(min_value=1000000000))
-    def setex(self, key, seconds, value):
-        self._compare('setex', key, seconds, value)
-
-    @rule(key=keys, value=values, ms=st.integers(min_value=1000000000000))
-    def psetex(self, key, ms, value):
-        self._compare('psetex', key, ms, value)
-
-    @rule(key=keys, value=values)
-    def setnx(self, key, value):
-        self._compare('setnx', key, value)
-
-    @rule(key=keys, offset=counts, value=values)
-    def setrange(self, key, offset, value):
-        self._compare('setrange', key, offset, value)
-
-    @rule(key=keys)
-    def strlen(self, key):
-        self._compare('strlen', key)
+class StringMachine(CommonMachine):
+    @rule(command=string_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestString = StringMachine.TestCase
 
 
-class HashMachine(BaseMachine):
-    keys = BaseMachine.keys
-    values = BaseMachine.values
-    fields = BaseMachine.fields
-
-    @rule(key=keys, field=st.lists(fields))
-    def hdel(self, key, field):
-        self._compare('hdel', key, *field)
-
-    @rule(key=keys, field=fields)
-    def hexists(self, key, field):
-        self._compare('hexists', key, field)
-
-    @rule(key=keys, field=fields)
-    def hget(self, key, field):
-        self._compare('hget', key, field)
-
-    @rule(key=keys)
-    def hgetall(self, key):
-        self._compare('hgetall', key, normalize=sort_list)
-
-    @rule(key=keys, field=fields, increment=st.integers())
-    def hincrby(self, key, field, increment):
-        self._compare('hincrby', key, field, increment)
-
-    # TODO: add a test for hincrbyfloat. See incrbyfloat for why this is
-    # problematic
-
-    @rule(key=keys)
-    def hkeys(self, key):
-        self._compare('hkeys', key, normalize=sort_list)
-
-    @rule(key=keys)
-    def hlen(self, key):
-        self._compare('hlen', key)
-
-    @rule(key=keys, field=st.lists(fields))
-    def hmget(self, key, field):
-        self._compare('hmget', key, *field)
-
-    @rule(key=keys, items=st.lists(st.tuples(fields, values)))
-    def hmset(self, key, items):
-        flat_items = itertools.chain(*items)
-        self._compare('hmset', key, *flat_items)
-
-    @rule(key=keys, field=fields, value=values)
-    def hset(self, key, field, value):
-        self._compare('hset', key, field, value)
-
-    @rule(key=keys, field=fields, value=values)
-    def hsetnx(self, key, field, value):
-        self._compare('hsetnx', key, field, value)
-
-    @rule(key=keys, field=fields)
-    def hstrlen(self, key, field):
-        self._compare('hstrlen', key, field)
-
-    @rule(key=keys)
-    def hvals(self, key):
-        self._compare('hvals', key, normalize=sort_list)
+class HashMachine(CommonMachine):
+    @rule(command=hash_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestHash = HashMachine.TestCase
 
 
-class ListMachine(BaseMachine):
-    keys = BaseMachine.keys
-    values = BaseMachine.values
-
-    # TODO: blocking commands
-
-    @rule(key=keys, index=counts)
-    def lindex(self, key, index):
-        self._compare('lindex', key, index)
-
-    @rule(key=keys, where=st.sampled_from(['before', 'after', 'BEFORE', 'AFTER']) | st.binary(),
-          pivot=values, value=values)
-    def linsert(self, key, where, pivot, value):
-        self._compare('linsert', key, where, pivot, value)
-
-    @rule(key=keys)
-    def llen(self, key):
-        self._compare('llen', key)
-
-    @rule(key=keys)
-    def lpop(self, key):
-        self._compare('lpop', key)
-
-    @rule(key=keys, values=st.lists(values))
-    def lpush(self, key, values):
-        self._compare('lpush', key, *values)
-
-    @rule(key=keys, values=st.lists(values))
-    def lpushx(self, key, values):
-        self._compare('lpushx', key, *values)
-
-    @rule(key=keys, start=counts, stop=counts)
-    def lrange(self, key, start, stop):
-        self._compare('lrange', key, start, stop)
-
-    @rule(key=keys, count=counts, value=values)
-    def lrem(self, key, count, value):
-        self._compare('lrem', key, count, value)
-
-    @rule(key=keys, index=counts, value=values)
-    def lset(self, key, index, value):
-        self._compare('lset', key, index, value)
-
-    @rule(key=keys, start=counts, stop=counts)
-    def ltrim(self, key, start, stop):
-        self._compare('ltrim', key, start, stop)
-
-    @rule(key=keys)
-    def rpop(self, key):
-        self._compare('rpop', key)
-
-    @rule(src=keys, dst=keys)
-    def rpoplpush(self, src, dst):
-        self._compare('rpoplpush', src, dst)
-
-    @rule(key=keys, values=st.lists(values))
-    def rpush(self, key, values):
-        self._compare('rpush', key, *values)
-
-    @rule(key=keys, values=st.lists(values))
-    def rpushx(self, key, values):
-        self._compare('rpushx', key, *values)
+class ListMachine(CommonMachine):
+    @rule(command=list_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestList = ListMachine.TestCase
 
 
-class SetMachine(BaseMachine):
-    # TODO:
-    # - find a way to test srandmember, spop which are random
-    # - sscan
-
-    keys = BaseMachine.keys
-    fields = BaseMachine.fields
-
-    @rule(key=keys, members=st.lists(fields))
-    def sadd(self, key, members):
-        self._compare('sadd', key, *members)
-
-    @rule(key=keys)
-    def scard(self, key):
-        self._compare('scard', key)
-
-    @rule(key=st.lists(keys), op=st.sampled_from(['sdiff', 'sinter', 'sunion']))
-    def setop(self, key, op):
-        self._compare(op, *key, normalize=sort_list)
-
-    @rule(dst=keys, key=st.lists(keys),
-          op=st.sampled_from(['sdiffstore', 'sinterstore', 'sunionstore']))
-    def setopstore(self, dst, key, op):
-        self._compare(op, dst, *key)
-
-    @rule(key=keys, member=fields)
-    def sismember(self, key, member):
-        self._compare('sismember', key, member)
-
-    @rule(key=keys)
-    def smembers(self, key):
-        self._compare('smembers', key, normalize=sort_list)
-
-    @rule(src=keys, dst=keys, member=fields)
-    def smove(self, src, dst, member):
-        self._compare('smove', src, dst, member)
-
-    @rule(key=keys, member=st.lists(fields))
-    def srem(self, key, member):
-        self._compare('srem', key, *member)
+class SetMachine(CommonMachine):
+    @rule(command=set_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestSet = SetMachine.TestCase
 
 
-class ZSetMachine(BaseMachine):
-    keys = BaseMachine.keys
-    fields = BaseMachine.fields
-    scores = hypothesis.stateful.Bundle('scores')
-
-    score_tests = scores | st.builds(lambda x: b'(' + repr(x).encode(), scores)
-    string_tests = (
-        st.sampled_from([b'+', b'-'])
-        | st.builds(operator.add, st.sampled_from([b'(', b'[']), fields))
-
-    @rule(target=scores, value=st.floats(width=32))
-    def make_score(self, value):
-        return value
-
-    @rule(key=keys, items=st.lists(st.tuples(scores, fields)))
-    def zadd(self, key, items):
-        # TODO: test xx, nx, ch, incr
-        flat_items = itertools.chain(*items)
-        self._compare('zadd', key, *flat_items)
-
-    @rule(key=keys)
-    def zcard(self, key):
-        self._compare('zcard', key)
-
-    @rule(key=keys, min=score_tests, max=score_tests)
-    def zcount(self, key, min, max):
-        self._compare('zcount', key, min, max)
-
-    @rule(key=keys, increment=scores, member=fields)
-    def zincrby(self, key, increment, member):
-        self._compare('zincrby', key, member, increment)
-
-    @rule(key=keys, start=counts, stop=counts, withscores=st.booleans(), reverse=st.booleans())
-    def zrange(self, key, start, stop, withscores, reverse):
-        extra = ['withscores'] if withscores else []
-        cmd = 'zrevrange' if reverse else 'zrange'
-        self._compare(cmd, key, start, stop, *extra)
-
-    @rule(key=keys, min=score_tests, max=score_tests, withscores=st.booleans(),
-          limit=st.none() | st.tuples(counts, counts), reverse=st.booleans())
-    def zrangebyscore(self, key, min, max, limit, withscores, reverse):
-        extra = ['limit', limit[0], limit[1]] if limit else []
-        if withscores:
-            extra.append('withscores')
-        cmd = 'zrevrangebyscore' if reverse else 'zrangebyscore'
-        self._compare(cmd, key, min, max, *extra)
-
-    @rule(key=keys, member=fields, reverse=st.booleans())
-    def zrank(self, key, member, reverse):
-        cmd = 'zrevrank' if reverse else 'zrank'
-        self._compare(cmd, key, member)
-
-    @rule(key=keys, member=st.lists(fields))
-    def zrem(self, key, member):
-        self._compare('zrem', key, *member)
-
-    @rule(key=keys, start=counts, stop=counts)
-    def zremrangebyrank(self, key, start, stop):
-        self._compare('zremrangebyrank', key, start, stop)
-
-    @rule(key=keys, min=score_tests, max=score_tests)
-    def zremrangebyscore(self, key, min, max):
-        self._compare('zremrangebyscore', key, min, max)
-
-    @rule(key=keys, member=fields)
-    def zscore(self, key, member):
-        self._compare('zscore', key, member)
-
-    # TODO: zscan, zunionstore, zinterstore, probably more
-    @rule(command=st.sampled_from(['zunionstore', 'zinterstore']),
-          key=keys, dest=keys, sources=st.lists(st.tuples(keys, float_as_bytes)),
-          weights=st.booleans(), aggregate=st.sampled_from([None, 'sum', 'min', 'max']))
-    def zunioninterstore(self, command, key, dest, sources, weights, aggregate):
-        args = [dest, len(sources)]
-        args += [source[0] for source in sources]
-        if weights:
-            args.append('weights')
-            args += [source[1] for source in sources]
-        if aggregate:
-            args += ['aggregate', aggregate]
-        self._compare(command, *args)
+class ZSetMachine(CommonMachine):
+    @rule(command=zset_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestZSet = ZSetMachine.TestCase
 
 
-class ZSetNoScoresMachine(BaseMachine):
-    keys = BaseMachine.keys
-    fields = BaseMachine.fields
-
-    string_tests = (
-        st.sampled_from([b'+', b'-'])
-        | st.builds(operator.add, st.sampled_from([b'(', b'[']), fields))
-
-    @rule(key=keys, items=st.lists(fields))
-    def zadd_zero_score(self, key, items):
-        # TODO: test xx, nx, ch, incr
-        flat_items = itertools.chain(*[(0, item) for item in items])
-        self._compare('zadd', key, *flat_items)
-
-    @rule(key=keys, min=string_tests, max=string_tests)
-    def zlexcount(self, key, min, max):
-        self._compare('zlexcount', key, min, max)
-
-    @rule(key=keys, min=string_tests, max=string_tests,
-          limit=st.none() | st.tuples(counts, counts),
-          reverse=st.booleans())
-    def zrangebylex(self, key, min, max, limit, reverse):
-        cmd = 'zrevrangebylex' if reverse else 'zrangebylex'
-        if limit is None:
-            self._compare(cmd, key, min, max)
-        else:
-            start, count = limit
-            self._compare(cmd, key, min, max, 'limit', start, count)
-
-    @rule(key=keys, min=string_tests, max=string_tests)
-    def zremrangebylex(self, key, min, max):
-        self._compare('zremrangebylex', key, min, max)
+class ZSetNoScoresMachine(CommonMachine):
+    @rule(command=zset_no_score_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestZSetNoScores = ZSetNoScoresMachine.TestCase
 
 
-class TransactionMachine(StringMachine):
-    keys = BaseMachine.keys
-
-    @rule()
-    def multi(self):
-        self._compare('multi')
-
-    @rule()
-    def discard(self):
-        self._compare('discard')
-
-    @rule()
-    def exec_(self):
-        self._compare('exec')
-
-    @rule(key=keys)
-    def watch(self, key):
-        self._compare('watch', key)
-
-    @rule()
-    def unwatch(self):
-        self._compare('unwatch')
+class TransactionMachine(CommonMachine):
+    @rule(command=transaction_commands | string_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestTransaction = TransactionMachine.TestCase
 
 
-class ServerMachine(StringMachine):
-    # TODO: real redis raises an error if there is a save already in progress.
-    # Find a better way to test this.
-    # @rule()
-    # def bgsave(self):
-    #     self._compare('bgsave')
-
-    @rule(asynchronous=st.booleans())
-    def flushdb(self, asynchronous):
-        extra = ['async'] if asynchronous else []
-        self._compare('flushdb', *extra)
-
-    @rule(asynchronous=st.booleans())
-    def flushall(self, asynchronous):
-        extra = ['async'] if asynchronous else []
-        self._compare('flushall', *extra)
-
-    # TODO: result is non-deterministic
-    # @rule()
-    # def lastsave(self):
-    #     self._compare('lastsave')
-
-    @rule()
-    def save(self):
-        self._compare('save')
+class ServerMachine(CommonMachine):
+    @rule(command=server_commands | string_commands | common_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestServer = ServerMachine.TestCase
 
 
-class JointMachine(TransactionMachine, ServerMachine, ConnectionMachine,
-                   StringMachine, HashMachine, ListMachine,
-                   SetMachine, ZSetMachine):
-    # TODO: rule inheritance isn't working!
-
-    # redis-py splits the command on spaces, and hangs if that ends up
-    # being an empty list
-    @rule(command=st.text().filter(lambda x: bool(x.split())),
-          args=st.lists(st.binary() | st.text()))
-    def bad_command(self, command, args):
-        self._compare(command, *args)
-
-    # TODO: introduce rule for SORT. It'll need a rather complex
-    # strategy to cover all the cases.
+class JointMachine(CommonMachine):
+    @rule(command=transaction_commands | server_commands | connection_commands
+            | string_commands | hash_commands | list_commands | set_commands
+            | zset_commands | common_commands | bad_commands)
+    def execute(self, command):
+        self._compare(command)
 
 
 TestJoint = JointMachine.TestCase
