@@ -1191,8 +1191,6 @@ class FakeSocket(object):
     def bitcount(self, key, *args):
         # Redis checks the argument count before decoding integers. That's why
         # we can't declare them as Int.
-        if not key:
-            return 0
         if args:
             if len(args) != 2:
                 raise redis.ResponseError(SYNTAX_ERROR_MSG)
