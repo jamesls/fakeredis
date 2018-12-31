@@ -13,7 +13,9 @@ import fakeredis
 int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
 float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
 counts = st.integers(min_value=-3, max_value=3) | st.integers()
-dbnums = st.integers(min_value=0, max_value=3) | st.integers()
+# Redis has an integer overflow bug in swapdb, so we confine the numbers to
+# a limited range (https://github.com/antirez/redis/issues/5737).
+dbnums = st.integers(min_value=0, max_value=3) | st.integers(min_value=-1000, max_value=1000)
 # The filter is to work around https://github.com/antirez/redis/issues/5632
 patterns = (st.text(alphabet=st.sampled_from('[]^$*.?-azAZ\\\r\n\t'))
             | st.binary().filter(lambda x: b'\0' not in x))
@@ -176,7 +178,7 @@ class BaseMachine(hypothesis.stateful.RuleBasedStateMachine):
 
 
 class ConnectionMachine(BaseMachine):
-    # TODO: tests for select, swapdb
+    # TODO: tests for select
     values = BaseMachine.values
 
     @rule(value=values)
