@@ -495,7 +495,6 @@ class ZSetMachine(BaseMachine):
     @rule(key=keys, items=st.lists(st.tuples(scores, fields)))
     def zadd(self, key, items):
         # TODO: test xx, nx, ch, incr
-        # TODO: support redis-py 3
         flat_items = itertools.chain(*items)
         self._compare('zadd', key, *flat_items)
 
@@ -576,7 +575,6 @@ class ZSetNoScoresMachine(BaseMachine):
     @rule(key=keys, items=st.lists(fields))
     def zadd_zero_score(self, key, items):
         # TODO: test xx, nx, ch, incr
-        # TODO: support redis-py 3
         flat_items = itertools.chain(*[(0, item) for item in items])
         self._compare('zadd', key, *flat_items)
 

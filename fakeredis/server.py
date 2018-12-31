@@ -740,7 +740,6 @@ class FakeSocket(object):
                         result = QUEUED
                     else:
                         result = self._run_command(func, sig, fields[1:])
-                    # TODO: decode results if requested
             except redis.ResponseError as exc:
                 if self._transaction is not None:
                     # TODO: should not apply if the exception is from _run_command
