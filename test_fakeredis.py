@@ -2438,6 +2438,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.zrange('baz', 0, -1, withscores=True),
                          [(b'one', 3), (b'two', 6), (b'four', 8)])
 
+    def test_zunionstore_nan_to_zero(self):
+        self.zadd('foo', {'zero': 0})
+        self.redis.zunionstore('bar', {'foo': float('inf')}, aggregate='SUM')
+        self.assertEqual(self.redis.zrange('bar', 0, -1, withscores=True),
+                         [(b'zero', 0)])
+
     def test_zunionstore_mixed_set_types(self):
         # No score, redis will use 1.0.
         self.redis.sadd('foo', 'one')

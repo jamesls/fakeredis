@@ -2045,6 +2045,8 @@ class FakeSocket(object):
         for s, w in zip(sets, weights):
             for member, score in s.items():
                 score *= w
+                if math.isnan(score):
+                    score = 0.0
                 if member not in out_members:
                     continue
                 if member in out:
