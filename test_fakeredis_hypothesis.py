@@ -6,16 +6,31 @@ import functools
 import hypothesis
 from hypothesis.stateful import rule, precondition
 import hypothesis.strategies as st
+import hypothesis.internal.conjecture.utils as cu
+from hypothesis.searchstrategy.strategies import SearchStrategy
 from nose.tools import assert_equal
 
 import redis
 import fakeredis
 
 
-keys = hypothesis.stateful.Bundle('keys')
-fields = hypothesis.stateful.Bundle('fields')
-values = hypothesis.stateful.Bundle('values')
-scores = hypothesis.stateful.Bundle('scores')
+class AttrSamplingStrategy(SearchStrategy):
+    """Strategy for sampling a specific field from a state machine"""
+
+    def __init__(self, name):
+        self.name = name
+
+    def do_draw(self, data):
+        machine = data.draw(st.runner())
+        values = getattr(machine, self.name)
+        position = cu.integer_range(data, 0, len(values) - 1)
+        return values[position]
+
+
+keys = AttrSamplingStrategy('keys')
+fields = AttrSamplingStrategy('fields')
+values = AttrSamplingStrategy('values')
+scores = AttrSamplingStrategy('scores')
 
 int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
 float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
@@ -91,7 +106,7 @@ class Command(object):
         if kwargs:
             raise TypeError('Unexpected keyword args {}'.format(kwargs))
 
-    def __str__(self):
+    def __repr__(self):
         parts = [repr(arg) for arg in self.args]
         if self.normalize is not None:
             parts.append('normalize={!r}'.format(self.normalize))
@@ -270,15 +285,15 @@ bad_commands = (
 
 
 @hypothesis.settings(max_examples=1000, timeout=hypothesis.unlimited)
-class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
+class CommonMachine(hypothesis.stateful.GenericStateMachine):
     def __init__(self):
         super(CommonMachine, self).__init__()
         self.fake = fakeredis.FakeStrictRedis()
         self.real = redis.StrictRedis('localhost', port=6379)
-        self.n_keys = 0
-        self.n_fields = 0
-        self.n_values = 0
-        self.n_scores = 0
+        self.keys = []
+        self.fields = []
+        self.values = []
+        self.scores = []
         try:
             self.real.execute_command('discard')
         except redis.ResponseError:
@@ -311,97 +326,81 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
         else:
             assert_equal(fake_result, real_result)
 
-    @precondition(lambda self: self.n_keys < 4)
-    @rule(target=keys, key=st.binary())
-    def make_key(self, key):
-        self.n_keys += 1
-        return key
+    def _init_attrs(self, attrs):
+        for key, value in attrs.items():
+            setattr(self, key, value)
 
-    @precondition(lambda self: self.n_fields < 4)
-    @rule(target=fields, field=st.binary())
-    def make_field(self, field):
-        self.n_fields += 1
-        return field
+    def steps(self):
+        if not self.keys:
+            # Haven't been initialised yet
+            attrs = {
+                'keys': st.lists(st.binary(), min_size=1),
+                'fields': st.lists(st.binary(), min_size=1),
+                'values': st.lists(st.binary() | int_as_bytes | float_as_bytes, min_size=1),
+                'scores': st.lists(st.floats(width=32), min_size=1)
+            }
+            return st.fixed_dictionaries(attrs)
+        else:
+            return self.command_strategy
 
-    @precondition(lambda self: self.n_values < 5)
-    @rule(target=values, value=st.binary() | int_as_bytes | float_as_bytes)
-    def make_value(self, value):
-        self.n_values += 1
-        return value
-
-    @precondition(lambda self: self.n_scores < 5)
-    @rule(target=scores, value=st.floats(width=32))
-    def make_score(self, value):
-        self.n_scores += 1
-        return value
+    def execute_step(self, step):
+        if not self.keys:
+            self._init_attrs(step)
+        else:
+            self._compare(step)
 
 
 class ConnectionMachine(CommonMachine):
-    @rule(command=connection_commands | common_commands)
-    def execute(self, command):
-        self._compare(command)
-    # TODO: tests for select
+    command_strategy = connection_commands | common_commands
 
 
 TestConnection = ConnectionMachine.TestCase
 
 
 class StringMachine(CommonMachine):
-    @rule(command=string_commands | common_commands)
-    def execute(self, command):
-        self._compare(command)
+    command_strategy = string_commands | common_commands
 
 
 TestString = StringMachine.TestCase
 
 
 class HashMachine(CommonMachine):
-    @rule(command=hash_commands | common_commands)
-    def execute(self, command):
-        self._compare(command)
+    command_strategy = hash_commands | common_commands
 
 
 TestHash = HashMachine.TestCase
 
 
 class ListMachine(CommonMachine):
-    @rule(command=list_commands | common_commands)
-    def execute(self, command):
-        self._compare(command)
+    command_strategy = list_commands | common_commands
 
 
 TestList = ListMachine.TestCase
 
 
 class SetMachine(CommonMachine):
-    @rule(command=set_commands | common_commands)
-    def execute(self, command):
-        self._compare(command)
+    command_strategy = set_commands | common_commands
 
 
 TestSet = SetMachine.TestCase
 
 
 class ZSetMachine(CommonMachine):
-    @rule(command=zset_commands | common_commands)
-    def execute(self, command):
-        self._compare(command)
+    command_strategy = zset_commands | common_commands
 
 
 TestZSet = ZSetMachine.TestCase
 
 
 class ZSetNoScoresMachine(CommonMachine):
-    @rule(command=zset_no_score_commands | common_commands)
-    def execute(self, command):
-        self._compare(command)
+    command_strategy = zset_no_score_commands | common_commands
 
 
 TestZSetNoScores = ZSetNoScoresMachine.TestCase
 
 
 class TransactionMachine(CommonMachine):
-    @rule(command=transaction_commands | string_commands | common_commands)
+    command_strategy = transaction_commands | string_commands | common_commands
     def execute(self, command):
         self._compare(command)
 
@@ -410,20 +409,17 @@ TestTransaction = TransactionMachine.TestCase
 
 
 class ServerMachine(CommonMachine):
-    @rule(command=server_commands | string_commands | common_commands)
-    def execute(self, command):
-        self._compare(command)
+    command_strategy = server_commands | string_commands | common_commands
 
 
 TestServer = ServerMachine.TestCase
 
 
 class JointMachine(CommonMachine):
-    @rule(command=transaction_commands | server_commands | connection_commands
-            | string_commands | hash_commands | list_commands | set_commands
-            | zset_commands | common_commands | bad_commands)
-    def execute(self, command):
-        self._compare(command)
+    command_strategy = (
+        transaction_commands | server_commands | connection_commands
+        | string_commands | hash_commands | list_commands | set_commands
+        | zset_commands | common_commands | bad_commands)
 
 
 TestJoint = JointMachine.TestCase
