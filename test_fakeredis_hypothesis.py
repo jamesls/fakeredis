@@ -4,7 +4,7 @@ import operator
 import functools
 
 import hypothesis
-from hypothesis.stateful import rule
+from hypothesis.stateful import rule, precondition
 import hypothesis.strategies as st
 from nose.tools import assert_equal
 
@@ -275,6 +275,10 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
         super(CommonMachine, self).__init__()
         self.fake = fakeredis.FakeStrictRedis()
         self.real = redis.StrictRedis('localhost', port=6379)
+        self.n_keys = 0
+        self.n_fields = 0
+        self.n_values = 0
+        self.n_scores = 0
         try:
             self.real.execute_command('discard')
         except redis.ResponseError:
@@ -307,20 +311,28 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
         else:
             assert_equal(fake_result, real_result)
 
+    @precondition(lambda self: self.n_keys < 4)
     @rule(target=keys, key=st.binary())
     def make_key(self, key):
+        self.n_keys += 1
         return key
 
+    @precondition(lambda self: self.n_fields < 4)
     @rule(target=fields, field=st.binary())
     def make_field(self, field):
+        self.n_fields += 1
         return field
 
+    @precondition(lambda self: self.n_values < 5)
     @rule(target=values, value=st.binary() | int_as_bytes | float_as_bytes)
     def make_value(self, value):
+        self.n_values += 1
         return value
 
+    @precondition(lambda self: self.n_scores < 5)
     @rule(target=scores, value=st.floats(width=32))
     def make_score(self, value):
+        self.n_scores += 1
         return value
 
 
