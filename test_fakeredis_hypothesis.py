@@ -14,6 +14,9 @@ import redis
 import fakeredis
 
 
+self_strategy = st.runner()
+
+
 class AttrSamplingStrategy(SearchStrategy):
     """Strategy for sampling a specific field from a state machine"""
 
@@ -21,7 +24,7 @@ class AttrSamplingStrategy(SearchStrategy):
         self.name = name
 
     def do_draw(self, data):
-        machine = data.draw(st.runner())
+        machine = data.draw(self_strategy)
         values = getattr(machine, self.name)
         position = cu.integer_range(data, 0, len(values) - 1)
         return values[position]
@@ -186,14 +189,14 @@ hash_commands = (
 # TODO: blocking commands
 list_commands = (
     commands(st.just('lindex'), keys, counts)
-    | commands(st.just('linsert'),
+    | commands(st.just('linsert'), keys,
                st.sampled_from(['before', 'after', 'BEFORE', 'AFTER']) | st.binary(),
                values, values)
     | commands(st.just('llen'), keys)
     | commands(st.sampled_from(['lpop', 'rpop']), keys)
     | commands(st.sampled_from(['lpush', 'lpushx', 'rpush', 'rpushx']), keys, st.lists(values))
     | commands(st.just('lrange'), keys, counts, counts)
-    | commands(st.just('lrem'), keys, counts, counts)
+    | commands(st.just('lrem'), keys, counts, values)
     | commands(st.just('lset'), keys, counts, values)
     | commands(st.just('ltrim'), keys, counts, counts)
     | commands(st.just('rpoplpush'), keys, keys)
@@ -223,7 +226,7 @@ def build_zstore(command, dest, sources, weights, aggregate):
         args += [source[1] for source in sources]
     if aggregate:
         args += ['aggregate', aggregate]
-    return args
+    return Command(args)
 
 
 # TODO: zscan, zpopmin/zpopmax, bzpopmin/bzpopmax, probably more
@@ -334,10 +337,10 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
         if not self.keys:
             # Haven't been initialised yet
             attrs = {
-                'keys': st.lists(st.binary(), min_size=1),
-                'fields': st.lists(st.binary(), min_size=1),
-                'values': st.lists(st.binary() | int_as_bytes | float_as_bytes, min_size=1),
-                'scores': st.lists(st.floats(width=32), min_size=1)
+                'keys': st.lists(st.binary(), min_size=2),
+                'fields': st.lists(st.binary(), min_size=2),
+                'values': st.lists(st.binary() | int_as_bytes | float_as_bytes, min_size=2),
+                'scores': st.lists(st.floats(width=32), min_size=2)
             }
             return st.fixed_dictionaries(attrs)
         else:
