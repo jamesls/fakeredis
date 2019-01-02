@@ -146,6 +146,7 @@ connection_commands = (
     | commands(st.just('swapdb'), dbnums, dbnums)
 )
 
+string_create_commands = commands(st.just('set'), keys, values)
 string_commands = (
     commands(st.just('append'), keys, values)
     | commands(st.just('bitcount'), keys)
@@ -176,8 +177,12 @@ string_commands = (
 
 # TODO: add a test for hincrbyfloat. See incrbyfloat for why this is
 # problematic.
+hash_create_commands = (
+    commands(st.just('hmset'), keys, st.lists(st.tuples(fields, values), min_size=1))
+)
 hash_commands = (
-    commands(st.just('hdel'), keys, st.lists(fields))
+    commands(st.just('hmset'), keys, st.lists(st.tuples(fields, values)))
+    | commands(st.just('hdel'), keys, st.lists(fields))
     | commands(st.just('hexists'), keys, fields)
     | commands(st.just('hget'), keys, fields)
     | commands(st.sampled_from(['hgetall', 'hkeys', 'hvals']), keys, normalize=sort_list)
@@ -190,6 +195,7 @@ hash_commands = (
 )
 
 # TODO: blocking commands
+list_create_commands = commands(st.just('rpush'), keys, st.lists(values, min_size=1))
 list_commands = (
     commands(st.just('lindex'), keys, counts)
     | commands(st.just('linsert'), keys,
@@ -208,8 +214,11 @@ list_commands = (
 # TODO:
 # - find a way to test srandmember, spop which are random
 # - sscan
+set_create_commands = (
+    commands(st.just('sadd'), keys, st.lists(fields, min_size=1))
+)
 set_commands = (
-    commands(st.just('sadd'), keys, st.lists(fields))
+    commands(st.just('sadd'), keys, st.lists(fields,))
     | commands(st.just('scard'), keys)
     | commands(st.sampled_from(['sdiff', 'sinter', 'sunion']), st.lists(keys), normalize=sort_list)
     | commands(st.sampled_from(['sdiffstore', 'sinterstore', 'sunionstore']),
@@ -233,9 +242,12 @@ def build_zstore(command, dest, sources, weights, aggregate):
 
 
 # TODO: zscan, zpopmin/zpopmax, bzpopmin/bzpopmax, probably more
+zset_create_commands = (
+    commands(st.just('zadd'), keys, st.lists(st.tuples(scores, fields), min_size=1))
+)
 zset_commands = (
     # TODO: test xx, nx, ch, incr
-    commands(st.just('zadd'), st.lists(st.tuples(scores, fields)))
+    commands(st.just('zadd'), keys, st.lists(st.tuples(scores, fields)))
     | commands(st.just('zcard'), keys)
     | commands(st.just('zcount'), keys, score_tests, score_tests)
     | commands(st.just('zincrby'), keys, scores, fields)
@@ -257,6 +269,9 @@ zset_commands = (
                 aggregate=st.sampled_from([None, 'sum', 'min', 'max']))
 )
 
+zset_no_score_create_commands = (
+    commands(st.just('zadd'), keys, st.lists(st.tuples(st.just(0), fields), min_size=1))
+)
 zset_no_score_commands = (
     # TODO: test xx, nx, ch, incr
     commands(st.just('zadd'), keys, st.lists(st.tuples(st.just(0), fields)))
@@ -292,6 +307,12 @@ bad_commands = (
 
 @hypothesis.settings(max_examples=1000, timeout=hypothesis.unlimited)
 class CommonMachine(hypothesis.stateful.GenericStateMachine):
+    create_command_strategy = None
+
+    STATE_EMPTY = 0
+    STATE_INIT = 1
+    STATE_RUNNING = 2
+
     def __init__(self):
         super(CommonMachine, self).__init__()
         self.fake = fakeredis.FakeStrictRedis()
@@ -300,6 +321,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
         self.fields = []
         self.values = []
         self.scores = []
+        self.state = self.STATE_EMPTY
         try:
             self.real.execute_command('discard')
         except redis.ResponseError:
@@ -336,22 +358,32 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
         for key, value in attrs.items():
             setattr(self, key, value)
 
+    def _init_data(self, init_commands):
+        for command in init_commands:
+            self._compare(command)
+
     def steps(self):
-        if not self.keys:
-            # Haven't been initialised yet
+        if self.state == self.STATE_EMPTY:
             attrs = {
-                'keys': st.lists(st.binary(), min_size=2),
-                'fields': st.lists(st.binary(), min_size=2),
-                'values': st.lists(st.binary() | int_as_bytes | float_as_bytes, min_size=2),
-                'scores': st.lists(st.floats(width=32), min_size=2)
+                'keys': st.lists(st.binary(), min_size=2, unique=True),
+                'fields': st.lists(st.binary(), min_size=2, unique=True),
+                'values': st.lists(st.binary() | int_as_bytes | float_as_bytes,
+                                   min_size=2, unique=True),
+                'scores': st.lists(st.floats(width=32), min_size=2, unique=True)
             }
             return st.fixed_dictionaries(attrs)
+        elif self.state == self.STATE_INIT:
+            return st.lists(self.create_command_strategy)
         else:
             return self.command_strategy
 
     def execute_step(self, step):
-        if not self.keys:
+        if self.state == self.STATE_EMPTY:
             self._init_attrs(step)
+            self.state = self.STATE_INIT if self.create_command_strategy else self.STATE_RUNNING
+        elif self.state == self.STATE_INIT:
+            self._init_data(step)
+            self.state = self.STATE_RUNNING
         else:
             self._compare(step)
 
@@ -364,6 +396,7 @@ TestConnection = ConnectionMachine.TestCase
 
 
 class StringMachine(CommonMachine):
+    create_command_strategy = string_create_commands
     command_strategy = string_commands | common_commands
 
 
@@ -371,6 +404,7 @@ TestString = StringMachine.TestCase
 
 
 class HashMachine(CommonMachine):
+    create_command_strategy = hash_create_commands
     command_strategy = hash_commands | common_commands
 
 
@@ -378,6 +412,7 @@ TestHash = HashMachine.TestCase
 
 
 class ListMachine(CommonMachine):
+    create_command_strategy = list_create_commands
     command_strategy = list_commands | common_commands
 
 
@@ -385,6 +420,7 @@ TestList = ListMachine.TestCase
 
 
 class SetMachine(CommonMachine):
+    create_command_strategy = set_create_commands
     command_strategy = set_commands | common_commands
 
 
@@ -392,6 +428,7 @@ TestSet = SetMachine.TestCase
 
 
 class ZSetMachine(CommonMachine):
+    create_command_strategy = zset_create_commands
     command_strategy = zset_commands | common_commands
 
 
@@ -399,6 +436,7 @@ TestZSet = ZSetMachine.TestCase
 
 
 class ZSetNoScoresMachine(CommonMachine):
+    create_command_strategy = zset_no_score_create_commands
     command_strategy = zset_no_score_commands | common_commands
 
 
@@ -406,15 +444,15 @@ TestZSetNoScores = ZSetNoScoresMachine.TestCase
 
 
 class TransactionMachine(CommonMachine):
+    create_command_strategy = string_create_commands
     command_strategy = transaction_commands | string_commands | common_commands
-    def execute(self, command):
-        self._compare(command)
 
 
 TestTransaction = TransactionMachine.TestCase
 
 
 class ServerMachine(CommonMachine):
+    create_command_strategy = string_create_commands
     command_strategy = server_commands | string_commands | common_commands
 
 
@@ -422,6 +460,9 @@ TestServer = ServerMachine.TestCase
 
 
 class JointMachine(CommonMachine):
+    create_command_strategy = (
+        string_create_commands | hash_create_commands | list_create_commands
+        | set_create_commands | zset_create_commands)
     command_strategy = (
         transaction_commands | server_commands | connection_commands
         | string_commands | hash_commands | list_commands | set_commands
