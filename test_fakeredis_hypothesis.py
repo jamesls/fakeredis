@@ -123,17 +123,20 @@ def commands(*args, **kwargs):
 # TODO: all expiry-related commands
 common_commands = (
     commands(st.sampled_from(['del', 'exists', 'persist', 'type']), keys)
-    | commands(st.just('keys'), st.just('*'))
+    | commands(st.just('keys'), st.just('*'), normalize=sort_list)
     # Disabled for now due to redis giving wrong answers
     # (https://github.com/antirez/redis/issues/5632)
     # | st.tuples(st.just('keys'), patterns)
     | commands(st.just('move'), keys, dbnums)
     | commands(st.sampled_from(['rename', 'renamenx']), keys, keys)
+    # TODO: find a better solution to sort instability than throwing
+    # away the sort entirely with normalize. This also prevents us
+    # using LIMIT.
     | commands(st.just('sort'), keys,
                st.none() | st.just('asc'),
                st.none() | st.just('desc'),
                st.none() | st.just('alpha'),
-               limits)
+               normalize=sort_list)
 )
 
 # TODO: tests for select
