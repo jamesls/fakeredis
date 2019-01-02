@@ -1861,7 +1861,12 @@ class FakeSocket(object):
 
     @command((Key(ZSet), Float, bytes))
     def zincrby(self, key, increment, member):
-        score = key.value.get(member, 0.0) + increment
+        # Can't just default the old score to 0.0, because in IEEE754, adding
+        # 0.0 to something isn't a nop (e.g. 0.0 + -0.0 == 0.0).
+        try:
+            score = key.value.get(member, None) + increment
+        except TypeError:
+            score = increment
         if math.isnan(score):
             raise redis.ResponseError(SCORE_NAN_MSG)
         key.value[member] = score
