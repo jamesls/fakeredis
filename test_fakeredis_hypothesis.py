@@ -310,7 +310,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
 
     def _evaluate(self, client, command):
         try:
-            result = command.normalize(client.execute_command(*command.args))
+            result = client.execute_command(*command.args)
             if command.normalize is not None:
                 result = command.normalize(result)
             exc = None
