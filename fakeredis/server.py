@@ -2058,6 +2058,8 @@ class FakeSocket(object):
                     old = out[member]
                     if aggregate == b'sum':
                         score += old
+                        if math.isnan(score):
+                            score = 0.0
                     elif aggregate == b'max':
                         score = max(score, old)
                     elif aggregate == b'min':
