@@ -102,16 +102,20 @@ def flatten(args):
         yield args
 
 
+def default_normalize(x):
+    return x
+
+
 class Command(object):
     def __init__(self, *args, **kwargs):
         self.args = tuple(flatten(args))
-        self.normalize = kwargs.pop('normalize', None)
+        self.normalize = kwargs.pop('normalize', default_normalize)
         if kwargs:
             raise TypeError('Unexpected keyword args {}'.format(kwargs))
 
     def __repr__(self):
         parts = [repr(arg) for arg in self.args]
-        if self.normalize is not None:
+        if self.normalize is not default_normalize:
             parts.append('normalize={!r}'.format(self.normalize))
         return 'Command({})'.format(', '.join(parts))
 
@@ -317,6 +321,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
         super(CommonMachine, self).__init__()
         self.fake = fakeredis.FakeStrictRedis()
         self.real = redis.StrictRedis('localhost', port=6379)
+        self.transaction_normalize = []
         self.keys = []
         self.fields = []
         self.values = []
@@ -336,7 +341,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
     def _evaluate(self, client, command):
         try:
             result = client.execute_command(*command.args)
-            if command.normalize is not None:
+            if result != 'QUEUED':
                 result = command.normalize(result)
             exc = None
         except Exception as e:
@@ -351,8 +356,22 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
             raise fake_exc
         elif real_exc is not None and fake_exc is None:
             assert_equal(real_exc, fake_exc, "Expected exception {0} not raised".format(real_exc))
+        elif real_exc is None and command.args and command.args[0].lower() == 'exec':
+            # Transactions need to use the normalize functions of the
+            # component commands.
+            assert_equal(len(self.transaction_normalize), len(real_result))
+            assert_equal(len(self.transaction_normalize), len(fake_result))
+            for n, r, f in zip(self.transaction_normalize, real_result, fake_result):
+                assert_equal(n(f), n(r))
+            self.transaction_normalize = []
         else:
             assert_equal(fake_result, real_result)
+            if real_result == b'QUEUED':
+                # Since redis removes the distinction between simple strings and
+                # bulk strings, this might not actually indicate that we're in a
+                # transaction. But it is extremely unlikely that hypothesis will
+                # find such examples.
+                self.transaction_normalize.append(command.normalize)
 
     def _init_attrs(self, attrs):
         for key, value in attrs.items():
