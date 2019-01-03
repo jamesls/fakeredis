@@ -1969,8 +1969,10 @@ class FakeSocket(object):
         old_size = len(key.value)
         for member in members:
             key.value.discard(member)
-        key.updated()
-        return old_size - len(key.value)
+        deleted = old_size - len(key.value)
+        if deleted:
+            key.updated()
+        return deleted
 
     @command((Key(ZSet), StringTest, StringTest))
     def zremrangebylex(self, key, min, max):
