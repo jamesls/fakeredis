@@ -1,10 +1,8 @@
 from __future__ import print_function, division, absolute_import
-import itertools
 import operator
 import functools
 
 import hypothesis
-from hypothesis.stateful import rule, precondition
 import hypothesis.strategies as st
 import hypothesis.internal.conjecture.utils as cu
 from hypothesis.searchstrategy.strategies import SearchStrategy
