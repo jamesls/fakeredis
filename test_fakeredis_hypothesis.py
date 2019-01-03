@@ -3,6 +3,7 @@ import operator
 import functools
 
 import hypothesis
+import hypothesis.stateful
 import hypothesis.strategies as st
 import hypothesis.internal.conjecture.utils as cu
 from hypothesis.searchstrategy.strategies import SearchStrategy
