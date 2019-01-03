@@ -356,13 +356,16 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
             raise fake_exc
         elif real_exc is not None and fake_exc is None:
             assert_equal(real_exc, fake_exc, "Expected exception {0} not raised".format(real_exc))
-        elif real_exc is None and command.args and command.args[0].lower() == 'exec':
+        elif (real_exc is None and isinstance(real_result, list)
+              and command.args and command.args[0].lower() == 'exec'):
             # Transactions need to use the normalize functions of the
             # component commands.
             assert_equal(len(self.transaction_normalize), len(real_result))
             assert_equal(len(self.transaction_normalize), len(fake_result))
             for n, r, f in zip(self.transaction_normalize, real_result, fake_result):
                 assert_equal(n(f), n(r))
+            self.transaction_normalize = []
+        elif real_exc is None and command.args and command.args[0].lower() == 'discard':
             self.transaction_normalize = []
         else:
             assert_equal(fake_result, real_result)
