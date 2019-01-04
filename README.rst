@@ -266,6 +266,41 @@ stream
  * xpending
 
 
+Other limitations
+=================
+
+Apart from unimplemented commands, there are a number of cases where fakeredis
+won't give identical results to real redis. The following are differences that
+are unlikely to ever be fixed; there are also differences that are fixable
+(such as commands that do not support all features) which should be filed as
+bugs in Github.
+
+1. Hyperloglogs are implemented using sets underneath. This means that the
+   `type` command will return the wrong answer, you can't use `get` to retrieve
+   the encoded value, counts will be slightly different (they will in fact be
+   exact).
+
+2. When a command has multiple error conditions, such as operating on a key of
+   the wrong type and an integer argument is not well-formed, the choice of
+   error to redis may not match redis.
+
+3. The `incrbyfloat` and `hincrbyfloat` commands in redis use the C `long
+   double` type, which typically has more precision than Python's `float`
+   type.
+
+4. Redis makes guarantees about the order in which clients blocked on blocking
+   commands are woken up. Fakeredis does not honour these guarantees.
+
+5. Where redis contains bugs, fakeredis generally does not try to provide exact
+   bug-compatibility. It's not practical for fakeredis to try to match the set
+   of bugs in your specific version of redis.
+
+6. There are a number of cases where the behaviour of redis is undefined, such
+   as the order of elements returned by set and hash commands. Fakeredis will
+   generally not produce the same results, and in Python versions before 3.6
+   may produce different results each time the process is re-run.
+
+
 Contributing
 ============
 
@@ -324,6 +359,25 @@ they have all been tagged as 'slow' so you can skip them by running::
 
 Revision history
 ================
+
+1.0b1
+-----
+Version 1.0 is a major rewrite. It works at the redis protocol level, rather
+than at the redis-py level. This allows for many improvements and bug fixes.
+
+- `#225 <https://github.com/jamesls/fakeredis/issues/225>` Support redis-py 3.0
+- `#65 <https://github.com/jamesls/fakeredis/issues/65>` Support `execute_command` method
+- `#206 <https://github.com/jamesls/fakeredis/issues/206>` Drop Python 2.6 support
+- `#141 <https://github.com/jamesls/fakeredis/issues/141>` Support strings in integer arguments
+- `#218 <https://github.com/jamesls/fakeredis/issues/218>` Watches checks commands rather than final value
+- `#220 <https://github.com/jamesls/fakeredis/issues/220>` Better support for calling into redis from Lua
+- `#158 <https://github.com/jamesls/fakeredis/issues/158>` Better timestamp handlling
+- Fixes for race conditions caused by keys expiring mid-command
+
+It also has new unit tests based on hypothesis_, which has identified many
+corner cases that are now handled correctly.
+
+.. _hypothesis: https://hypothesis.readthedocs.io/en/latest/
 
 0.16.0
 ------
