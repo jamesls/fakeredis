@@ -938,7 +938,7 @@ class FakeSocket(object):
         elif isinstance(key.value, dict):
             return SimpleString(b'hash')
         else:
-            assert False
+            assert False      # pragma: nocover
 
     @command((Key(),))
     def persist(self, key):
@@ -2078,7 +2078,7 @@ class FakeSocket(object):
                     elif aggregate == b'min':
                         score = min(score, old)
                     else:
-                        assert False
+                        assert False     # pragma: nocover
                 out[member] = score
 
         dest.value = out
