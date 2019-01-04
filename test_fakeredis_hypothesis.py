@@ -5,8 +5,6 @@ import functools
 import hypothesis
 import hypothesis.stateful
 import hypothesis.strategies as st
-import hypothesis.internal.conjecture.utils as cu
-from hypothesis.searchstrategy.strategies import SearchStrategy
 from nose.tools import assert_equal
 
 import redis
@@ -16,23 +14,19 @@ import fakeredis
 self_strategy = st.runner()
 
 
-class AttrSamplingStrategy(SearchStrategy):
-    """Strategy for sampling a specific field from a state machine"""
-
-    def __init__(self, name):
-        self.name = name
-
-    def do_draw(self, data):
-        machine = data.draw(self_strategy)
-        values = getattr(machine, self.name)
-        position = cu.integer_range(data, 0, len(values) - 1)
-        return values[position]
+@st.composite
+def sample_attr(draw, name):
+    """Strategy for sampling a specific attribute from a state machine"""
+    machine = draw(self_strategy)
+    values = getattr(machine, name)
+    position = draw(st.integers(min_value=0, max_value=len(values) - 1))
+    return values[position]
 
 
-keys = AttrSamplingStrategy('keys')
-fields = AttrSamplingStrategy('fields')
-values = AttrSamplingStrategy('values')
-scores = AttrSamplingStrategy('scores')
+keys = sample_attr('keys')
+fields = sample_attr('fields')
+values = sample_attr('values')
+scores = sample_attr('scores')
 
 int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
 float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
