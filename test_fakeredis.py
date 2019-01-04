@@ -98,6 +98,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         else:
             return self.redis.zincrby(key, value, amount)
 
+    def test_dbsize(self):
+        self.assertEqual(self.redis.dbsize(), 0)
+        self.redis.set('foo', 'bar')
+        self.redis.set('bar', 'foo')
+        self.assertEqual(self.redis.dbsize(), 2)
+
     def test_flushdb(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.keys(), [b'foo'])

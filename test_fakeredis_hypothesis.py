@@ -295,7 +295,8 @@ server_commands = (
     # TODO: real redis raises an error if there is a save already in progress.
     # Find a better way to test this.
     # commands(st.just('bgsave'))
-    commands(st.sampled_from(['flushdb', 'flushall']), st.sampled_from([[], 'async']))
+    commands(st.just('dbsize'))
+    | commands(st.sampled_from(['flushdb', 'flushall']), st.sampled_from([[], 'async']))
     # TODO: result is non-deterministic
     # | commands(st.just('lastsave'))
     | commands(st.just('save'))

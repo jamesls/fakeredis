@@ -2100,6 +2100,10 @@ class FakeSocket(object):
         self._server.lastsave = int(time.time())
         return BGSAVE_STARTED
 
+    @command(())
+    def dbsize(self):
+        return len(self._db)
+
     @command((), (bytes,))
     def flushdb(self, *args):
         if args:
