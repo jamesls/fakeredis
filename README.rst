@@ -17,11 +17,22 @@ many times you want to write unittests that do not talk to an external server
 module as a reasonable substitute for redis.
 
 
+Alternatives
+============
+
+Consider using birdisle_ instead of fakeredis. It embeds the redis codebase
+into a Python extension, so it implements the full redis command set and
+behaves far more closely to a real redis implementation. The disadvantage is
+that it currently only works on Linux.
+
+.. _birdisle: https://birdisle.readthedocs.io/en/latest/
+
+
 How to Use
 ==========
 
 The intent is for fakeredis to act as though you're talking to a real
-redis server.  It does this by storing state in the fakeredis module.
+redis server.  It does this by storing state internally.
 For example:
 
 .. code-block:: python
@@ -39,16 +50,18 @@ For example:
   >>> r.lrange('bar', 0, -1)
   [2, 1]
 
-By storing state in the fakeredis module, instances can share
-data:
+The state is stored in an instance of `FakeServer`. If one is not provided at
+construction, a new instance is automatically created for you, but you can
+explicitly create one to share state:
 
 .. code-block:: python
 
   >>> import fakeredis
-  >>> r1 = fakeredis.FakeStrictRedis()
+  >>> server = fakeredis.FakeServer()
+  >>> r1 = fakeredis.FakeStrictRedis(server=server)
   >>> r1.set('foo', 'bar')
   True
-  >>> r2 = fakeredis.FakeStrictRedis()
+  >>> r2 = fakeredis.FakeStrictRedis(server=server)
   >>> r2.get('foo')
   'bar'
   >>> r2.set('bar', 'baz')
@@ -58,43 +71,48 @@ data:
   >>> r2.get('bar')
   'baz'
 
-Because fakeredis stores state at the module level, if you
-want to ensure that you have a clean slate for every unit
-test you run, be sure to call `r.flushall()` in your
-``tearDown`` method.  For example::
-
-    def setUp(self):
-        # Setup fake redis for testing.
-        self.r = fakeredis.FakeStrictRedis()
-
-    def tearDown(self):
-        # Clear data in fakeredis.
-        self.r.flushall()
-
-Alternatively, you can create an instance that does not share data with other
-instances, by passing `singleton=False` to the constructor.
-
 It is also possible to mock connection errors so you can effectively test
-your error handling. Simply pass `connected=False` to the constructor or
-set the connected attribute to `False` after initialization.
+your error handling. Simply set the connected attribute of the server to
+`False` after initialization.
 
 .. code-block:: python
 
   >>> import fakeredis
-  >>> r = fakeredis.FakeStrictRedis(connected=False)
+  >>> server = fakeredis.FakeServer()
+  >>> server.connected = False
+  >>> r = fakeredis.FakeStrictRedis(server=server)
   >>> r.set('foo', 'bar')
-  Traceback (most recent call last):
-    File "<stdin>", line 1, in <module>
-    File "~/fakeredis/fakeredis.py", line 339, in func_wrapper
-      raise redis.ConnectionError("FakeRedis is emulating a connection error.")
-  redis.exceptions.ConnectionError: FakeRedis is emulating a connection error.
-  >>> r.connected = True
+  ConnectionError: FakeRedis is emulating a connection error.
+  >>> server.connected = True
   >>> r.set('foo', 'bar')
   True
 
 Fakeredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
-of redis 2.6.
+of redis 5.0.
+
+Porting to fakeredis 1.0
+========================
+
+Version 1.0 is an almost total rewrite, intended to support redis-py 3.x and
+improve the Lua scripting emulation. It has a few backwards incompatibilities
+that may require changes to your code:
+
+1. By default, each FakeRedis or FakeStrictRedis instance contains its own
+   state. This is equivalent to the `singleton=True` option to previous
+   versions of fakeredis. This change was made to improve isolation between
+   tests. If you need to share state between instances, create a FakeServer,
+   as described above.
+
+2. FakeRedis is now a subclass of FakeStrictRedis, and similarly
+   FakeStrictRedis is a subclass of StrictRedis. Code that uses `isinstance`
+   may behave differently.
+
+3. The `connected` attribute is now a property of `FakeServer`, rather than
+   `FakeRedis` or `FakeStrictRedis`. You can still pass the property to the
+   constructor of the latter (provided no server is provided).
+
+
 
 Unimplemented Commands
 ======================
@@ -108,20 +126,20 @@ connection
 
  * auth
  * quit
- * select
- * swapdb
 
 
 server
 ------
 
  * bgrewriteaof
+ * client id
  * client kill
  * client list
  * client getname
  * client pause
  * client reply
  * client setname
+ * client unblock
  * command
  * command count
  * command getkeys
@@ -130,7 +148,6 @@ server
  * config rewrite
  * config set
  * config resetstat
- * dbsize
  * debug object
  * debug segfault
  * info
@@ -144,6 +161,7 @@ server
  * role
  * shutdown
  * slaveof
+ * replicaof
  * slowlog
  * sync
  * time
@@ -155,6 +173,15 @@ string
  * bitfield
  * bitop
  * bitpos
+
+
+sorted_set
+----------
+
+ * bzpopmin
+ * bzpopmax
+ * zpopmax
+ * zpopmin
 
 
 cluster
@@ -177,17 +204,10 @@ cluster
  * cluster set-config-epoch
  * cluster setslot
  * cluster slaves
+ * cluster replicas
  * cluster slots
  * readonly
  * readwrite
-
-
-transactions
-------------
-
- * discard
- * exec
- * multi
 
 
 generic
@@ -195,24 +215,11 @@ generic
 
  * dump
  * migrate
- * move
  * object
- * randomkey
  * restore
  * touch
  * unlink
  * wait
-
-
-scripting
----------
-
- * evalsha
- * script debug
- * script exists
- * script flush
- * script kill
- * script load
 
 
 geo
@@ -226,10 +233,37 @@ geo
  * georadiusbymember
 
 
-sorted_set
-----------
+pubsub
+------
 
- * zscan
+ * pubsub
+
+
+scripting
+---------
+
+ * script debug
+ * script exists
+ * script flush
+ * script kill
+
+
+stream
+------
+
+ * xinfo
+ * xadd
+ * xtrim
+ * xdel
+ * xrange
+ * xrevrange
+ * xlen
+ * xread
+ * xgroup
+ * xreadgroup
+ * xack
+ * xclaim
+ * xpending
 
 
 Contributing
@@ -267,7 +301,7 @@ unittest and run it against a real redis server.  fakeredis and the real redis
 server should give the same result.  This ensures parity between the two.  You
 can run these "integration" tests like this::
 
-    nosetests test_fakeredis.py:TestRealStrictRedis test_fakeredis.py:TestRealRedis
+    nosetests test_fakeredis.py:TestRealStrictRedis test_fakeredis.py:TestRealRedis test_fakeredis_hypothesis.py
 
 In terms of implementation, ``TestRealRedis`` is a subclass of
 ``TestFakeRedis`` that overrides a factory method to create
@@ -285,7 +319,7 @@ There are some tests that test redis blocking operations that are somewhat
 slow.  If you want to skip these tests during day to day development,
 they have all been tagged as 'slow' so you can skip them by running::
 
-    nosetests -a '!slow'
+    nosetests -a '!slow' test_fakeredis.py
 
 
 Revision history
