@@ -6,6 +6,9 @@ python:
   - 3.6
   - pypy
   - nightly
+env:
+  - REDIS_PY=2.10.6
+  - REDIS_PY=3.0.1
 matrix:
   include:
     - python: 3.7
@@ -19,6 +22,7 @@ services:
   - redis-server
 install:
   - pip install -r requirements.txt
+  - pip install redis==$REDIS_PY
   - pip install coverage python-coveralls
 before_script:
   - flake8
