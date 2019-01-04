@@ -876,9 +876,13 @@ class FakeSocket(object):
                 ans += 1
         return ans
 
-    @command((Key(),))
-    def exists(self, key):
-        return 1 if key else 0
+    @command((Key(),), (Key(),))
+    def exists(self, *keys):
+        ret = 0
+        for key in keys:
+            if key:
+                ret += 1
+        return ret
 
     def _expireat(self, key, timestamp):
         if not key:
