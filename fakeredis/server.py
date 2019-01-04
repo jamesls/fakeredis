@@ -385,10 +385,18 @@ class Float(object):
     DECODE_ERROR = INVALID_FLOAT_MSG
 
     @classmethod
-    def decode(cls, value, allow_leading_whitespace=False):
+    def decode(cls, value,
+               allow_leading_whitespace=False,
+               allow_erange=False,
+               allow_empty=False,
+               crop_null=False):
+        # redis has some quirks in float parsing, with several variants.
+        # See https://github.com/antirez/redis/issues/5706
         try:
-            # redis explicitly disallows leading whitespace, and implicitly
-            # rejects trailing whitespace, except for sorting
+            if crop_null and b'\0' in value:
+                value = value[:value.find(b'\0')]
+            if allow_empty and value == b'':
+                value = b'0.0'
             if not allow_leading_whitespace and value[:1].isspace():
                 raise ValueError
             if value[-1:].isspace():
@@ -396,11 +404,12 @@ class Float(object):
             out = float(value)
             if math.isnan(out):
                 raise ValueError
-            # Values that over- or underflow- are explicitly rejected by
-            # redis. This is a crude hack to determine whether the input
-            # may have been such a value.
-            if out in (INF, -INF, 0.0) and re.match(b'^[^a-zA-Z]*[1-9]', value):
-                raise ValueError
+            if not allow_erange:
+                # Values that over- or underflow- are explicitly rejected by
+                # redis. This is a crude hack to determine whether the input
+                # may have been such a value.
+                if out in (INF, -INF, 0.0) and re.match(b'^[^a-zA-Z]*[1-9]', value):
+                    raise ValueError
             return out
         except ValueError:
             raise redis.ResponseError(cls.DECODE_ERROR)
@@ -423,14 +432,8 @@ class SortFloat(Float):
 
     @classmethod
     def decode(cls, value):
-        # redis has some quirks in sorting.
-        # See https://github.com/antirez/redis/issues/5706
-        if b'\0' in value:
-            value = value[:value.find(b'\0')]
-        if value == b'':
-            return 0.0
-        else:
-            return super(SortFloat, cls).decode(value, allow_leading_whitespace=True)
+        return super(SortFloat, cls).decode(
+            value, allow_leading_whitespace=True, allow_empty=True, crop_null=True)
 
 
 class ScoreTest(object):
@@ -442,10 +445,14 @@ class ScoreTest(object):
     @classmethod
     def decode(cls, value):
         try:
+            exclusive = False
             if value[:1] == b'(':
-                return cls(Float.decode(value[1:]), True)
-            else:
-                return cls(Float.decode(value), False)
+                exclusive = True
+                value = value[1:]
+            value = Float.decode(
+                value, allow_leading_whitespace=True, allow_erange=True,
+                allow_empty=True, crop_null=True)
+            return cls(value, exclusive)
         except redis.ResponseError:
             raise redis.ResponseError(INVALID_MIN_MAX_FLOAT_MSG)
 
