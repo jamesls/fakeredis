@@ -325,6 +325,16 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+0.16.0
+------
+- `#224 <https://github.com/jamesls/fakeredis/pull/224>`_ Add __delitem__
+- Restrict to redis<3
+
+0.15.0
+------
+- `#219 <https://github.com/jamesls/fakeredis/pull/219>`_ Add SAVE, BGSAVE and LASTSAVE commands
+- `#222 <https://github.com/jamesls/fakeredis/pull/222>`_ Fix deprecation warnings in Python 3.7
+
 0.14.0
 ------
 This release greatly improves support for threads: the bulk of commands are now
