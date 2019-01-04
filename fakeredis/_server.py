@@ -102,6 +102,22 @@ else:
     long = int
 
 
+def null_terminate(s):
+    # Redis uses C functions on some strings, which means they stop at the
+    # first NULL.
+    if b'\0' in s:
+        return s[:s.find(b'\0')]
+    return s
+
+
+def casenorm(s):
+    return null_terminate(s).lower()
+
+
+def casematch(a, b):
+    return casenorm(a) == casenorm(b)
+
+
 def compile_pattern(pattern):
     """Compile a glob pattern (e.g. for keys) to a bytes regex.
 
@@ -393,8 +409,8 @@ class Float(object):
         # redis has some quirks in float parsing, with several variants.
         # See https://github.com/antirez/redis/issues/5706
         try:
-            if crop_null and b'\0' in value:
-                value = value[:value.find(b'\0')]
+            if crop_null:
+                value = null_terminate(value)
             if allow_empty and value == b'':
                 value = b'0.0'
             if not allow_leading_whitespace and value[:1].isspace():
@@ -712,8 +728,7 @@ class FakeSocket(object):
 
     def _name_to_func(self, name):
         # redis treats the command as NULL-terminated
-        if b'\0' in name:
-            name = name[:name.find(b'\0')]
+        name = null_terminate(name)
         name = six.ensure_str(name, encoding='utf-8', errors='replace')
         func_name = name.lower()
         func = getattr(self, func_name, None)
@@ -804,9 +819,9 @@ class FakeSocket(object):
         if len(args) % 2 != 0:
             raise redis.ResponseError(SYNTAX_ERROR_MSG)
         for i in range(0, len(args), 2):
-            if args[i].lower() == b'match':
+            if casematch(args[i], b'match'):
                 pattern = args[i + 1]
-            elif args[i].lower() == b'count':
+            elif casematch(args[i], b'count'):
                 count = Int.decode(args[i + 1])
                 if count <= 0:
                     raise redis.ResponseError(SYNTAX_ERROR_MSG)
@@ -1042,14 +1057,14 @@ class FakeSocket(object):
                 raise redis.ResponseError(WRONGTYPE_MSG)
 
         while i < len(args):
-            arg = args[i].lower()
-            if arg == b'asc':
+            arg = args[i]
+            if casematch(arg, b'asc'):
                 desc = False
-            elif arg == b'desc':
+            elif casematch(arg, b'desc'):
                 desc = True
-            elif arg == b'alpha':
+            elif casematch(arg, b'alpha'):
                 alpha = True
-            elif arg == b'limit' and i + 2 < len(args):
+            elif casematch(arg, b'limit') and i + 2 < len(args):
                 try:
                     limit_start = Int.decode(args[i + 1])
                     limit_count = Int.decode(args[i + 2])
@@ -1057,15 +1072,15 @@ class FakeSocket(object):
                     raise redis.ResponseError(SYNTAX_ERROR_MSG)
                 else:
                     i += 2
-            elif arg == b'store' and i + 1 < len(args):
+            elif casematch(arg, b'store') and i + 1 < len(args):
                 store = args[i + 1]
                 i += 1
-            elif arg == b'by' and i + 1 < len(args):
+            elif casematch(arg, b'by') and i + 1 < len(args):
                 sortby = args[i + 1]
                 if b'*' not in sortby:
                     dontsort = True
                 i += 1
-            elif arg == b'get' and i + 1 < len(args):
+            elif casematch(arg, b'get') and i + 1 < len(args):
                 get.append(args[i + 1])
                 i += 1
             else:
@@ -1323,18 +1338,18 @@ class FakeSocket(object):
         xx = False
         nx = False
         while i < len(args):
-            if args[i].lower() == b'nx':
+            if casematch(args[i], b'nx'):
                 nx = True
                 i += 1
-            elif args[i].lower() == b'xx':
+            elif casematch(args[i], b'xx'):
                 xx = True
                 i += 1
-            elif args[i].lower() == b'ex' and i + 1 < len(args):
+            elif casematch(args[i], b'ex') and i + 1 < len(args):
                 ex = Int.decode(args[i + 1])
                 if ex <= 0:
                     raise redis.ResponseError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
-            elif args[i].lower() == b'px' and i + 1 < len(args):
+            elif casematch(args[i], b'px') and i + 1 < len(args):
                 px = Int.decode(args[i + 1])
                 if px <= 0:
                     raise redis.ResponseError(INVALID_EXPIRE_MSG.format('set'))
@@ -1556,7 +1571,7 @@ class FakeSocket(object):
 
     @command((Key(list), bytes, bytes, bytes))
     def linsert(self, key, where, pivot, value):
-        if where.lower() not in (b'before', b'after'):
+        if not casematch(where, b'before') and not casematch(where, b'after'):
             raise redis.ResponseError(SYNTAX_ERROR_MSG)
         if not key:
             return 0
@@ -1565,7 +1580,7 @@ class FakeSocket(object):
                 index = key.value.index(pivot)
             except ValueError:
                 return -1
-            if where.lower() == b'after':
+            if casematch(where, b'after'):
                 index += 1
             key.value.insert(index, value)
             key.updated()
@@ -1889,7 +1904,7 @@ class FakeSocket(object):
     def _zrange(self, key, start, stop, reverse, *args):
         zset = key.value
         # TODO: does redis allow multiple WITHSCORES?
-        if len(args) > 1 or (args and args[0].lower() != b'withscores'):
+        if len(args) > 1 or (args and not casematch(args[0], b'withscores')):
             raise redis.ResponseError(SYNTAX_ERROR_MSG)
         start, stop = self._fix_range(start, stop, len(zset))
         if reverse:
@@ -1908,7 +1923,7 @@ class FakeSocket(object):
 
     def _zrangebylex(self, key, min, max, reverse, *args):
         if args:
-            if len(args) != 3 or args[0].lower() != b'limit':
+            if len(args) != 3 or not casematch(args[0], b'limit'):
                 raise redis.ResponseError(SYNTAX_ERROR_MSG)
             offset = Int.decode(args[1])
             count = Int.decode(args[2])
@@ -1936,10 +1951,10 @@ class FakeSocket(object):
         count = -1
         i = 0
         while i < len(args):
-            if args[i].lower() == b'withscores':
+            if casematch(args[i], b'withscores'):
                 withscores = True
                 i += 1
-            elif args[i].lower() == b'limit' and i + 2 < len(args):
+            elif casematch(args[i], b'limit') and i + 2 < len(args):
                 offset = Int.decode(args[i + 1])
                 count = Int.decode(args[i + 2])
                 i += 3
@@ -2038,12 +2053,12 @@ class FakeSocket(object):
 
         i = numkeys
         while i < len(args):
-            arg = args[i].lower()
-            if arg == b'weights' and i + numkeys < len(args):
+            arg = args[i]
+            if casematch(arg, b'weights') and i + numkeys < len(args):
                 weights = [Float.decode(x) for x in args[i + 1:i + numkeys + 1]]
                 i += numkeys + 1
-            elif arg == b'aggregate' and i + 1 < len(args):
-                aggregate = args[i + 1].lower()
+            elif casematch(arg, b'aggregate') and i + 1 < len(args):
+                aggregate = casenorm(args[i + 1])
                 if aggregate not in (b'sum', b'min', b'max'):
                     raise redis.ResponseError(SYNTAX_ERROR_MSG)
                 i += 2
@@ -2105,7 +2120,7 @@ class FakeSocket(object):
     @command((), (bytes,))
     def flushdb(self, *args):
         if args:
-            if len(args) != 1 or args[0].lower() != b'async':
+            if len(args) != 1 or not casematch(args[0], b'async'):
                 raise redis.ResponseError(SYNTAX_ERROR_MSG)
         self._db.clear()
         return OK
@@ -2113,7 +2128,7 @@ class FakeSocket(object):
     @command((), (bytes,))
     def flushall(self, *args):
         if args:
-            if len(args) != 1 or args[0].lower() != b'async':
+            if len(args) != 1 or not casematch(args[0], b'async'):
                 raise redis.ResponseError(SYNTAX_ERROR_MSG)
         for db in self._server.dbs.values():
             db.clear()
@@ -2266,7 +2281,7 @@ class FakeSocket(object):
 
     @command((bytes,), (bytes,))
     def script(self, subcmd, *args):
-        if subcmd.lower() == b'load':
+        if casematch(subcmd, b'load'):
             if len(args) != 1:
                 raise redis.ResponseError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
             script = args[0]
