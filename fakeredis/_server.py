@@ -22,7 +22,7 @@ import six
 from six.moves import queue
 import redis
 
-from .zset import ZSet
+from ._zset import ZSet
 
 
 MAX_STRING_SIZE = 512 * 1024 * 1024
