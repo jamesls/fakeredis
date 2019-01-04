@@ -365,13 +365,13 @@ Revision history
 Version 1.0 is a major rewrite. It works at the redis protocol level, rather
 than at the redis-py level. This allows for many improvements and bug fixes.
 
-- `#225 <https://github.com/jamesls/fakeredis/issues/225>` Support redis-py 3.0
-- `#65 <https://github.com/jamesls/fakeredis/issues/65>` Support `execute_command` method
-- `#206 <https://github.com/jamesls/fakeredis/issues/206>` Drop Python 2.6 support
-- `#141 <https://github.com/jamesls/fakeredis/issues/141>` Support strings in integer arguments
-- `#218 <https://github.com/jamesls/fakeredis/issues/218>` Watches checks commands rather than final value
-- `#220 <https://github.com/jamesls/fakeredis/issues/220>` Better support for calling into redis from Lua
-- `#158 <https://github.com/jamesls/fakeredis/issues/158>` Better timestamp handlling
+- `#225 <https://github.com/jamesls/fakeredis/issues/225>`_ Support redis-py 3.0
+- `#65 <https://github.com/jamesls/fakeredis/issues/65>`_ Support `execute_command` method
+- `#206 <https://github.com/jamesls/fakeredis/issues/206>`_ Drop Python 2.6 support
+- `#141 <https://github.com/jamesls/fakeredis/issues/141>`_ Support strings in integer arguments
+- `#218 <https://github.com/jamesls/fakeredis/issues/218>`_ Watches checks commands rather than final value
+- `#220 <https://github.com/jamesls/fakeredis/issues/220>`_ Better support for calling into redis from Lua
+- `#158 <https://github.com/jamesls/fakeredis/issues/158>`_ Better timestamp handlling
 - Fixes for race conditions caused by keys expiring mid-command
 
 It also has new unit tests based on hypothesis_, which has identified many
