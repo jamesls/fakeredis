@@ -4233,6 +4233,13 @@ class TestInitArgs(unittest.TestCase):
 
 
 class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
+    # Wrap some redis commands to abstract differences between redis-py 2 and 3.
+    def zadd(self, key, d):
+        if REDIS3:
+            return self.redis.zadd(key, d)
+        else:
+            return self.redis.zadd(key, **d)
+
     def create_redis(self):
         return fakeredis.FakeStrictRedis(db=0, connected=False)
 
@@ -4338,7 +4345,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_lpush(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.lpush('name', [1, 2])
+            self.redis.lpush('name', 1, 2)
 
     def test_lrange(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4354,7 +4361,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_rpush(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.rpush('name', [1])
+            self.redis.rpush('name', 1)
 
     def test_lpop(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4458,7 +4465,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_sadd(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.sadd('name', [1, 2])
+            self.redis.sadd('name', 1, 2)
 
     def test_scard(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4514,7 +4521,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_zadd(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.zadd('name', 3, 3)
+            self.zadd('name', {'key': 'value'})
 
     def test_zcard(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4546,7 +4553,7 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_zrem(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.zrem('name', [1])
+            self.redis.zrem('name', 'value')
 
     def test_zremrangebyrank(self):
         with self.assertRaises(redis.ConnectionError):
@@ -4610,11 +4617,11 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
 
     def test_pfadd(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.pfadd('name', [1])
+            self.redis.pfadd('name', 1)
 
     def test_pfmerge(self):
         with self.assertRaises(redis.ConnectionError):
-            self.redis.pfmerge('dest', ['a', 'b'])
+            self.redis.pfmerge('dest', 'a', 'b')
 
     def test_scan(self):
         with self.assertRaises(redis.ConnectionError):
