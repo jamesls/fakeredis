@@ -2138,44 +2138,25 @@ class FakeSocket(object):
     def _convert_redis_arg(self, lua_runtime, value):
         if isinstance(value, bytes):
             return six.ensure_binary(value)
-        elif isinstance(value, (int, float)):
+        elif isinstance(value, (int, long, float)):
             return six.ensure_binary('{:.17g}'.format(value))
         else:
             # TODO: add a constant for this, and add the context
             raise redis.ResponseError('Lua redis() command arguments must be strings or integers')
 
     def _convert_redis_result(self, lua_runtime, result):
-        if isinstance(result, (bytes, int)):
+        if isinstance(result, (bytes, int, long)):
             return result
         elif isinstance(result, SimpleString):
             return lua_runtime.table_from({b"ok": result.value})
         elif result is None:
             return False
-        elif isinstance(result, dict):
-            converted = [
-                i
-                for item in result.items()
-                for i in item
-            ]
-            return lua_runtime.table_from(converted)
-        elif isinstance(result, set):
-            # Redis up to 4 (with default options) sorts sets when returning
-            # them to Lua, but only to make scripts deterministic for
-            # replication. Redis 5 no longer sorts, but we maintain the sort
-            # so that unit tests written against fakeredis are reproducible.
-            converted = sorted(
-                self._convert_redis_result(lua_runtime, item)
-                for item in result
-            )
-            return lua_runtime.table_from(converted)
-        elif isinstance(result, (list, tuple)):
+        elif isinstance(result, list):
             converted = [
                 self._convert_redis_result(lua_runtime, item)
                 for item in result
             ]
             return lua_runtime.table_from(converted)
-        elif isinstance(result, bool):
-            return int(result)
         elif isinstance(result, redis.ResponseError):
             raise result
         else:
