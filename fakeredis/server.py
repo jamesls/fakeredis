@@ -1491,7 +1491,6 @@ class FakeSocket(object):
         return list(key.value.values())
 
     # List commands
-    # TODO: blocking commands
 
     def _bpop_pass(self, keys, op, first_pass):
         for key in keys:
@@ -1819,8 +1818,7 @@ class FakeSocket(object):
         return OK
 
     # Sorted set commands
-    # TODO: set operations, zrem*, [b]zpopmin/zpopmax,
-    # probably some that I've missed
+    # TODO: [b]zpopmin/zpopmax,
 
     @staticmethod
     def _limit_items(items, offset, count):
