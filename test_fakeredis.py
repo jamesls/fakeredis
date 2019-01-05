@@ -455,8 +455,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.keys('abc[e-c]?'), [b'abcde'])
         self.assertEqual(self.redis.keys('abc[e-e]?'), [])
         self.assertEqual(self.redis.keys('abcd[ef'), [b'abcde'])
+        self.assertEqual(self.redis.keys('abcd[]'), [])
         # negative groups
         self.assertEqual(self.redis.keys('abc[^d\\\\]*'), [b'abc\n'])
+        self.assertEqual(self.redis.keys('abc[^]e'), [b'abcde'])
+        # escaping
+        self.assertEqual(self.redis.keys(r'abc\?e'), [])
+        self.assertEqual(self.redis.keys(r'abc\de'), [b'abcde'])
+        self.assertEqual(self.redis.keys(r'abc[\d]e'), [b'abcde'])
         # some escaping cases that redis handles strangely
         self.assertEqual(self.redis.keys('abc\\'), [b'abc\\'])
         self.assertEqual(self.redis.keys(r'abc[\c-e]e'), [])

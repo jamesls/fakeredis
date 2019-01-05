@@ -176,7 +176,8 @@ def compile_pattern(pattern):
                     assert parts[-1] == '^'
                     parts.pop()
                     parts[-1] = '.'
-            parts.append(']')
+            else:
+                parts.append(']')
         else:
             parts.append(re.escape(c))
     parts.append('\\Z')
