@@ -1765,6 +1765,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.RedisError):
             self.zadd('foo', {})
 
+    def test_zadd_minus_zero(self):
+        # Changing -0 to +0 is ignored
+        self.zadd('foo', {'a': -0.0})
+        self.zadd('foo', {'a': 0.0})
+        self.assertEqual(self.redis.execute_command('zscore', 'foo', 'a'), b'-0')
+
     def test_zadd_wrong_type(self):
         self.redis.sadd('foo', 'bar')
         with self.assertRaises(redis.ResponseError):

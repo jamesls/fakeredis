@@ -1891,8 +1891,9 @@ class FakeSocket(object):
             items.append((score, args[i + 1]))
         old_len = len(key.value)
         for item in items:
-            key.value[item[1]] = item[0]
-            key.updated()
+            if item[1] not in key.value or key.value[item[1]] != item[0]:
+                key.value[item[1]] = item[0]
+                key.updated()
         return len(key.value) - old_len
 
     @command((Key(ZSet),))
