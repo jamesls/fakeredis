@@ -3956,6 +3956,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         # need to sort val to pass the test.
         self.assertEqual(sorted(val), [b'a', b'c', b'd', b'e', b'f'])
 
+    def test_script(self):
+        script = self.redis.register_script('return ARGV[1]')
+        result = script(args=[42])
+        self.assertEqual(result, b'42')
+
 
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False
