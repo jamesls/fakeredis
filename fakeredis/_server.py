@@ -1,5 +1,4 @@
 import os
-import io
 import time
 import threading
 import math
@@ -635,9 +634,11 @@ class FakeSocket(object):
         self._watches = set()
         self._pubsub = 0      # Count of subscriptions
         self.responses = queue.Queue()
+        self._parser = self._parse_commands()
+        self._parser.send(None)
 
     def shutdown(self, flags):
-        pass     # For compatibility with socket.socket
+        self._parser.close()
 
     def close(self):
         # TODO: unsubscribe from pub/sub
@@ -648,22 +649,39 @@ class FakeSocket(object):
         self.responses = None
 
     @staticmethod
-    def _parse_packed_command(fp):
-        line = fp.readline()
-        if line == b'':
-            return None
-        assert line[:1] == b'*'        # array
-        assert line[-2:] == b'\r\n'
-        n_fields = int(line[1:-2])
-        fields = []
-        for i in range(n_fields):
-            line = fp.readline()
-            assert line[:1] == b'$'    # string
-            assert line[-2:] == b'\r\n'
-            length = int(line[1:-2])
-            fields.append(fp.read(length))
-            fp.read(2)                 # CRLF
-        return fields
+    def _extract_line(buf):
+        pos = buf.find(b'\n') + 1
+        assert pos > 0
+        line = buf[:pos]
+        buf = buf[pos:]
+        assert line.endswith(b'\r\n')
+        return line, buf
+
+    def _parse_commands(self):
+        """Generator that parses commands.
+
+        It is fed pieces of redis protocol data (via `send`) and calls
+        `_process_command` whenever it has a complete one.
+        """
+        buf = b''
+        while True:
+            while b'\n' not in buf:
+                buf += yield
+            line, buf = self._extract_line(buf)
+            assert line[:1] == b'*'      # array
+            n_fields = int(line[1:-2])
+            fields = []
+            for i in range(n_fields):
+                while b'\n' not in buf:
+                    buf += yield
+                line, buf = self._extract_line(buf)
+                assert line[:1] == b'$'    # string
+                length = int(line[1:-2])
+                while len(buf) < length + 2:
+                    buf += yield
+                fields.append(buf[:length])
+                buf = buf[length+2:]       # +2 to skip the CRLF
+            self._process_command(fields)
 
     def _run_command(self, func, sig, args):
         command_items = {}
@@ -743,35 +761,35 @@ class FakeSocket(object):
         if not self._server.connected:
             raise redis.ConnectionError(CONNECTION_ERROR_MSG)
         data = six.ensure_binary(data, encoding='ascii')
-        fp = io.BytesIO(data)
-        while True:
-            try:
-                fields = self._parse_packed_command(fp)
-                if not fields:
-                    break
-                func, func_name = self._name_to_func(fields[0])
-                sig = func._fakeredis_sig
-                with self._server.lock:
-                    now = time.time()
-                    for db in self._server.dbs.values():
-                        db.time = now
-                    sig.check_arity(fields[1:])
-                    # TODO: make a signature attribute for transactions
-                    if self._transaction is not None \
-                            and func_name not in ('exec', 'discard', 'multi', 'watch'):
-                        self._transaction.append((func, sig, fields[1:]))
-                        result = QUEUED
-                    else:
-                        result = self._run_command(func, sig, fields[1:])
-            except redis.ResponseError as exc:
-                if self._transaction is not None:
-                    # TODO: should not apply if the exception is from _run_command
-                    # e.g. watch inside multi
-                    self._transaction_failed = True
-                result = exc
-            result = self._decode_result(result)
-            if not isinstance(result, NoResponse):
-                self.responses.put(result)
+        self._parser.send(data)
+
+    def _process_command(self, fields):
+        if not fields:
+            return
+        try:
+            func, func_name = self._name_to_func(fields[0])
+            sig = func._fakeredis_sig
+            with self._server.lock:
+                now = time.time()
+                for db in self._server.dbs.values():
+                    db.time = now
+                sig.check_arity(fields[1:])
+                # TODO: make a signature attribute for transactions
+                if self._transaction is not None \
+                        and func_name not in ('exec', 'discard', 'multi', 'watch'):
+                    self._transaction.append((func, sig, fields[1:]))
+                    result = QUEUED
+                else:
+                    result = self._run_command(func, sig, fields[1:])
+        except redis.ResponseError as exc:
+            if self._transaction is not None:
+                # TODO: should not apply if the exception is from _run_command
+                # e.g. watch inside multi
+                self._transaction_failed = True
+            result = exc
+        result = self._decode_result(result)
+        if not isinstance(result, NoResponse):
+            self.responses.put(result)
 
     def notify_watch(self):
         self._watch_notified = True
