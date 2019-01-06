@@ -42,6 +42,9 @@ score_tests = scores | st.builds(lambda x: b'(' + repr(x).encode(), scores)
 string_tests = (
     st.sampled_from([b'+', b'-'])
     | st.builds(operator.add, st.sampled_from([b'(', b'[']), fields))
+# Redis has integer overflow bugs in time computations, which is why we set a maximum.
+expires_seconds = st.integers(min_value=100000, max_value=10000000000)
+expires_ms = st.integers(min_value=100000000, max_value=10000000000000)
 
 
 class WrappedException(object):
@@ -196,8 +199,8 @@ string_commands = (
     | commands(st.sampled_from(['mset', 'msetnx']), st.lists(st.tuples(keys, values)))
     | commands(st.just('set'), keys, values,
                st.none() | st.just('nx'), st.none() | st.just('xx'))
-    | commands(st.just('setex'), keys, st.integers(min_value=1000000000), values)
-    | commands(st.just('psetex'), keys, st.integers(min_value=1000000000000), values)
+    | commands(st.just('setex'), keys, expires_seconds, values)
+    | commands(st.just('psetex'), keys, expires_ms, values)
     | commands(st.just('setnx'), keys, values)
     | commands(st.just('setrange'), keys, counts, values)
     | commands(st.just('strlen'), keys)
