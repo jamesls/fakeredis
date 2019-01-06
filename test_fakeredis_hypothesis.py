@@ -100,17 +100,48 @@ def default_normalize(x):
 
 
 class Command(object):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args):
         self.args = tuple(flatten(args))
-        self.normalize = kwargs.pop('normalize', default_normalize)
-        if kwargs:
-            raise TypeError('Unexpected keyword args {}'.format(kwargs))
 
     def __repr__(self):
         parts = [repr(arg) for arg in self.args]
-        if self.normalize is not default_normalize:
-            parts.append('normalize={!r}'.format(self.normalize))
         return 'Command({})'.format(', '.join(parts))
+
+    @staticmethod
+    def encode(arg):
+        encoder = redis.connection.Encoder('utf-8', 'replace', False)
+        return encoder.encode(arg)
+
+    @property
+    def normalize(self):
+        command = self.encode(self.args[0]).lower() if self.args else None
+        # Functions that return a list in arbitrary order
+        unordered = {
+            b'keys',
+            b'sort',
+            b'hgetall', b'hkeys', b'hvals',
+            b'sdiff', b'sinter', b'sunion',
+            b'smembers'
+        }
+        if command in unordered:
+            return sort_list
+        else:
+            return lambda x: x
+
+    @property
+    def testable(self):
+        """Whether this command is suitable for a test.
+
+        The fuzzer can create commands with behaviour that is
+        non-deterministic, not supported, or which hits redis bugs.
+        """
+        N = len(self.args)
+        if N == 0:
+            return False
+        command = self.encode(self.args[0]).lower()
+        if command == b'keys' and N == 2 and self.args[1] != b'*':
+            return False
+        return True
 
 
 def commands(*args, **kwargs):
@@ -121,7 +152,7 @@ def commands(*args, **kwargs):
 common_commands = (
     commands(st.sampled_from(['del', 'persist', 'type']), keys)
     | commands(st.just('exists'), st.lists(keys))
-    | commands(st.just('keys'), st.just('*'), normalize=sort_list)
+    | commands(st.just('keys'), st.just('*'))
     # Disabled for now due to redis giving wrong answers
     # (https://github.com/antirez/redis/issues/5632)
     # | st.tuples(st.just('keys'), patterns)
@@ -133,8 +164,7 @@ common_commands = (
     | commands(st.just('sort'), keys,
                st.none() | st.just('asc'),
                st.none() | st.just('desc'),
-               st.none() | st.just('alpha'),
-               normalize=sort_list)
+               st.none() | st.just('alpha'))
 )
 
 # TODO: tests for select
@@ -183,7 +213,7 @@ hash_commands = (
     | commands(st.just('hdel'), keys, st.lists(fields))
     | commands(st.just('hexists'), keys, fields)
     | commands(st.just('hget'), keys, fields)
-    | commands(st.sampled_from(['hgetall', 'hkeys', 'hvals']), keys, normalize=sort_list)
+    | commands(st.sampled_from(['hgetall', 'hkeys', 'hvals']), keys)
     | commands(st.just('hincrby'), keys, fields, st.integers())
     | commands(st.just('hlen'), keys)
     | commands(st.just('hmget'), keys, st.lists(fields))
@@ -218,11 +248,11 @@ set_create_commands = (
 set_commands = (
     commands(st.just('sadd'), keys, st.lists(fields,))
     | commands(st.just('scard'), keys)
-    | commands(st.sampled_from(['sdiff', 'sinter', 'sunion']), st.lists(keys), normalize=sort_list)
+    | commands(st.sampled_from(['sdiff', 'sinter', 'sunion']), st.lists(keys))
     | commands(st.sampled_from(['sdiffstore', 'sinterstore', 'sunionstore']),
-               keys, st.lists(keys), normalize=sort_list)
+               keys, st.lists(keys))
     | commands(st.just('sismember'), keys, fields)
-    | commands(st.just('smembers'), keys, normalize=sort_list)
+    | commands(st.just('smembers'), keys)
     | commands(st.just('smove'), keys, keys, fields)
     | commands(st.just('srem'), keys, st.lists(fields))
 )
@@ -382,11 +412,11 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
     def steps(self):
         if self.state == self.STATE_EMPTY:
             attrs = {
-                'keys': st.lists(st.binary(), min_size=2, unique=True),
-                'fields': st.lists(st.binary(), min_size=2, unique=True),
+                'keys': st.lists(st.binary(), min_size=2, max_size=5, unique=True),
+                'fields': st.lists(st.binary(), min_size=2, max_size=5, unique=True),
                 'values': st.lists(st.binary() | int_as_bytes | float_as_bytes,
-                                   min_size=2, unique=True),
-                'scores': st.lists(st.floats(width=32), min_size=2, unique=True)
+                                   min_size=2, max_size=5, unique=True),
+                'scores': st.lists(st.floats(width=32), min_size=2, max_size=5, unique=True)
             }
             return st.fixed_dictionaries(attrs)
         elif self.state == self.STATE_INIT:
@@ -510,8 +540,7 @@ def mutate_arg(draw, commands, mutate):
     command = draw(commands)
     if command.args:
         pos = draw(st.integers(min_value=0, max_value=len(command.args) - 1))
-        encoder = redis.connection.Encoder('utf-8', 'replace', False)
-        arg = mutate(encoder.encode(command.args[pos]))
+        arg = mutate(Command.encode(command.args[pos]))
         command.args = command.args[:pos] + (arg,) + command.args[pos + 1:]
     return command
 
@@ -579,6 +608,7 @@ def mutated_commands(commands):
 
 class FuzzMachine(JointMachine):
     command_strategy = mutated_commands(JointMachine.command_strategy)
+    command_strategy = command_strategy.filter(lambda command: command.testable)
 
 
 TestFuzz = FuzzMachine.TestCase
