@@ -187,8 +187,8 @@ hash_commands = (
     | commands(st.just('hincrby'), keys, fields, st.integers())
     | commands(st.just('hlen'), keys)
     | commands(st.just('hmget'), keys, st.lists(fields))
-    | commands(st.just('hmset'), keys, st.lists(st.tuples(fields, values)))
-    | commands(st.sampled_from(['hset', 'hsetnx']), keys, fields, values)
+    | commands(st.sampled_from(['hset', 'hmset']), keys, st.lists(st.tuples(fields, values)))
+    | commands(st.just('hsetnx'), keys, fields, values)
     | commands(st.just('hstrlen'), keys, fields)
 )
 

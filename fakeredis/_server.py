@@ -1470,9 +1470,7 @@ class FakeSocket(object):
 
     @command((Key(Hash), bytes, bytes), (bytes, bytes))
     def hmset(self, key, *args):
-        for i in range(0, len(args), 2):
-            key.value[args[i]] = args[i + 1]
-            key.updated()
+        self.hset(key, *args)
         return OK
 
     @command((Key(Hash), Int,), (bytes, bytes))
@@ -1484,13 +1482,16 @@ class FakeSocket(object):
             items.append(key.value[k])
         return [cursor, items]
 
-    @command((Key(Hash), bytes, bytes))
-    def hset(self, key, field, value):
+    @command((Key(Hash), bytes, bytes), (bytes, bytes))
+    def hset(self, key, *args):
         h = key.value
-        is_new = field not in h
-        h[field] = value
+        created = 0
+        for i in range(0, len(args), 2):
+            if args[i] not in h:
+                created += 1
+            h[args[i]] = args[i + 1]
         key.updated()
-        return 1 if is_new else 0
+        return created
 
     @command((Key(Hash), bytes, bytes))
     def hsetnx(self, key, field, value):
