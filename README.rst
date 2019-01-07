@@ -300,12 +300,18 @@ bugs in Github.
    generally not produce the same results, and in Python versions before 3.6
    may produce different results each time the process is re-run.
 
+7. SCAN/ZSCAN/HSCAN/SSCAN will not necessary iterate all items if items are
+   deleted during iteration. They also won't necessarily iterate in the same
+   chunk sizes or the same order as redis.
+
 
 Contributing
 ============
 
 Contributions are welcome.  Please see the `contributing guide`_ for
-more details.
+more details. The maintainer generally has very little time to work on
+fakeredis, so the best way to get a bug fixed is to contribute a pull
+request.
 
 If you'd like to help out, you can start with any of the issues
 labeled with `HelpWanted`_.
@@ -371,7 +377,8 @@ than at the redis-py level. This allows for many improvements and bug fixes.
 - `#141 <https://github.com/jamesls/fakeredis/issues/141>`_ Support strings in integer arguments
 - `#218 <https://github.com/jamesls/fakeredis/issues/218>`_ Watches checks commands rather than final value
 - `#220 <https://github.com/jamesls/fakeredis/issues/220>`_ Better support for calling into redis from Lua
-- `#158 <https://github.com/jamesls/fakeredis/issues/158>`_ Better timestamp handlling
+- `#158 <https://github.com/jamesls/fakeredis/issues/158>`_ Better timestamp handling
+- Support for `register_script` function.
 - Fixes for race conditions caused by keys expiring mid-command
 
 It also has new unit tests based on hypothesis_, which has identified many
