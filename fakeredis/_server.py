@@ -1889,6 +1889,7 @@ class FakeSocket(object):
     @command((Key(ZSet), bytes, bytes), (bytes,))
     def zadd(self, key, *args):
         # TODO: handle NX, XX, CH, INCR
+        zset = key.value
         if len(args) % 2 != 0:
             raise redis.ResponseError(SYNTAX_ERROR_MSG)
         items = []
@@ -1896,12 +1897,11 @@ class FakeSocket(object):
         for i in range(0, len(args), 2):
             score = Float.decode(args[i])
             items.append((score, args[i + 1]))
-        old_len = len(key.value)
+        old_len = len(zset)
         for item in items:
-            if item[1] not in key.value or key.value[item[1]] != item[0]:
-                key.value[item[1]] = item[0]
+            if zset.add(item[1], item[0]):
                 key.updated()
-        return len(key.value) - old_len
+        return len(zset) - old_len
 
     @command((Key(ZSet),))
     def zcard(self, key):
