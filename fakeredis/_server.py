@@ -2360,8 +2360,8 @@ class FakeSocket(object):
     def punsubscribe(self, *patterns):
         return self._unsubscribe(patterns, self._server.psubscribers, b'punsubscribe')
 
-    @command((), (bytes,))
-    def unsubscribe(self, *channels, flagss='s'):
+    @command((), (bytes,), flags='s')
+    def unsubscribe(self, *channels):
         return self._unsubscribe(channels, self._server.subscribers, b'unsubscribe')
 
     @command((bytes, bytes))
