@@ -634,6 +634,8 @@ class FakeSocket(object):
         # When in a MULTI, set to a list of function calls
         self._transaction = None
         self._transaction_failed = False
+        # Set when executing the commands from EXEC
+        self._in_transaction = False
         self._watch_notified = False
         self._watches = set()
         self._pubsub = 0      # Count of subscriptions
@@ -732,9 +734,8 @@ class FakeSocket(object):
         Returns the function return value, or None if the timeout was reached.
         """
         ret = func(True)
-        if ret is not None:
+        if ret is not None or self._in_transaction:
             return ret
-        # TODO: check if this is part of a transaction
         if timeout:
             deadline = time.time() + timeout
         else:
@@ -1206,9 +1207,12 @@ class FakeSocket(object):
         result = []
         for func, sig, args in transaction:
             try:
+                self._in_transaction = True
                 ans = self._run_command(func, sig, args, False)
             except redis.ResponseError as exc:
                 ans = exc
+            finally:
+                self._in_transaction = False
             result.append(ans)
         return result
 

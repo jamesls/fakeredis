@@ -1100,6 +1100,14 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.blpop('foo', timeout=1)
 
+    def test_blpop_transaction(self):
+        p = self.redis.pipeline()
+        p.multi()
+        p.blpop('missing', timeout=1000)
+        result = p.execute()
+        # Blocking commands behave like non-blocking versions in transactions
+        self.assertEqual(result, [None])
+
     def test_eval_blpop(self):
         self.redis.rpush('foo', 'bar')
         with self.assertRaises(redis.ResponseError) as cm:
