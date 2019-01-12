@@ -2115,9 +2115,9 @@ class FakeSocket(object):
                         if math.isnan(score):
                             score = 0.0
                     elif aggregate == b'max':
-                        score = max(score, old)
+                        score = max(old, score)
                     elif aggregate == b'min':
-                        score = min(score, old)
+                        score = min(old, score)
                     else:
                         assert False     # pragma: nocover
                 out[member] = score
