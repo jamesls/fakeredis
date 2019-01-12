@@ -272,7 +272,6 @@ class Database(MutableMapping):
     def swap(self, other):
         self._dict, other._dict = other._dict, self._dict
         self.time, other.time = other.time, self.time
-        # TODO: should watches swap too?
 
     def notify_watch(self, key):
         for sock in self._watches.get(key, set()):
@@ -881,13 +880,12 @@ class FakeSocket(object):
 
     @command((), (bytes,))
     def ping(self, *args):
-        # TODO: behaves differently on a pubsub connection
-        if len(args) == 0:
-            return PONG
-        elif len(args) == 1:
-            return args[0]
-        else:
+        if len(args) > 1:
             raise redis.ResponseError(WRONG_ARGS_MSG.format('ping'))
+        if self._pubsub:
+            return [b'pong', args[0] if args else b'']
+        else:
+            return args[0] if args else PONG
 
     @command((DbIndex,))
     def select(self, index):
@@ -986,7 +984,6 @@ class FakeSocket(object):
         if key.expireat is None:
             return 0
         key.expireat = None
-        # TODO: does this mark it modified for WATCH?
         return 1
 
     @command((bytes,))

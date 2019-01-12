@@ -2962,6 +2962,15 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertTrue(self.redis.ping())
         self.assertEqual(self.redis.execute_command('ping', 'test'), b'test')
 
+    def test_ping_pubsub(self):
+        p = self.redis.pubsub()
+        p.subscribe('channel')
+        p.parse_response()    # Consume the subscribe reply
+        p.ping()
+        self.assertEqual(p.parse_response(), [b'pong', b''])
+        p.ping('test')
+        self.assertEqual(p.parse_response(), [b'pong', b'test'])
+
     @redis3_only
     def test_swapdb(self):
         r1 = self.create_redis(1)
