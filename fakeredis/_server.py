@@ -59,10 +59,13 @@ TOO_MANY_KEYS_MSG = "Number of keys can't be greater than number of args"
 TIMEOUT_NEGATIVE_MSG = "timeout is negative"
 NO_MATCHING_SCRIPT_MSG = "No matching script. Please use EVAL."
 GLOBAL_VARIABLE_MSG = "Script attempted to set global variables: {}"
+COMMAND_IN_SCRIPT_MSG = "This Redis command is not allowed from scripts"
 BAD_SUBCOMMAND_MSG = "Unknown {} subcommand or wrong # of args."
 BAD_COMMAND_IN_PUBSUB_MSG = \
     "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT allowed in this context"
 CONNECTION_ERROR_MSG = "FakeRedis is emulating a connection error."
+
+FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 
 
 class SimpleString(object):
@@ -535,10 +538,11 @@ class Key(object):
 
 
 class Signature(object):
-    def __init__(self, name, fixed, repeat=()):
+    def __init__(self, name, fixed, repeat=(), flags=""):
         self.name = name
         self.fixed = fixed
         self.repeat = repeat
+        self.flags = flags
 
     def check_arity(self, args):
         if len(args) != len(self.fixed):
@@ -683,7 +687,7 @@ class FakeSocket(object):
                 buf = buf[length+2:]       # +2 to skip the CRLF
             self._process_command(fields)
 
-    def _run_command(self, func, sig, args):
+    def _run_command(self, func, sig, args, from_script):
         command_items = {}
         try:
             ret = sig.apply(args, self._db)
@@ -691,6 +695,8 @@ class FakeSocket(object):
                 result = ret[0]
             else:
                 args, command_items = ret
+                if from_script and FLAG_NO_SCRIPT in sig.flags:
+                    raise redis.ResponseError(COMMAND_IN_SCRIPT_MSG)
                 if self._pubsub and sig.name not in [
                         'ping', 'subscribe', 'unsubscribe',
                         'psubscribe', 'punsubscribe', 'quit']:
@@ -780,7 +786,7 @@ class FakeSocket(object):
                     self._transaction.append((func, sig, fields[1:]))
                     result = QUEUED
                 else:
-                    result = self._run_command(func, sig, fields[1:])
+                    result = self._run_command(func, sig, fields[1:], False)
         except redis.ResponseError as exc:
             if self._transaction is not None:
                 # TODO: should not apply if the exception is from _run_command
@@ -1166,7 +1172,7 @@ class FakeSocket(object):
             (key, db) = self._watches.pop()
             db.remove_watch(key, self)
 
-    @command(())
+    @command((), flags='s')
     def multi(self):
         if self._transaction is not None:
             raise redis.ResponseError(MULTI_NESTED_MSG)
@@ -1174,7 +1180,7 @@ class FakeSocket(object):
         self._transaction_failed = False
         return OK
 
-    @command(())
+    @command((), flags='s')
     def discard(self):
         if self._transaction is None:
             raise redis.ResponseError(WITHOUT_MULTI_MSG.format('DISCARD'))
@@ -1183,7 +1189,7 @@ class FakeSocket(object):
         self._clear_watches()
         return OK
 
-    @command((), name='exec')
+    @command((), name='exec', flags='s')
     def exec_(self):
         if self._transaction is None:
             raise redis.ResponseError(WITHOUT_MULTI_MSG.format('EXEC'))
@@ -1200,13 +1206,13 @@ class FakeSocket(object):
         result = []
         for func, sig, args in transaction:
             try:
-                ans = self._run_command(func, sig, args)
+                ans = self._run_command(func, sig, args, False)
             except redis.ResponseError as exc:
                 ans = exc
             result.append(ans)
         return result
 
-    @command((Key(),), (Key(),))
+    @command((Key(),), (Key(),), flags='s')
     def watch(self, *keys):
         if self._transaction is not None:
             raise redis.ResponseError(WATCH_INSIDE_MULTI_MSG)
@@ -1216,7 +1222,7 @@ class FakeSocket(object):
                 self._db.add_watch(key.key, self)
         return OK
 
-    @command(())
+    @command((), flags='s')
     def unwatch(self):
         self._clear_watches()
         return OK
@@ -1547,11 +1553,11 @@ class FakeSocket(object):
         timeout = Timeout.decode(args[-1])
         return self._blocking(timeout, functools.partial(self._bpop_pass, keys, op))
 
-    @command((bytes, bytes), (bytes,))
+    @command((bytes, bytes), (bytes,), flags='s')
     def blpop(self, *args):
         return self._bpop(args, lambda lst: lst.pop(0))
 
-    @command((bytes, bytes), (bytes,))
+    @command((bytes, bytes), (bytes,), flags='s')
     def brpop(self, *args):
         return self._bpop(args, lambda lst: lst.pop())
 
@@ -1577,7 +1583,7 @@ class FakeSocket(object):
             dst.writeback()
         return el
 
-    @command((bytes, bytes, Timeout))
+    @command((bytes, bytes, Timeout), flags='s')
     def brpoplpush(self, source, destination, timeout):
         return self._blocking(timeout,
                               functools.partial(self._brpoplpush_pass, source, destination))
@@ -2129,7 +2135,7 @@ class FakeSocket(object):
     # Server commands
     # TODO: lots
 
-    @command(())
+    @command((), flags='s')
     def bgsave(self):
         self._server.lastsave = int(time.time())
         return BGSAVE_STARTED
@@ -2160,7 +2166,7 @@ class FakeSocket(object):
     def lastsave(self):
         return self._server.lastsave
 
-    @command(())
+    @command((), flags='s')
     def save(self):
         self._server.lastsave = int(time.time())
         return OK
@@ -2238,9 +2244,8 @@ class FakeSocket(object):
         # Check if we've set any global variables before making any change.
         self._check_for_lua_globals(lua_runtime, expected_globals)
         func, func_name = self._name_to_func(op)
-        # TODO: certain commands are not allowed inside scripts. Set flags for this.
         args = [self._convert_redis_arg(lua_runtime, arg) for arg in args]
-        result = self._run_command(func, func._fakeredis_sig, args)
+        result = self._run_command(func, func._fakeredis_sig, args, True)
         return self._convert_redis_result(lua_runtime, result)
 
     def _lua_redis_pcall(self, lua_runtime, expected_globals, op, *args):
@@ -2249,7 +2254,7 @@ class FakeSocket(object):
         except Exception as ex:
             return lua_runtime.table_from({b"err": str(ex)})
 
-    @command((bytes, Int), (bytes,))
+    @command((bytes, Int), (bytes,), flags='s')
     def eval(self, script, numkeys, *keys_and_args):
         from lupa import LuaRuntime, LuaError
 
@@ -2292,7 +2297,7 @@ class FakeSocket(object):
 
         return self._convert_lua_result(result, nested=False)
 
-    @command((bytes, Int), (bytes,))
+    @command((bytes, Int), (bytes,), flags='s')
     def evalsha(self, sha1, numkeys, *keys_and_args):
         try:
             script = self._server.script_cache[sha1]
@@ -2300,7 +2305,7 @@ class FakeSocket(object):
             raise redis.exceptions.NoScriptError(NO_MATCHING_SCRIPT_MSG)
         return self.eval(script, numkeys, *keys_and_args)
 
-    @command((bytes,), (bytes,))
+    @command((bytes,), (bytes,), flags='s')
     def script(self, subcmd, *args):
         if casematch(subcmd, b'load'):
             if len(args) != 1:
@@ -2342,20 +2347,20 @@ class FakeSocket(object):
             self.responses.put(msg)
         return NoResponse()
 
-    @command((bytes,), (bytes,))
+    @command((bytes,), (bytes,), flags='s')
     def psubscribe(self, *patterns):
         return self._subscribe(patterns, self._server.psubscribers, b'psubscribe')
 
-    @command((bytes,), (bytes,))
+    @command((bytes,), (bytes,), flags='s')
     def subscribe(self, *channels):
         return self._subscribe(channels, self._server.subscribers, b'subscribe')
 
-    @command((), (bytes,))
+    @command((), (bytes,), flags='s')
     def punsubscribe(self, *patterns):
         return self._unsubscribe(patterns, self._server.psubscribers, b'punsubscribe')
 
     @command((), (bytes,))
-    def unsubscribe(self, *channels):
+    def unsubscribe(self, *channels, flagss='s'):
         return self._unsubscribe(channels, self._server.subscribers, b'unsubscribe')
 
     @command((bytes, bytes))

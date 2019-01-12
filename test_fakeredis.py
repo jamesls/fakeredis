@@ -1100,6 +1100,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.ResponseError):
             self.redis.blpop('foo', timeout=1)
 
+    def test_eval_blpop(self):
+        self.redis.rpush('foo', 'bar')
+        with self.assertRaises(redis.ResponseError) as cm:
+            result = self.redis.eval('return redis.pcall("BLPOP", KEYS[1], 1)', 1, 'foo')
+        self.assertIn('not allowed from scripts', str(cm.exception))
+
     def test_brpop_test_multiple_lists(self):
         self.redis.rpush('baz', 'zero')
         self.assertEqual(self.redis.brpop(['foo', 'baz'], timeout=1),
