@@ -2426,10 +2426,22 @@ class FakeConnection(redis.Connection):
     def can_read(self, timeout=0):
         if not self._server.connected:
             return True
-        # TODO: handle timeout (needed for pub/sub)
         if not self._sock:
             self.connect()
-        return bool(self._sock.responses.qsize())
+        if self._sock.responses.qsize():
+            return True
+        while timeout <= 0:
+            return False
+
+        # A sleep/poll loop is easier to mock out than messing with condition
+        # variables.
+        start = time.time()
+        while True:
+            if self._sock.responses.qsize():
+                return True
+            now = time.time()
+            if now > start + timeout:
+                return False
 
     def _decode(self, response):
         if isinstance(response, list):

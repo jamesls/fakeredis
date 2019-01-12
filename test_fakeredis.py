@@ -3280,6 +3280,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.exceptions.PubSubError):
             pubsub_thread = pubsub.run_in_thread()
 
+    @attr('slow')
+    def test_pubsub_timeout(self):
+        def publish():
+            sleep(0.1)
+            self.redis.publish('channel', 'hello')
+
+        p = self.redis.pubsub()
+        p.subscribe('channel')
+        p.parse_response()   # Drains the subscribe message
+        publish_thread = threading.Thread(target=publish)
+        publish_thread.start()
+        message = p.get_message(timeout=1)
+        self.assertEqual(message, {'type': 'message', 'pattern': None,
+                                   'channel': b'channel', 'data': b'hello'})
+        publish_thread.join()
+        message = p.get_message(timeout=0.5)
+        self.assertIsNone(message)
+
     def test_pfadd(self):
         key = "hll-pfadd"
         self.assertEqual(
