@@ -6,6 +6,8 @@ import hypothesis
 import hypothesis.stateful
 import hypothesis.strategies as st
 from nose.tools import assert_equal
+from nose.plugins.attrib import attr
+from nose.plugins.skip import SkipTest
 
 import redis
 import fakeredis
@@ -348,7 +350,11 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
     def __init__(self):
         super(CommonMachine, self).__init__()
         self.fake = fakeredis.FakeStrictRedis()
-        self.real = redis.StrictRedis('localhost', port=6379)
+        try:
+            self.real = redis.StrictRedis('localhost', port=6379)
+            self.real.ping()
+        except redis.ConnectionError:
+            raise SkipTest('redis is not running')
         self.transaction_normalize = []
         self.keys = []
         self.fields = []
@@ -438,78 +444,64 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
             self._compare(step)
 
 
-class ConnectionMachine(CommonMachine):
+class BaseTest(object):
+    create_command_strategy = None
+
+    """Base class for test classes."""
+    @attr('slow')
+    def test(self):
+        class Machine(CommonMachine):
+            create_command_strategy = self.create_command_strategy
+            command_strategy = self.command_strategy
+
+        hypothesis.stateful.run_state_machine_as_test(Machine)
+
+
+class TestConnection(BaseTest):
     command_strategy = connection_commands | common_commands
 
 
-TestConnection = ConnectionMachine.TestCase
-
-
-class StringMachine(CommonMachine):
+class TestString(BaseTest):
     create_command_strategy = string_create_commands
     command_strategy = string_commands | common_commands
 
 
-TestString = StringMachine.TestCase
-
-
-class HashMachine(CommonMachine):
+class TestHash(BaseTest):
     create_command_strategy = hash_create_commands
     command_strategy = hash_commands | common_commands
 
 
-TestHash = HashMachine.TestCase
-
-
-class ListMachine(CommonMachine):
+class TestList(BaseTest):
     create_command_strategy = list_create_commands
     command_strategy = list_commands | common_commands
 
 
-TestList = ListMachine.TestCase
-
-
-class SetMachine(CommonMachine):
+class TestSet(BaseTest):
     create_command_strategy = set_create_commands
     command_strategy = set_commands | common_commands
 
 
-TestSet = SetMachine.TestCase
-
-
-class ZSetMachine(CommonMachine):
+class TestZSet(BaseTest):
     create_command_strategy = zset_create_commands
     command_strategy = zset_commands | common_commands
 
 
-TestZSet = ZSetMachine.TestCase
-
-
-class ZSetNoScoresMachine(CommonMachine):
+class TestZSetNoScores(BaseTest):
     create_command_strategy = zset_no_score_create_commands
     command_strategy = zset_no_score_commands | common_commands
 
 
-TestZSetNoScores = ZSetNoScoresMachine.TestCase
-
-
-class TransactionMachine(CommonMachine):
+class TestTransaction(BaseTest):
     create_command_strategy = string_create_commands
     command_strategy = transaction_commands | string_commands | common_commands
 
 
-TestTransaction = TransactionMachine.TestCase
-
-
-class ServerMachine(CommonMachine):
+class TestServer(BaseTest):
     create_command_strategy = string_create_commands
     command_strategy = server_commands | string_commands | common_commands
 
 
-TestServer = ServerMachine.TestCase
-
-
-class JointMachine(CommonMachine):
+class TestJoint(BaseTest):
     create_command_strategy = (
         string_create_commands | hash_create_commands | list_create_commands
         | set_create_commands | zset_create_commands)
@@ -517,9 +509,6 @@ class JointMachine(CommonMachine):
         transaction_commands | server_commands | connection_commands
         | string_commands | hash_commands | list_commands | set_commands
         | zset_commands | common_commands | bad_commands)
-
-
-TestJoint = JointMachine.TestCase
 
 
 @st.composite
@@ -609,9 +598,6 @@ def mutated_commands(commands):
             | swap_args(x))
 
 
-class FuzzMachine(JointMachine):
-    command_strategy = mutated_commands(JointMachine.command_strategy)
+class TestFuzz(BaseTest):
+    command_strategy = mutated_commands(TestJoint.command_strategy)
     command_strategy = command_strategy.filter(lambda command: command.testable)
-
-
-TestFuzz = FuzzMachine.TestCase
