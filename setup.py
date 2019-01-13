@@ -15,7 +15,7 @@ setup(
     author_email='js@jamesls.com',
     maintainer='Bruce Merry',
     maintainer_email='bmerry@ska.ac.za',
-    py_modules=['fakeredis'],
+    packages=['fakeredis'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: BSD License',
