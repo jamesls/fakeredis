@@ -366,6 +366,19 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.0rc1
+------
+Compared to 1.0b1:
+
+- `#231 <https://github.com/jamesls/fakeredis/pull/231>`_ Fix setup.py, fakeredis is directory/package now
+- Fix some corner case handling of +0 vs -0
+- Fix pubsub `get_message` with a timeout
+- Disallow certain commands in scripts
+- Fix handling of blocking commands inside transactions
+- Fix handling of PING inside pubsub connections
+- Make hypothesis tests skip if redis is not running
+- Minor optimisations to zset
+
 1.0b1
 -----
 Version 1.0 is a major rewrite. It works at the redis protocol level, rather
