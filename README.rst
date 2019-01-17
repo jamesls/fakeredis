@@ -9,13 +9,18 @@ fakeredis: A fake version of a redis-py
    :target: https://coveralls.io/r/jamesls/fakeredis
 
 
-fakeredis is a pure python implementation of the redis-py python client
+fakeredis is a pure-Python implementation of the redis-py python client
 that simulates talking to a redis server.  This was created for a single
 purpose: **to write unittests**.  Setting up redis is not hard, but
 many times you want to write unittests that do not talk to an external server
 (such as redis).  This module now allows tests to simply use this
 module as a reasonable substitute for redis.
 
+Although fakeredis is pure Python, you will need lupa_ if you want to run Lua
+scripts. If you install fakeredis with ``pip install fakeredis[lua]`` it will
+be automatically installed.
+
+.. _lupa: https://pypi.org/project/lupa/
 
 Alternatives
 ============
