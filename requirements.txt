@@ -1,6 +1,14 @@
-# Flake8 3.0.0 does not support Python 2.6.
-flake8<3.0.0
-nose==1.3.4
+flake8==3.6.0
+configparser==3.5.0; python_version<"3"
+mccabe==0.6.1
+pycodestyle==2.4.0
+pyflakes==2.0.0
+attrs==18.2.0
+enum34==1.1.6; python_version<"3"
+nose==1.3.7
+hypothesis==3.86.4
 redis==2.10.6
-lupa==1.6
-future==0.16.0
+lupa==1.7
+future==0.17.1
+sortedcontainers==2.1.0
+six==1.12.0
