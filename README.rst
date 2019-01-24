@@ -371,6 +371,30 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.0
+---
+
+Version 1.0 is a major rewrite. It works at the redis protocol level, rather
+than at the redis-py level. This allows for many improvements and bug fixes.
+
+- `#225 <https://github.com/jamesls/fakeredis/issues/225>`_ Support redis-py 3.0
+- `#65 <https://github.com/jamesls/fakeredis/issues/65>`_ Support `execute_command` method
+- `#206 <https://github.com/jamesls/fakeredis/issues/206>`_ Drop Python 2.6 support
+- `#141 <https://github.com/jamesls/fakeredis/issues/141>`_ Support strings in integer arguments
+- `#218 <https://github.com/jamesls/fakeredis/issues/218>`_ Watches checks commands rather than final value
+- `#220 <https://github.com/jamesls/fakeredis/issues/220>`_ Better support for calling into redis from Lua
+- `#158 <https://github.com/jamesls/fakeredis/issues/158>`_ Better timestamp handling
+- Support for `register_script` function.
+- Fixes for race conditions caused by keys expiring mid-command
+- Disallow certain commands in scripts
+- Fix handling of blocking commands inside transactions
+- Fix handling of PING inside pubsub connections
+
+It also has new unit tests based on hypothesis_, which has identified many
+corner cases that are now handled correctly.
+
+.. _hypothesis: https://hypothesis.readthedocs.io/en/latest/
+
 1.0rc1
 ------
 Compared to 1.0b1:
