@@ -646,8 +646,11 @@ class FakeSocket(object):
         self._parser.close()
 
     def close(self):
-        # TODO: unsubscribe from pub/sub
         with self._server.lock:
+            for subs in self._server.subscribers.values():
+                subs.discard(self)
+            for subs in self._server.psubscribers.values():
+                subs.discard(self)
             self._clear_watches()
         self._server = None
         self._db = None
