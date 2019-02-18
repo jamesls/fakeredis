@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
     name='fakeredis',
-    version='1.0.1',
+    version='1.0.2',
     description="Fake implementation of redis API for testing purposes.",
     long_description=open(os.path.join(os.path.dirname(__file__),
                                        'README.rst')).read(),
@@ -28,7 +28,7 @@ setup(
         'Programming Language :: Python :: 3.7'
     ],
     install_requires=[
-        'redis', 'six>=1.12', 'sortedcontainers'
+        'redis<3.2', 'six>=1.12', 'sortedcontainers'
     ],
     extras_require={
         "lua": ['lupa']
