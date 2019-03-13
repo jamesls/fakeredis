@@ -2444,7 +2444,7 @@ class FakeConnection(redis.Connection):
         self._sock = None
 
     def connect(self):
-        super().connect()
+        super(FakeConnection, self).connect()
         # The selector is set in redis.Connection.connect() after _connect() is called
         self._selector = FakeSelector(self._sock)
 
