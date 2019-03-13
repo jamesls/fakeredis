@@ -645,6 +645,9 @@ class FakeSocket(object):
     def shutdown(self, flags):
         self._parser.close()
 
+    def fileno(self):
+        return 0
+
     def close(self):
         with self._server.lock:
             for subs in self._server.subscribers.values():
@@ -2401,6 +2404,24 @@ class _DummyParser(object):
         pass
 
 
+# Redis <3.2 will not have a selector
+if hasattr(redis, 'selector'):
+    base_selector = redis.selector.BaseSelector
+else:
+    class FakeBaseSelector:
+        def __init__(self, sock):
+            pass
+    base_selector = FakeBaseSelector
+
+
+class FakeSelector(base_selector):
+    def check_can_read(self, timeout):
+        return True
+
+    def check_is_ready_for_command(self, timeout):
+        return True
+
+
 class FakeConnection(redis.Connection):
     description_format = "FakeConnection<db=%(db)s>"
 
@@ -2421,6 +2442,11 @@ class FakeConnection(redis.Connection):
         # override them.
         self._parser = _DummyParser()
         self._sock = None
+
+    def connect(self):
+        super().connect()
+        # The selector is set in redis.Connection.connect() after _connect() is called
+        self._selector = FakeSelector(self._sock)
 
     def _connect(self):
         if not self._server.connected:
