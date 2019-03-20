@@ -646,6 +646,9 @@ class FakeSocket(object):
         self._parser.close()
 
     def fileno(self):
+        # Our fake socket must return an integer from `FakeSocket.fileno()` since a real selector
+        # will be created. The value does not matter since we replace the selector with our own
+        # `FakeSelector` before it is ever used.
         return 0
 
     def close(self):
@@ -2405,16 +2408,15 @@ class _DummyParser(object):
 
 
 # Redis <3.2 will not have a selector
-if hasattr(redis, 'selector'):
-    base_selector = redis.selector.BaseSelector
-else:
-    class FakeBaseSelector:
+try:
+    from redis.selector import BaseSelector
+except ImportError:
+    class BaseSelector(object):
         def __init__(self, sock):
             pass
-    base_selector = FakeBaseSelector
 
 
-class FakeSelector(base_selector):
+class FakeSelector(BaseSelector):
     def check_can_read(self, timeout):
         return True
 

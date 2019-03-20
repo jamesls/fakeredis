@@ -3286,6 +3286,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         pubsub_thread.stop()
         # Newer versions of redis wait for an unsubscribe message, which sometimes comes early
+        # https://github.com/andymccurdy/redis-py/issues/1150
         if pubsub.channels:
             pubsub.channels = {}
         pubsub_thread.join()
