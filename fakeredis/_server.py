@@ -2413,12 +2413,26 @@ try:
 except ImportError:
     class BaseSelector(object):
         def __init__(self, sock):
-            pass
+            self.sock = sock
 
 
 class FakeSelector(BaseSelector):
     def check_can_read(self, timeout):
-        return True
+        if self.sock.responses.qsize():
+            return True
+        if timeout <= 0:
+            return False
+
+        # A sleep/poll loop is easier to mock out than messing with condition
+        # variables.
+        start = time.time()
+        while True:
+            if self.sock.responses.qsize():
+                return True
+            time.sleep(0.01)
+            now = time.time()
+            if now > start + timeout:
+                return False
 
     def check_is_ready_for_command(self, timeout):
         return True
@@ -2462,7 +2476,7 @@ class FakeConnection(redis.Connection):
             self.connect()
         if self._sock.responses.qsize():
             return True
-        while timeout <= 0:
+        if timeout <= 0:
             return False
 
         # A sleep/poll loop is easier to mock out than messing with condition
@@ -2471,6 +2485,7 @@ class FakeConnection(redis.Connection):
         while True:
             if self._sock.responses.qsize():
                 return True
+            time.sleep(0.01)
             now = time.time()
             if now > start + timeout:
                 return False
