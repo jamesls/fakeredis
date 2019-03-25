@@ -645,6 +645,12 @@ class FakeSocket(object):
     def shutdown(self, flags):
         self._parser.close()
 
+    def fileno(self):
+        # Our fake socket must return an integer from `FakeSocket.fileno()` since a real selector
+        # will be created. The value does not matter since we replace the selector with our own
+        # `FakeSelector` before it is ever used.
+        return 0
+
     def close(self):
         with self._server.lock:
             for subs in self._server.subscribers.values():
@@ -2401,6 +2407,37 @@ class _DummyParser(object):
         pass
 
 
+# Redis <3.2 will not have a selector
+try:
+    from redis.selector import BaseSelector
+except ImportError:
+    class BaseSelector(object):
+        def __init__(self, sock):
+            self.sock = sock
+
+
+class FakeSelector(BaseSelector):
+    def check_can_read(self, timeout):
+        if self.sock.responses.qsize():
+            return True
+        if timeout <= 0:
+            return False
+
+        # A sleep/poll loop is easier to mock out than messing with condition
+        # variables.
+        start = time.time()
+        while True:
+            if self.sock.responses.qsize():
+                return True
+            time.sleep(0.01)
+            now = time.time()
+            if now > start + timeout:
+                return False
+
+    def check_is_ready_for_command(self, timeout):
+        return True
+
+
 class FakeConnection(redis.Connection):
     description_format = "FakeConnection<db=%(db)s>"
 
@@ -2422,6 +2459,11 @@ class FakeConnection(redis.Connection):
         self._parser = _DummyParser()
         self._sock = None
 
+    def connect(self):
+        super(FakeConnection, self).connect()
+        # The selector is set in redis.Connection.connect() after _connect() is called
+        self._selector = FakeSelector(self._sock)
+
     def _connect(self):
         if not self._server.connected:
             raise redis.ConnectionError(CONNECTION_ERROR_MSG)
@@ -2434,7 +2476,7 @@ class FakeConnection(redis.Connection):
             self.connect()
         if self._sock.responses.qsize():
             return True
-        while timeout <= 0:
+        if timeout <= 0:
             return False
 
         # A sleep/poll loop is easier to mock out than messing with condition
@@ -2443,6 +2485,7 @@ class FakeConnection(redis.Connection):
         while True:
             if self._sock.responses.qsize():
                 return True
+            time.sleep(0.01)
             now = time.time()
             if now > start + timeout:
                 return False

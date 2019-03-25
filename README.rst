@@ -371,6 +371,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.0.3
+-----
+- `#235 <https://github.com/jamesls/fakeredis/issues/235>`_ Support for ``redis==3.2``
+
 1.0.2
 -----
 - `#235 <https://github.com/jamesls/fakeredis/issues/235>`_ Depend on ``redis<3.2``
