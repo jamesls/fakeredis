@@ -2474,21 +2474,12 @@ class FakeConnection(redis.Connection):
             return True
         if not self._sock:
             self.connect()
-        if self._sock.responses.qsize():
-            return True
-        if timeout <= 0:
-            return False
-
-        # A sleep/poll loop is easier to mock out than messing with condition
-        # variables.
-        start = time.time()
-        while True:
-            if self._sock.responses.qsize():
-                return True
-            time.sleep(0.01)
-            now = time.time()
-            if now > start + timeout:
-                return False
+        # We use check_can_read rather than can_read, because on redis-py<3.2,
+        # FakeSelector inherits from a stub BaseSelector which doesn't
+        # implement can_read. Normally can_read provides retries on EINTR,
+        # but that's not necessary for the implementation of
+        # FakeSelector.check_can_read.
+        return self._selector.check_can_read(timeout)
 
     def _decode(self, response):
         if isinstance(response, list):
