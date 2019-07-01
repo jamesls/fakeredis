@@ -306,8 +306,8 @@ bugs in Github.
    may produce different results each time the process is re-run.
 
 7. SCAN/ZSCAN/HSCAN/SSCAN will not necessary iterate all items if items are
-   deleted during iteration. They also won't necessarily iterate in the same
-   chunk sizes or the same order as redis.
+   deleted or renamed during iteration. They also won't necessarily iterate in
+   the same chunk sizes or the same order as redis.
 
 
 Contributing
