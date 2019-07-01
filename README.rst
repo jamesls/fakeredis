@@ -282,12 +282,12 @@ bugs in Github.
 
 1. Hyperloglogs are implemented using sets underneath. This means that the
    `type` command will return the wrong answer, you can't use `get` to retrieve
-   the encoded value, counts will be slightly different (they will in fact be
+   the encoded value, and counts will be slightly different (they will in fact be
    exact).
 
 2. When a command has multiple error conditions, such as operating on a key of
    the wrong type and an integer argument is not well-formed, the choice of
-   error to redis may not match redis.
+   error to return may not match redis.
 
 3. The `incrbyfloat` and `hincrbyfloat` commands in redis use the C `long
    double` type, which typically has more precision than Python's `float`
