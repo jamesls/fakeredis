@@ -407,7 +407,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_incrbyfloat_bad_type(self):
         self.redis.set('foo', 'bar')
-        with self.assertRaisesRegexp(redis.ResponseError, 'not a valid float'):
+        with self.assertRaisesRegex(redis.ResponseError, 'not a valid float'):
             self.redis.incrbyfloat('foo', 1.0)
         self.redis.rpush('foo2', 1)
         with self.assertRaises(redis.ResponseError):
@@ -541,7 +541,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         if REDIS3:
             self.assertEqual(self.redis.mget([]), [])
         else:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     redis.ResponseError, 'wrong number of arguments'):
                 self.redis.mget([])
 
@@ -591,7 +591,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), b'bar')
 
     def test_setex_using_float(self):
-        self.assertRaisesRegexp(
+        self.assertRaisesRegex(
             redis.ResponseError, 'integer', self.redis.setex, 'foo', 1.2,
             'bar')
 
@@ -3617,7 +3617,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_expire_should_not_handle_floating_point_values(self):
         self.redis.set('foo', 'bar')
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 redis.ResponseError, 'value is not an integer or out of range'):
             self.redis.expire('something_new', 1.2)
             self.redis.pexpire('something_new', 1000.2)
@@ -4156,7 +4156,7 @@ class TestFakeRedis(unittest.TestCase):
 
     def test_expire_should_not_handle_floating_point_values(self):
         self.redis.set('foo', 'bar')
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 redis.ResponseError, 'value is not an integer or out of range'):
             self.redis.expire('something_new', 1.2)
             self.redis.pexpire('something_new', 1000.2)
