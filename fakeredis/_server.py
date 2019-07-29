@@ -2443,7 +2443,8 @@ class FakeConnection(redis.Connection):
 
     def __init__(self, server, db=0, password=None,
                  encoding='utf-8', encoding_errors='strict',
-                 decode_responses=False):
+                 decode_responses=False,
+                 health_check_interval=0):
         self.pid = os.getpid()
         self.db = db
         self.password = password
@@ -2458,6 +2459,9 @@ class FakeConnection(redis.Connection):
         # override them.
         self._parser = _DummyParser()
         self._sock = None
+        # added in redis==3.3.0
+        self.health_check_interval = health_check_interval
+        self.next_health_check = 0
 
     def connect(self):
         super(FakeConnection, self).connect()
