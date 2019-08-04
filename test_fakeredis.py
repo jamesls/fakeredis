@@ -95,9 +95,9 @@ class TestFakeStrictRedis(unittest.TestCase):
         return round(float(x))
 
     # Wrap some redis commands to abstract differences between redis-py 2 and 3.
-    def zadd(self, key, d):
+    def zadd(self, key, d, *args, **kwargs):
         if REDIS3:
-            return self.redis.zadd(key, d)
+            return self.redis.zadd(key, d, *args, **kwargs)
         else:
             return self.redis.zadd(key, **d)
 
@@ -1796,6 +1796,64 @@ class TestFakeStrictRedis(unittest.TestCase):
                          [b'one'])
         self.assertEqual(self.redis.zrange('foo', 1, 1),
                          [b'two'])
+
+    @redis3_only
+    def test_zadd_with_nx(self):
+        self.zadd('foo', {'four': 4, 'three': 3})
+        self.assertEqual(self.zadd('foo', {'four': 2, 'three': 1}, nx=True), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'three', b'four'])
+        self.assertEqual(self.zadd('foo', {'four': 2, 'three': 1, 'zero': 0}, nx=True), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'zero', b'three', b'four'])
+        self.assertEqual(self.zadd('foo', {'two': 2, 'one': 1}, nx=True), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'zero', b'one', b'two', b'three', b'four'])
+
+    @redis3_only
+    def test_zadd_with_ch(self):
+        self.zadd('foo', {'four': 4, 'three': 3})
+        self.assertEqual(self.zadd('foo', {'four': 4, 'three': 1}, ch=True), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'three', b'four'])
+        self.assertEqual(self.zadd('foo', {'four': 4, 'three': 3, 'zero': 0}, ch=True), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'zero', b'three', b'four'])
+        self.assertEqual(self.zadd('foo', {'two': 2, 'one': 1}, ch=True), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'zero', b'one', b'two', b'three', b'four'])
+
+    @redis3_only
+    def test_zadd_with_xx(self):
+        self.zadd('foo', {'four': 4, 'three': 3})
+        self.assertEqual(self.zadd('foo', {'four': -4, 'three': -3}, xx=True), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'four', b'three'])
+        self.assertEqual(self.zadd('foo', {'four': 4, 'three': 3, 'zero': 0}, xx=True), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'three', b'four'])
+        self.assertEqual(self.zadd('foo', {'two': 2, 'one': 1}, xx=True), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'three', b'four'])
+
+    @redis3_only
+    def test_zadd_with_nx_and_xx(self):
+        self.zadd('foo', {'four': 4, 'three': 3})
+        with self.assertRaises(redis.DataError):
+            self.zadd('foo', {'four': -4, 'three': -3}, nx=True, xx=True)
+        with self.assertRaises(redis.DataError):
+            self.zadd('foo', {'four': -4, 'three': -3}, nx=True, xx=True, ch=True)
+
+    @redis3_only
+    def test_zadd_with_nx_and_ch(self):
+        self.zadd('foo', {'four': 4, 'three': 3})
+        self.assertEqual(self.zadd('foo', {'four': 2, 'three': 1}, nx=True, ch=True), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'three', b'four'])
+        self.assertEqual(self.zadd('foo', {'four': 2, 'three': 1, 'zero': 0}, nx=True, ch=True), 1)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'zero', b'three', b'four'])
+        self.assertEqual(self.zadd('foo', {'two': 2, 'one': 1}, nx=True, ch=True), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'zero', b'one', b'two', b'three', b'four'])
+
+    @redis3_only
+    def test_zadd_with_xx_and_ch(self):
+        self.zadd('foo', {'four': 4, 'three': 3})
+        self.assertEqual(self.zadd('foo', {'four': -4, 'three': -3}, xx=True, ch=True), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'four', b'three'])
+        self.assertEqual(self.zadd('foo', {'four': 4, 'three': 3, 'zero': 0}, xx=True, ch=True), 2)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'three', b'four'])
+        self.assertEqual(self.zadd('foo', {'two': 2, 'one': 1}, xx=True, ch=True), 0)
+        self.assertEqual(self.redis.zrange('foo', 0, -1), [b'three', b'four'])
 
     def test_zrange_same_score(self):
         self.zadd('foo', {'two_a': 2})

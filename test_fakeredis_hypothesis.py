@@ -279,8 +279,10 @@ zset_create_commands = (
     commands(st.just('zadd'), keys, st.lists(st.tuples(scores, fields), min_size=1))
 )
 zset_commands = (
-    # TODO: test xx, nx, ch, incr
-    commands(st.just('zadd'), keys, st.lists(st.tuples(scores, fields)))
+    # TODO: test incr
+    commands(st.just('zadd'), keys, st.none() | st.just('nx'),
+             st.none() | st.just('xx'), st.none() | st.just('ch'),
+             st.lists(st.tuples(scores, fields)))
     | commands(st.just('zcard'), keys)
     | commands(st.just('zcount'), keys, score_tests, score_tests)
     | commands(st.just('zincrby'), keys, scores, fields)
@@ -306,8 +308,10 @@ zset_no_score_create_commands = (
     commands(st.just('zadd'), keys, st.lists(st.tuples(st.just(0), fields), min_size=1))
 )
 zset_no_score_commands = (
-    # TODO: test xx, nx, ch, incr
-    commands(st.just('zadd'), keys, st.lists(st.tuples(st.just(0), fields)))
+    # TODO: test incr
+    commands(st.just('zadd'), keys, st.none() | st.just('nx'),
+             st.none() | st.just('xx'), st.none() | st.just('ch'),
+             st.lists(st.tuples(st.just(0), fields)))
     | commands(st.just('zlexcount'), keys, string_tests, string_tests)
     | commands(st.sampled_from(['zrangebylex', 'zrevrangebylex']),
                keys, string_tests, string_tests,
