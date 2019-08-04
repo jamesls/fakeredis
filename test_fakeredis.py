@@ -12,8 +12,7 @@ import unittest
 
 import six
 from six.moves.queue import Queue
-from nose.plugins.skip import SkipTest
-from nose.plugins.attrib import attr
+import pytest
 import redis
 import redis.client
 
@@ -46,7 +45,7 @@ def redis_must_be_running(cls):
             if name.startswith('test_'):
                 @wraps(attribute)
                 def skip_test(*args, **kwargs):
-                    raise SkipTest("Redis is not running.")
+                    pytest.skip("Redis is not running.")
                 setattr(cls, name, skip_test)
         cls.setUp = lambda x: None
         cls.tearDown = lambda x: None
@@ -57,7 +56,7 @@ def redis2_only(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         if REDIS3:
-            raise SkipTest("Test is only applicable to redis-py 2.x")
+            pytest.skip("Test is only applicable to redis-py 2.x")
         return func(*args, **kwargs)
     return wrapper
 
@@ -66,7 +65,7 @@ def redis3_only(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         if not REDIS3:
-            raise SkipTest("Test is only applicable to redis-py 3.x+")
+            pytest.skip("Test is only applicable to redis-py 3.x+")
         return func(*args, **kwargs)
     return wrapper
 
@@ -172,7 +171,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             from builtins import bytes
         except ImportError:
-            raise SkipTest('future.types not available')
+            pytest.skip('future.types not available')
         self.redis.set(bytes(b'\xc3\x91andu'), 'foo')
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
@@ -180,7 +179,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         try:
             from builtins import str
         except ImportError:
-            raise SkipTest('future.types not available')
+            pytest.skip('future.types not available')
         self.redis.set(str(u'Ñandu'), 'foo')
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
@@ -699,7 +698,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.echo(b'hello'), b'hello')
         self.assertEqual(self.redis.echo('hello'), b'hello')
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_delete_expire(self):
         self.redis.set("foo", "bar", ex=1)
         self.redis.delete("foo")
@@ -1090,7 +1089,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.rpush('foo', 'one')
         self.assertEqual(self.redis.blpop('foo', timeout=1), (b'foo', b'one'))
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_blpop_block(self):
         def push_thread():
             sleep(0.5)
@@ -1144,7 +1143,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.brpop('foo', timeout=1),
                          (b'foo', b'two'))
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_brpop_block(self):
         def push_thread():
             sleep(0.5)
@@ -1191,7 +1190,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), b'bar')
         self.assertEqual(self.redis.lrange('list', 0, -1), [b'element'])
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_blocking_operations_when_empty(self):
         self.assertEqual(self.redis.blpop(['foo'], timeout=1),
                          None)
@@ -1500,7 +1499,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(set(actual[1]), set(all_keys))
         self.assertEqual(actual[0], 0)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_scan_expired_key(self):
         self.redis.set('expiringkey', 'value')
         self.redis.pexpire('expiringkey', 1)
@@ -3136,7 +3135,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_lastsave(self):
         self.assertTrue(isinstance(self.redis.lastsave(), datetime))
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_bgsave_timestamp_update(self):
         early_timestamp = self.redis.lastsave()
         sleep(1)
@@ -3145,7 +3144,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         late_timestamp = self.redis.lastsave()
         self.assertLess(early_timestamp, late_timestamp)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_save_timestamp_update(self):
         early_timestamp = self.redis.lastsave()
         sleep(1)
@@ -3167,7 +3166,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.type('hset_key'), b'hash')
         self.assertEqual(self.redis.type('none_key'), b'none')
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_subscribe(self):
         pubsub = self.redis.pubsub()
         pubsub.subscribe("channel")
@@ -3186,7 +3185,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(key, b'channel')
         self.assertEqual(message, expected_message)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_psubscribe(self):
         pubsub = self.redis.pubsub()
         pubsub.psubscribe("channel.*")
@@ -3199,7 +3198,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(len(keys), 1)
         self.assertEqual(message, expected_message)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_unsubscribe(self):
         pubsub = self.redis.pubsub()
         pubsub.subscribe('channel-1', 'channel-2', 'channel-3')
@@ -3227,7 +3226,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(message, expected_message)
         self.assertEqual(len(keys), 0)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_punsubscribe(self):
         pubsub = self.redis.pubsub()
         pubsub.psubscribe('channel-1.*', 'channel-2.*', 'channel-3.*')
@@ -3254,7 +3253,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         keys = list(pubsub.patterns.keys())
         self.assertEqual(len(keys), 0)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_listen(self):
         def _listen(pubsub, q):
             count = 0
@@ -3306,7 +3305,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(msg4['data'], msg)
         self.assertIn(msg4['channel'], bpatterns)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_listen_handler(self):
         def _handler(message):
             calls.append(message)
@@ -3336,7 +3335,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             {'pattern': b'ch?', 'channel': b'ch1', 'data': b'hello world', 'type': 'pmessage'}
         ])
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_ignore_sub_messages_listen(self):
         def _listen(pubsub, q):
             count = 0
@@ -3380,7 +3379,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(msg4['data'], msg)
         self.assertIn(msg4['channel'], bpatterns)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_binary(self):
         if self.decode_responses:
             # Reading the non-UTF-8 message will break if decoding
@@ -3406,7 +3405,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         received = q.get()
         self.assertEqual(received['data'], msg)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_run_in_thread(self):
         q = Queue()
 
@@ -3438,7 +3437,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         with self.assertRaises(redis.exceptions.PubSubError):
             pubsub_thread = pubsub.run_in_thread()
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pubsub_timeout(self):
         def publish():
             sleep(0.1)
@@ -3620,7 +3619,7 @@ class TestFakeStrictRedis(unittest.TestCase):
             results.update(data)
         self.assertEqual(results, {b'key:7': 7.0, b'key:17': 17.0})
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_set_ex_should_expire_value(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3628,13 +3627,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         sleep(2)
         self.assertEqual(self.redis.get('foo'), None)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_set_px_should_expire_value(self):
         self.redis.set('foo', 'bar', px=500)
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_psetex_expire_value(self):
         with self.assertRaises(ResponseError):
             self.redis.psetex('foo', 0, 'bar')
@@ -3642,7 +3641,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_psetex_expire_value_using_timedelta(self):
         with self.assertRaises(ResponseError):
             self.redis.psetex('foo', timedelta(seconds=0), 'bar')
@@ -3650,7 +3649,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         sleep(1.5)
         self.assertEqual(self.redis.get('foo'), None)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_expire_should_expire_key(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3672,7 +3671,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         self.redis.expire('foo', long(1))
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_expire_should_expire_key_using_timedelta(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3681,7 +3680,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expire('bar', 1), False)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_expire_should_expire_immediately_with_millisecond_timedelta(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3689,7 +3688,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expire('bar', 1), False)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pexpire_should_expire_key(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3707,7 +3706,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         rv = self.redis.pexpire('missing', 1)
         self.assertIs(bool(rv), False)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pexpire_should_expire_key_using_timedelta(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3718,7 +3717,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.pexpire('bar', 1), False)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_expireat_should_expire_key_by_datetime(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3727,7 +3726,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.expireat('bar', datetime.now()), False)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_expireat_should_expire_key_by_timestamp(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3745,7 +3744,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         rv = self.redis.expireat('missing', int(time() + 1))
         self.assertIs(rv, False)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pexpireat_should_expire_key_by_datetime(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -3754,7 +3753,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.get('foo'), None)
         self.assertEqual(self.redis.pexpireat('bar', datetime.now()), False)
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_pexpireat_should_expire_key_by_timestamp(self):
         self.redis.set('foo', 'bar')
         self.assertEqual(self.redis.get('foo'), b'bar')
@@ -4176,7 +4175,7 @@ class TestFakeRedis(unittest.TestCase):
 
     def setUp(self):
         if REDIS3:
-            raise SkipTest('Legacy redis class does not apply to redis-py 3+')
+            pytest.skip('Legacy redis class does not apply to redis-py 3+')
         self.server = fakeredis.FakeServer()
         self.redis = self.create_redis()
 
@@ -4341,7 +4340,7 @@ class TestFakeRedis(unittest.TestCase):
         with self.assertRaises(redis.exceptions.LockError):
             lock.release()
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_unlock_expired(self):
         lock = self.redis.lock('foo', timeout=0.01, sleep=0.001)
         self.assertTrue(lock.acquire())
@@ -4349,7 +4348,7 @@ class TestFakeRedis(unittest.TestCase):
         with self.assertRaises(redis.exceptions.LockError):
             lock.release()
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_lock_blocking_timeout(self):
         lock = self.redis.lock('foo')
         self.assertTrue(lock.acquire())
@@ -4399,7 +4398,7 @@ class TestFakeRedis(unittest.TestCase):
         with self.assertRaises(redis.exceptions.LockError):
             lock2.extend(3)  # Cannot extend a lock with no timeout
 
-    @attr('slow')
+    @pytest.mark.slow
     def test_lock_extend_expired(self):
         lock = self.redis.lock('foo', timeout=0.01, sleep=0.001)
         lock.acquire()

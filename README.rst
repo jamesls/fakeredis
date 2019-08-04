@@ -338,7 +338,7 @@ To run all the tests, install the requirements file::
 
 If you just want to run the unittests::
 
-    nosetests test_fakeredis.py:TestFakeStrictRedis test_fakeredis.py:TestFakeRedis
+    pytest test_fakeredis.py::TestFakeStrictRedis test_fakeredis.py::TestFakeRedis
 
 Because this module is attempting to provide the same interface as `redis-py`_,
 the python bindings to redis, a reasonable way to test this to to take each
@@ -346,7 +346,7 @@ unittest and run it against a real redis server.  fakeredis and the real redis
 server should give the same result.  This ensures parity between the two.  You
 can run these "integration" tests like this::
 
-    nosetests test_fakeredis.py:TestRealStrictRedis test_fakeredis.py:TestRealRedis test_fakeredis_hypothesis.py
+    pytest test_fakeredis.py::TestRealStrictRedis test_fakeredis.py::TestRealRedis test_fakeredis_hypothesis.py
 
 In terms of implementation, ``TestRealRedis`` is a subclass of
 ``TestFakeRedis`` that overrides a factory method to create
@@ -355,7 +355,7 @@ instead of ``fakeredis.FakeStrictRedis``.
 
 To run both the unittests and the "integration" tests, run::
 
-    nosetests
+    pytest
 
 If redis is not running and you try to run tests against a real redis server,
 these tests will have a result of 'S' for skipped.
@@ -364,7 +364,7 @@ There are some tests that test redis blocking operations that are somewhat
 slow.  If you want to skip these tests during day to day development,
 they have all been tagged as 'slow' so you can skip them by running::
 
-    nosetests -a '!slow' test_fakeredis.py
+    pytest -m "not slow" test_fakeredis.py
 
 
 Revision history

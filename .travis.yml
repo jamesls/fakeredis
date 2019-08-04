@@ -24,7 +24,7 @@ before_script:
   - flake8
 script:
   - coverage erase
-  - coverage run --source fakeredis test_fakeredis.py
+  - pytest --cov=fakeredis test_fakeredis.py
 notifications:
   email:
     - js@jamesls.com
