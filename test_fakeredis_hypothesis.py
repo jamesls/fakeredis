@@ -155,7 +155,7 @@ def commands(*args, **kwargs):
 
 # TODO: all expiry-related commands
 common_commands = (
-    commands(st.sampled_from(['del', 'persist', 'type']), keys)
+    commands(st.sampled_from(['del', 'persist', 'type', 'unlink']), keys)
     | commands(st.just('exists'), st.lists(keys))
     | commands(st.just('keys'), st.just('*'))
     # Disabled for now due to redis giving wrong answers
