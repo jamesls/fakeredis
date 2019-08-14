@@ -223,7 +223,6 @@ generic
  * object
  * restore
  * touch
- * unlink
  * wait
 
 
@@ -370,6 +369,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 
 Revision history
 ================
+
+1.0.5
+-----
+- `#249 <https://github.com/jamesls/fakeredis/issues/249>`_ Support for ``UNLINK``
 
 1.0.4
 -----
