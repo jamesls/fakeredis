@@ -355,6 +355,9 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
             self.real.ping()
         except redis.ConnectionError:
             raise SkipTest('redis is not running')
+        # Disable the response parsing so that we can check the raw values returned
+        self.fake.response_callbacks.clear()
+        self.real.response_callbacks.clear()
         self.transaction_normalize = []
         self.keys = []
         self.fields = []

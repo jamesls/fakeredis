@@ -94,6 +94,15 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertIsInstance(x, bytes)
         return round(float(x))
 
+    def raw_command(self, *args):
+        """Like execute_command, but does not do command-specific response parsing"""
+        response_callbacks = self.redis.response_callbacks
+        try:
+            self.redis.response_callbacks = {}
+            return self.redis.execute_command(*args)
+        finally:
+            self.redis.response_callbacks = response_callbacks
+
     # Wrap some redis commands to abstract differences between redis-py 2 and 3.
     def zadd(self, key, d):
         if REDIS3:
@@ -1783,7 +1792,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         # Changing -0 to +0 is ignored
         self.zadd('foo', {'a': -0.0})
         self.zadd('foo', {'a': 0.0})
-        self.assertEqual(self.redis.execute_command('zscore', 'foo', 'a'), b'-0')
+        self.assertEqual(self.raw_command('zscore', 'foo', 'a'), b'-0')
 
     def test_zadd_wrong_type(self):
         self.redis.sadd('foo', 'bar')
@@ -2960,7 +2969,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_ping(self):
         self.assertTrue(self.redis.ping())
-        self.assertEqual(self.redis.execute_command('ping', 'test'), b'test')
+        self.assertEqual(self.raw_command('ping', 'test'), b'test')
 
     @redis3_only
     def test_ping_pubsub(self):
