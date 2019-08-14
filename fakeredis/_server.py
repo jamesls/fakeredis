@@ -761,8 +761,6 @@ class FakeSocket(object):
                 return ret
 
     def _name_to_func(self, name):
-        # redis treats the command as NULL-terminated
-        name = null_terminate(name)
         name = six.ensure_str(name, encoding='utf-8', errors='replace')
         func_name = name.lower()
         func = getattr(self, func_name, None)
