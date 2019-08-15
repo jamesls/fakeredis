@@ -911,8 +911,7 @@ class FakeSocket(object):
     # Key commands
     # TODO: lots
 
-    @command((Key(),), (Key(),), name='del')
-    def del_(self, *keys):
+    def _delete(self, *keys):
         ans = 0
         done = set()
         for key in keys:
@@ -921,6 +920,14 @@ class FakeSocket(object):
                 done.add(key.key)
                 ans += 1
         return ans
+
+    @command((Key(),), (Key(),), name='del')
+    def del_(self, *keys):
+        return self._delete(*keys)
+
+    @command((Key(),), (Key(),), name='unlink')
+    def unlink(self, *keys):
+        return self._delete(*keys)
 
     @command((Key(),), (Key(),))
     def exists(self, *keys):

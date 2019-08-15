@@ -4016,6 +4016,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         result = script(args=[42])
         self.assertEqual(result, b'42')
 
+    @redis3_only
+    def test_unlink(self):
+        self.redis.set('foo', 'bar')
+        self.redis.unlink('foo')
+        self.assertIsNone(self.redis.get('foo'))
+
 
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False
