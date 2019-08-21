@@ -1933,14 +1933,11 @@ class FakeSocket(object):
         ]
         old_len = len(zset)
         changed_items = 0
-        # Cache value to use on each iteration
-        not_nx_nor_xx = not nx and not xx
 
         for item_score, item_name in items:
             if (
-                not_nx_nor_xx
-                or (nx and item_name not in zset)
-                or (xx and item_name in zset)
+                (not nx or item_name not in zset)
+                and (not xx or item_name in zset)
             ):
                 if zset.add(item_name, item_score):
                     changed_items += 1
