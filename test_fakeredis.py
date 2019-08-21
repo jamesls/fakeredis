@@ -52,22 +52,8 @@ def redis_must_be_running(cls):
     return cls
 
 
-def redis2_only(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        if REDIS3:
-            pytest.skip("Test is only applicable to redis-py 2.x")
-        return func(*args, **kwargs)
-    return wrapper
-
-
-def redis3_only(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        if not REDIS3:
-            pytest.skip("Test is only applicable to redis-py 3.x+")
-        return func(*args, **kwargs)
-    return wrapper
+redis2_only = pytest.mark.skipif(REDIS3, "Test is only applicable to redis-py 2.x")
+redis3_only = pytest.mark.skipif(not REDIS3, "Test is only applicable to redis-py 3.x")
 
 
 def key_val_dict(size=100):
@@ -167,19 +153,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.set(u'Ñandu', 'foo'), True)
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
+    @pytest.importorskip('builtins.bytes', reason='future.types not available')
     def test_future_newbytes(self):
-        try:
-            from builtins import bytes
-        except ImportError:
-            pytest.skip('future.types not available')
         self.redis.set(bytes(b'\xc3\x91andu'), 'foo')
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
+    @pytest.importorskip('builtins.str', reason='future.types not available')
     def test_future_newstr(self):
-        try:
-            from builtins import str
-        except ImportError:
-            pytest.skip('future.types not available')
         self.redis.set(str(u'Ñandu'), 'foo')
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
@@ -4170,12 +4150,11 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertIsNone(self.redis.get('foo'))
 
 
+@redis2_only
 class TestFakeRedis(unittest.TestCase):
     decode_responses = False
 
     def setUp(self):
-        if REDIS3:
-            pytest.skip('Legacy redis class does not apply to redis-py 3+')
         self.server = fakeredis.FakeServer()
         self.redis = self.create_redis()
 
