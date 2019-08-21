@@ -1803,18 +1803,18 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         updates = [
             {'input': {'four': 2.0, 'three': 1.0},
-             'command_result': 0,
+             'expected_result': 0,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
             {'input': {'four': 2.0, 'three': 1.0, 'zero': 0.0},
-             'command_result': 1,
+             'expected_result': 1,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]},
             {'input': {'two': 2.0, 'one': 1.0},
-             'command_result': 2,
+             'expected_result': 2,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]},
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], nx=True), update['command_result'])
+            self.assertEqual(self.zadd('foo', update['input'], nx=True), update['expected_result'])
             self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
 
     @redis3_only
@@ -1823,18 +1823,18 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         updates = [
             {'input': {'four': 4.0, 'three': 1.0},
-             'command_result': 1,
+             'expected_result': 1,
              'expected_zset': [(b'four', 4.0), (b'three', 1.0)]},
             {'input': {'four': 4.0, 'three': 3.0, 'zero': 0.0},
-             'command_result': 2,
+             'expected_result': 2,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]},
             {'input': {'two': 2.0, 'one': 1.0},
-             'command_result': 2,
+             'expected_result': 2,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]},
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], ch=True), update['command_result'])
+            self.assertEqual(self.zadd('foo', update['input'], ch=True), update['expected_result'])
             self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
 
     @redis3_only
@@ -1843,18 +1843,18 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         updates = [
             {'input': {'four': 2.0, 'three': 1.0},
-             'command_result': 0,
+             'expected_result': 0,
              'expected_zset': [(b'four', 2.0), (b'three', 1.0)]},
             {'input': {'four': 4.0, 'three': 3.0, 'zero': 0.0},
-             'command_result': 0,
+             'expected_result': 0,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
             {'input': {'two': 2.0, 'one': 1.0},
-             'command_result': 0,
+             'expected_result': 0,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], xx=True), update['command_result'])
+            self.assertEqual(self.zadd('foo', update['input'], xx=True), update['expected_result'])
             self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
 
     @redis3_only
@@ -1871,18 +1871,18 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         updates = [
             {'input': {'four': 2.0, 'three': 1.0},
-             'command_result': 0,
+             'expected_result': 0,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
             {'input': {'four': 2.0, 'three': 1.0, 'zero': 0.0},
-             'command_result': 1,
+             'expected_result': 1,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]},
             {'input': {'two': 2.0, 'one': 1.0},
-             'command_result': 2,
+             'expected_result': 2,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]},
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], nx=True, ch=True), update['command_result'])
+            self.assertEqual(self.zadd('foo', update['input'], nx=True, ch=True), update['expected_result'])
             self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
 
     @redis3_only
@@ -1891,18 +1891,18 @@ class TestFakeStrictRedis(unittest.TestCase):
 
         updates = [
             {'input': {'four': 2.0, 'three': 1.0},
-             'command_result': 2,
+             'expected_result': 2,
              'expected_zset': [(b'four', 2.0), (b'three', 1.0)]},
             {'input': {'four': 4.0, 'three': 3.0, 'zero': 0.0},
-             'command_result': 2,
+             'expected_result': 2,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
             {'input': {'two': 2.0, 'one': 1.0},
-             'command_result': 0,
+             'expected_result': 0,
              'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], xx=True, ch=True), update['command_result'])
+            self.assertEqual(self.zadd('foo', update['input'], xx=True, ch=True), update['expected_result'])
             self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
 
     def test_zrange_same_score(self):
