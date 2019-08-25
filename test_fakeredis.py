@@ -52,8 +52,8 @@ def redis_must_be_running(cls):
     return cls
 
 
-redis2_only = pytest.mark.skipif(REDIS3, "Test is only applicable to redis-py 2.x")
-redis3_only = pytest.mark.skipif(not REDIS3, "Test is only applicable to redis-py 3.x")
+redis2_only = pytest.mark.skipif(REDIS3, reason="Test is only applicable to redis-py 2.x")
+redis3_only = pytest.mark.skipif(not REDIS3, reason="Test is only applicable to redis-py 3.x")
 
 
 def key_val_dict(size=100):
@@ -153,13 +153,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(self.redis.set(u'Ñandu', 'foo'), True)
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
-    @pytest.importorskip('builtins.bytes', reason='future.types not available')
     def test_future_newbytes(self):
+        bytes = pytest.importorskip('builtins', reason='future.types not available').bytes
         self.redis.set(bytes(b'\xc3\x91andu'), 'foo')
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
-    @pytest.importorskip('builtins.str', reason='future.types not available')
     def test_future_newstr(self):
+        str = pytest.importorskip('builtins', reason='future.types not available').str
         self.redis.set(str(u'Ñandu'), 'foo')
         self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
 
