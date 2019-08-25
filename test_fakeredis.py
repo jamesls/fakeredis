@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from collections import namedtuple
 from time import sleep, time
 from redis.exceptions import ResponseError
 import inspect
@@ -24,6 +25,9 @@ if not six.PY2:
 
 
 REDIS3 = int(redis.__version__.split('.')[0]) >= 3
+
+
+UpdateCommand = namedtuple('UpdateCommand', 'input expected_return_value expected_state')
 
 
 def redis_must_be_running(cls):
@@ -1802,60 +1806,69 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.zadd('foo', {'four': 4.0, 'three': 3.0})
 
         updates = [
-            {'input': {'four': 2.0, 'three': 1.0},
-             'expected_result': 0,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
-            {'input': {'four': 2.0, 'three': 1.0, 'zero': 0.0},
-             'expected_result': 1,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]},
-            {'input': {'two': 2.0, 'one': 1.0},
-             'expected_result': 2,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]},
+            UpdateCommand(
+                input={'four': 2.0, 'three': 1.0},
+                expected_return_value=0,
+                expected_state=[(b'four', 4.0), (b'three', 3.0)]),
+            UpdateCommand(
+                input={'four': 2.0, 'three': 1.0, 'zero': 0.0},
+                expected_return_value=1,
+                expected_state=[(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]),
+            UpdateCommand(
+                input={'two': 2.0, 'one': 1.0},
+                expected_return_value=2,
+                expected_state=[(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]),
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], nx=True), update['expected_result'])
-            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
+            self.assertEqual(self.zadd('foo', update.input, nx=True), update.expected_return_value)
+            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update.expected_state)
 
     @redis3_only
     def test_zadd_with_ch(self):
         self.zadd('foo', {'four': 4.0, 'three': 3.0})
 
         updates = [
-            {'input': {'four': 4.0, 'three': 1.0},
-             'expected_result': 1,
-             'expected_zset': [(b'four', 4.0), (b'three', 1.0)]},
-            {'input': {'four': 4.0, 'three': 3.0, 'zero': 0.0},
-             'expected_result': 2,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]},
-            {'input': {'two': 2.0, 'one': 1.0},
-             'expected_result': 2,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]},
+            UpdateCommand(
+                input={'four': 4.0, 'three': 1.0},
+                expected_return_value=1,
+                expected_state=[(b'four', 4.0), (b'three', 1.0)]),
+            UpdateCommand(
+                input={'four': 4.0, 'three': 3.0, 'zero': 0.0},
+                expected_return_value=2,
+                expected_state=[(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]),
+            UpdateCommand(
+                input={'two': 2.0, 'one': 1.0},
+                expected_return_value=2,
+                expected_state=[(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]),
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], ch=True), update['expected_result'])
-            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
+            self.assertEqual(self.zadd('foo', update.input, ch=True), update.expected_return_value)
+            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update.expected_state)
 
     @redis3_only
     def test_zadd_with_xx(self):
-        self.zadd('foo', {'four': 4, 'three': 3})
+        self.zadd('foo', {'four': 4.0, 'three': 3.0})
 
         updates = [
-            {'input': {'four': 2.0, 'three': 1.0},
-             'expected_result': 0,
-             'expected_zset': [(b'four', 2.0), (b'three', 1.0)]},
-            {'input': {'four': 4.0, 'three': 3.0, 'zero': 0.0},
-             'expected_result': 0,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
-            {'input': {'two': 2.0, 'one': 1.0},
-             'expected_result': 0,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
+            UpdateCommand(
+                input={'four': 2.0, 'three': 1.0},
+                expected_return_value=0,
+                expected_state=[(b'four', 2.0), (b'three', 1.0)]),
+            UpdateCommand(
+                input={'four': 4.0, 'three': 3.0, 'zero': 0.0},
+                expected_return_value=0,
+                expected_state=[(b'four', 4.0), (b'three', 3.0)]),
+            UpdateCommand(
+                input={'two': 2.0, 'one': 1.0},
+                expected_return_value=0,
+                expected_state=[(b'four', 4.0), (b'three', 3.0)]),
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], xx=True), update['expected_result'])
-            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
+            self.assertEqual(self.zadd('foo', update.input, xx=True), update.expected_return_value)
+            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update.expected_state)
 
     @redis3_only
     def test_zadd_with_nx_and_xx(self):
@@ -1870,40 +1883,46 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.zadd('foo', {'four': 4.0, 'three': 3.0})
 
         updates = [
-            {'input': {'four': 2.0, 'three': 1.0},
-             'expected_result': 0,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
-            {'input': {'four': 2.0, 'three': 1.0, 'zero': 0.0},
-             'expected_result': 1,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]},
-            {'input': {'two': 2.0, 'one': 1.0},
-             'expected_result': 2,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]},
+            UpdateCommand(
+                input={'four': 2.0, 'three': 1.0},
+                expected_return_value=0,
+                expected_state=[(b'four', 4.0), (b'three', 3.0)]),
+            UpdateCommand(
+                input={'four': 2.0, 'three': 1.0, 'zero': 0.0},
+                expected_return_value=1,
+                expected_state=[(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]),
+            UpdateCommand(
+                input={'two': 2.0, 'one': 1.0},
+                expected_return_value=2,
+                expected_state=[(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]),
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], nx=True, ch=True), update['expected_result'])
-            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
+            self.assertEqual(self.zadd('foo', update.input, nx=True, ch=True), update.expected_return_value)
+            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update.expected_state)
 
     @redis3_only
     def test_zadd_with_xx_and_ch(self):
         self.zadd('foo', {'four': 4.0, 'three': 3.0})
 
         updates = [
-            {'input': {'four': 2.0, 'three': 1.0},
-             'expected_result': 2,
-             'expected_zset': [(b'four', 2.0), (b'three', 1.0)]},
-            {'input': {'four': 4.0, 'three': 3.0, 'zero': 0.0},
-             'expected_result': 2,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
-            {'input': {'two': 2.0, 'one': 1.0},
-             'expected_result': 0,
-             'expected_zset': [(b'four', 4.0), (b'three', 3.0)]},
+            UpdateCommand(
+                input={'four': 2.0, 'three': 1.0},
+                expected_return_value=2,
+                expected_state=[(b'four', 2.0), (b'three', 1.0)]),
+            UpdateCommand(
+                input={'four': 4.0, 'three': 3.0, 'zero': 0.0},
+                expected_return_value=2,
+                expected_state=[(b'four', 4.0), (b'three', 3.0)]),
+            UpdateCommand(
+                input={'two': 2.0, 'one': 1.0},
+                expected_return_value=0,
+                expected_state=[(b'four', 4.0), (b'three', 3.0)]),
         ]
 
         for update in updates:
-            self.assertEqual(self.zadd('foo', update['input'], xx=True, ch=True), update['expected_result'])
-            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update['expected_zset'])
+            self.assertEqual(self.zadd('foo', update.input, xx=True, ch=True), update.expected_return_value)
+            self.assertItemsEqual(self.redis.zrange('foo', 0, -1, withscores=True), update.expected_state)
 
     def test_zrange_same_score(self):
         self.zadd('foo', {'two_a': 2})
