@@ -3599,6 +3599,27 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertIn(b'key:17', results)
         self.assertEqual(2, len(results))
 
+    def test_zscan(self):
+        # Setup the data
+        name = 'zscan-test'
+        for ix in range(20):
+            self.zadd(name, {'key:%s' % ix: ix})
+        expected = dict(self.redis.zrange(name, 0, -1, withscores=True))
+
+        # Test the basic version
+        results = {}
+        for key, val in self.redis.zscan_iter(name, count=6):
+            results[key] = val
+        self.assertEqual(expected, results)
+
+        # Now test that the MATCH functionality works
+        results = {}
+        cursor = '0'
+        while cursor != 0:
+            cursor, data = self.redis.zscan(name, cursor, match='*7', count=6)
+            results.update(data)
+        self.assertEqual(results, {b'key:7': 7.0, b'key:17': 17.0})
+
     @attr('slow')
     def test_set_ex_should_expire_value(self):
         self.redis.set('foo', 'bar')

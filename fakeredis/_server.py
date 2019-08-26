@@ -870,7 +870,8 @@ class FakeSocket(object):
         if pattern is not None:
             regex = compile_pattern(pattern)
             for val in itertools.islice(data, cursor, result_cursor):
-                if regex.match(val):
+                compare_val = val[0] if isinstance(val, tuple) else val
+                if regex.match(compare_val):
                     result_data.append(val)
         else:
             result_data = data[cursor:result_cursor]
@@ -2097,7 +2098,12 @@ class FakeSocket(object):
 
     @command((Key(ZSet), Int), (bytes, bytes))
     def zscan(self, key, cursor, *args):
-        return self._scan(key.value.items, cursor, *args)
+        new_cursor, ans = self._scan(key.value.items(), cursor, *args)
+        flat = []
+        for (key, score) in ans:
+            flat.append(key)
+            flat.append(Float.encode(score, False))
+        return [new_cursor, flat]
 
     @command((Key(ZSet), bytes))
     def zscore(self, key, member):
