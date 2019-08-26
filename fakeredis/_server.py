@@ -47,6 +47,7 @@ INVALID_SORT_FLOAT_MSG = "One or more scores can't be converted into double"
 SRC_DST_SAME_MSG = "source and destination objects are the same"
 NO_KEY_MSG = "no such key"
 INDEX_ERROR_MSG = "index out of range"
+ZADD_NX_XX_ERROR_MSG = "ZADD allows either 'nx' or 'xx', not both"
 ZUNIONSTORE_KEYS_MSG = "at least 1 input key is needed for ZUNIONSTORE/ZINTERSTORE"
 WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
 UNKNOWN_COMMAND_MSG = "unknown command '{}'"
@@ -1902,19 +1903,55 @@ class FakeSocket(object):
 
     @command((Key(ZSet), bytes, bytes), (bytes,))
     def zadd(self, key, *args):
-        # TODO: handle NX, XX, CH, INCR
+        # TODO: handle INCR
         zset = key.value
-        if len(args) % 2 != 0:
+
+        i = 0
+        ch = False
+        nx = False
+        xx = False
+        while i < len(args):
+            if casematch(args[i], b'ch'):
+                ch = True
+                i += 1
+            elif casematch(args[i], b'nx'):
+                nx = True
+                i += 1
+            elif casematch(args[i], b'xx'):
+                xx = True
+                i += 1
+            else:
+                # First argument not matching flags indicates the start of
+                # score pairs.
+                break
+
+        if nx and xx:
+            raise redis.ResponseError(ZADD_NX_XX_ERROR_MSG)
+
+        elements = args[i:]
+        if not elements or len(elements) % 2 != 0:
             raise redis.ResponseError(SYNTAX_ERROR_MSG)
-        items = []
         # Parse all scores first, before updating
-        for i in range(0, len(args), 2):
-            score = Float.decode(args[i])
-            items.append((score, args[i + 1]))
+        items = [
+            (Float.decode(elements[j]), elements[j + 1])
+            for j in range(0, len(elements), 2)
+        ]
         old_len = len(zset)
-        for item in items:
-            if zset.add(item[1], item[0]):
-                key.updated()
+        changed_items = 0
+
+        for item_score, item_name in items:
+            if (
+                (not nx or item_name not in zset)
+                and (not xx or item_name in zset)
+            ):
+                if zset.add(item_name, item_score):
+                    changed_items += 1
+
+        if changed_items:
+            key.updated()
+
+        if ch:
+            return changed_items
         return len(zset) - old_len
 
     @command((Key(ZSet),))
