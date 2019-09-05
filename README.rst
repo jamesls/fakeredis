@@ -370,6 +370,12 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.0.5
+-----
+- `#247 <https://github.com/jamesls/fakeredis/pull/247>`_ Support NX/XX/CH flags in ZADD command
+- `#250 <https://github.com/jamesls/fakeredis/pull/250>`_ Implement UNLINK command
+- `#252 <https://github.com/jamesls/fakeredis/pull/252>`_ Fix implementation of ZSCAN
+
 1.0.4
 -----
 - `#240 <https://github.com/jamesls/fakeredis/issues/240>`_ `#242 <https://github.com/jamesls/fakeredis/issues/242>`_ Support for ``redis==3.3``
