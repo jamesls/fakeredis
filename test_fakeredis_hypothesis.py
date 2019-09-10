@@ -5,11 +5,9 @@ import functools
 import hypothesis
 import hypothesis.stateful
 import hypothesis.strategies as st
-from nose.tools import assert_equal
-from nose.plugins.attrib import attr
-from nose.plugins.skip import SkipTest
-
+import pytest
 import redis
+
 import fakeredis
 
 
@@ -358,7 +356,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
             self.real = redis.StrictRedis('localhost', port=6379)
             self.real.ping()
         except redis.ConnectionError:
-            raise SkipTest('redis is not running')
+            pytest.skip('redis is not running')
         # Disable the response parsing so that we can check the raw values returned
         self.fake.response_callbacks.clear()
         self.real.response_callbacks.clear()
@@ -396,20 +394,20 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
         if fake_exc is not None and real_exc is None:
             raise fake_exc
         elif real_exc is not None and fake_exc is None:
-            assert_equal(real_exc, fake_exc, "Expected exception {0} not raised".format(real_exc))
+            assert real_exc == fake_exc, "Expected exception {0} not raised".format(real_exc)
         elif (real_exc is None and isinstance(real_result, list)
               and command.args and command.args[0].lower() == 'exec'):
             # Transactions need to use the normalize functions of the
             # component commands.
-            assert_equal(len(self.transaction_normalize), len(real_result))
-            assert_equal(len(self.transaction_normalize), len(fake_result))
+            assert len(self.transaction_normalize) == len(real_result)
+            assert len(self.transaction_normalize) == len(fake_result)
             for n, r, f in zip(self.transaction_normalize, real_result, fake_result):
-                assert_equal(n(f), n(r))
+                assert n(f) == n(r)
             self.transaction_normalize = []
         elif real_exc is None and command.args and command.args[0].lower() == 'discard':
             self.transaction_normalize = []
         else:
-            assert_equal(fake_result, real_result)
+            assert fake_result == real_result
             if real_result == b'QUEUED':
                 # Since redis removes the distinction between simple strings and
                 # bulk strings, this might not actually indicate that we're in a
@@ -455,7 +453,7 @@ class BaseTest(object):
     create_command_strategy = None
 
     """Base class for test classes."""
-    @attr('slow')
+    @pytest.mark.slow
     def test(self):
         class Machine(CommonMachine):
             create_command_strategy = self.create_command_strategy
