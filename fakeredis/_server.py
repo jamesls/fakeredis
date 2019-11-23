@@ -2490,12 +2490,22 @@ class FakeConnection(redis.Connection):
     description_format = "FakeConnection<db=%(db)s>"
 
     def __init__(self, server, db=0, password=None,
+                 socket_timeout=None, socket_connect_timeout=None,
+                 socket_keepalive=False, socket_keepalive_options=None,
+                 socket_type=0, retry_on_timeout=False,
                  encoding='utf-8', encoding_errors='strict',
                  decode_responses=False,
                  health_check_interval=0):
         self.pid = os.getpid()
         self.db = db
         self.password = password
+        # Allow socket attributes to be passed in and saved  even if they aren't used
+        self.socket_timeout = socket_timeout
+        self.socket_connect_timeout = socket_connect_timeout or socket_timeout
+        self.socket_keepalive = socket_keepalive
+        self.socket_keepalive_options = socket_keepalive_options or {}
+        self.socket_type = socket_type
+        self.retry_on_timeout = retry_on_timeout
         self.encoder = redis.connection.Encoder(encoding, encoding_errors, decode_responses)
         self.retry_on_timeout = False
         self._description_args = {'db': self.db}
