@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import socket
 from collections import namedtuple
 from time import sleep, time
 from redis.exceptions import ResponseError
@@ -4508,23 +4509,28 @@ class TestInitArgs(unittest.TestCase):
     def test_can_allow_extra_args(self):
         db = fakeredis.FakeStrictRedis.from_url(
             'redis://username:password@localhost:6379/0',
-            socket_connect_timeout=5, socket_timeout=30,
-            socket_keepalive=True, socket_type=1, retry_on_timeout=True)
-        self.assertEqual(
-            db.connection_pool.connection_kwargs['socket_connect_timeout'], 5
+            socket_connect_timeout=11, socket_timeout=12, socket_keepalive=True,
+            socket_keepalive_options={60: 30}, socket_type=1,
+            retry_on_timeout=True,
         )
-        self.assertEqual(
-            db.connection_pool.connection_kwargs['socket_timeout'], 30
+        fake_conn = db.connection_pool.make_connection()
+        self.assertEqual(fake_conn.socket_connect_timeout, 11)
+        self.assertEqual(fake_conn.socket_timeout, 12)
+        self.assertEqual(fake_conn.socket_keepalive, True)
+        self.assertEqual(fake_conn.socket_keepalive_options, {60: 30})
+        self.assertEqual(fake_conn.socket_type, 1)
+        self.assertEqual(fake_conn.retry_on_timeout, True)
+
+        # Make fallback logic match redis-py
+        db = fakeredis.FakeStrictRedis.from_url(
+            'redis://username:password@localhost:6379/0',
+            socket_connect_timeout=None, socket_timeout=30,
         )
+        fake_conn = db.connection_pool.make_connection()
         self.assertEqual(
-            db.connection_pool.connection_kwargs['socket_keepalive'], True
+            fake_conn.socket_connect_timeout, fake_conn.socket_timeout
         )
-        self.assertEqual(
-            db.connection_pool.connection_kwargs['socket_type'], 1
-        )
-        self.assertEqual(
-            db.connection_pool.connection_kwargs['retry_on_timeout'], True
-        )
+        self.assertEqual(fake_conn.socket_keepalive_options, {})
 
 
 class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
