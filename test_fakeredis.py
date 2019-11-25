@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import socket
 from collections import namedtuple
 from time import sleep, time
 from redis.exceptions import ResponseError
