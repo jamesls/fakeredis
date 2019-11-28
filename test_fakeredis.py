@@ -4505,6 +4505,32 @@ class TestInitArgs(unittest.TestCase):
         db.set('foo', 'bar')
         self.assertEqual(db.get('foo'), 'bar')
 
+    def test_can_allow_extra_args(self):
+        db = fakeredis.FakeStrictRedis.from_url(
+            'redis://username:password@localhost:6379/0',
+            socket_connect_timeout=11, socket_timeout=12, socket_keepalive=True,
+            socket_keepalive_options={60: 30}, socket_type=1,
+            retry_on_timeout=True,
+        )
+        fake_conn = db.connection_pool.make_connection()
+        self.assertEqual(fake_conn.socket_connect_timeout, 11)
+        self.assertEqual(fake_conn.socket_timeout, 12)
+        self.assertEqual(fake_conn.socket_keepalive, True)
+        self.assertEqual(fake_conn.socket_keepalive_options, {60: 30})
+        self.assertEqual(fake_conn.socket_type, 1)
+        self.assertEqual(fake_conn.retry_on_timeout, True)
+
+        # Make fallback logic match redis-py
+        db = fakeredis.FakeStrictRedis.from_url(
+            'redis://username:password@localhost:6379/0',
+            socket_connect_timeout=None, socket_timeout=30,
+        )
+        fake_conn = db.connection_pool.make_connection()
+        self.assertEqual(
+            fake_conn.socket_connect_timeout, fake_conn.socket_timeout
+        )
+        self.assertEqual(fake_conn.socket_keepalive_options, {})
+
 
 class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     # Wrap some redis commands to abstract differences between redis-py 2 and 3.
