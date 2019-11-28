@@ -92,6 +92,14 @@ your error handling. Simply set the connected attribute of the server to
   >>> r.set('foo', 'bar')
   True
 
+Or you can get the server reference directly with:
+
+.. code-block:: python
+
+  >>> import fakeredis
+  >>> r = fakeredis.FakeStrictRedis()
+  >>> server = r.connection_pool.connection_kwargs['server']
+
 Fakeredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
 of redis 5.0.
