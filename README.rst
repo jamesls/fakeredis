@@ -370,6 +370,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.1.0
+-----
+- `#257 <https://github.com/jamesls/fakeredis/pull/257>`_ Add other inputs for redis connection
+
 1.0.5
 -----
 - `#247 <https://github.com/jamesls/fakeredis/pull/247>`_ Support NX/XX/CH flags in ZADD command
