@@ -17,7 +17,8 @@ many times you want to write unittests that do not talk to an external server
 module as a reasonable substitute for redis.
 
 Although fakeredis is pure Python, you will need lupa_ if you want to run Lua
-scripts. If you install fakeredis with ``pip install fakeredis[lua]`` it will
+scripts (this includes features like ``redis.lock.Lock``, which are implemented
+in Lua). If you install fakeredis with ``pip install fakeredis[lua]`` it will
 be automatically installed.
 
 .. _lupa: https://pypi.org/project/lupa/
