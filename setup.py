@@ -27,7 +27,10 @@ setup(
         'Programming Language :: Python :: 3.7'
     ],
     install_requires=[
-        'redis', 'six>=1.12', 'sortedcontainers'
+        # Minor version updates to redis tend to break fakeredis. If you
+        # need to use fakeredis with a newer redis, please submit a PR that
+        # relaxes this restriction and adds it to the Travis tests.
+        'redis<3.5', 'six>=1.12', 'sortedcontainers'
     ],
     extras_require={
         "lua": ['lupa']
