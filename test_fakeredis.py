@@ -9,6 +9,7 @@ import os
 import sys
 import threading
 import unittest
+import distutils.version
 
 import six
 from six.moves.queue import Queue
@@ -23,7 +24,8 @@ if not six.PY2:
     long = int
 
 
-REDIS3 = int(redis.__version__.split('.')[0]) >= 3
+REDIS_VERSION = distutils.version.LooseVersion(redis.__version__)
+REDIS3 = REDIS_VERSION >= '3'
 
 
 UpdateCommand = namedtuple('UpdateCommand', 'input expected_return_value expected_state')
@@ -3035,7 +3037,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_pipeline_empty(self):
         p = self.redis.pipeline()
-        self.assertFalse(p)
+        self.assertEqual(0, len(p))
 
     def test_pipeline_length(self):
         p = self.redis.pipeline()
@@ -3043,13 +3045,17 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(2, len(p))
 
     def test_pipeline_no_commands(self):
-        # redis-py's execute is a nop if there are no commands queued,
-        # so it succeeds even if watched keys have been changed.
+        # Prior to 3.4, redis-py's execute is a nop if there are no commands
+        # queued, so it succeeds even if watched keys have been changed.
         self.redis.set('foo', '1')
         p = self.redis.pipeline()
         p.watch('foo')
         self.redis.set('foo', '2')
-        self.assertEqual(p.execute(), [])
+        if REDIS_VERSION >= '3.4':
+            with self.assertRaises(redis.WatchError):
+                p.execute()
+        else:
+            self.assertEqual(p.execute(), [])
 
     def test_pipeline_failed_transaction(self):
         p = self.redis.pipeline()
@@ -4473,17 +4479,17 @@ class TestInitArgs(unittest.TestCase):
 
     def test_from_url(self):
         db = fakeredis.FakeStrictRedis.from_url(
-            'redis://username:password@localhost:6379/0')
+            'redis://localhost:6379/0')
         db.set('foo', 'bar')
         self.assertEqual(db.get('foo'), b'bar')
 
     def test_from_url_with_db_arg(self):
         db = fakeredis.FakeStrictRedis.from_url(
-            'redis://username:password@localhost:6379/0')
+            'redis://localhost:6379/0')
         db1 = fakeredis.FakeStrictRedis.from_url(
-            'redis://username:password@localhost:6379/1')
+            'redis://localhost:6379/1')
         db2 = fakeredis.FakeStrictRedis.from_url(
-            'redis://username:password@localhost:6379/',
+            'redis://localhost:6379/',
             db=2)
         db.set('foo', 'foo0')
         db1.set('foo', 'foo1')
@@ -4495,19 +4501,19 @@ class TestInitArgs(unittest.TestCase):
     def test_from_url_db_value_error(self):
         # In ValueError, should default to 0
         db = fakeredis.FakeStrictRedis.from_url(
-            'redis://username:password@localhost:6379/a')
+            'redis://localhost:6379/a')
         self.assertEqual(db.connection_pool.connection_kwargs['db'], 0)
 
     def test_can_pass_through_extra_args(self):
         db = fakeredis.FakeStrictRedis.from_url(
-            'redis://username:password@localhost:6379/0',
+            'redis://localhost:6379/0',
             decode_responses=True)
         db.set('foo', 'bar')
         self.assertEqual(db.get('foo'), 'bar')
 
     def test_can_allow_extra_args(self):
         db = fakeredis.FakeStrictRedis.from_url(
-            'redis://username:password@localhost:6379/0',
+            'redis://localhost:6379/0',
             socket_connect_timeout=11, socket_timeout=12, socket_keepalive=True,
             socket_keepalive_options={60: 30}, socket_type=1,
             retry_on_timeout=True,
@@ -4522,8 +4528,8 @@ class TestInitArgs(unittest.TestCase):
 
         # Make fallback logic match redis-py
         db = fakeredis.FakeStrictRedis.from_url(
-            'redis://username:password@localhost:6379/0',
-            socket_connect_timeout=None, socket_timeout=30,
+            'redis://localhost:6379/0',
+            socket_connect_timeout=None, socket_timeout=30
         )
         fake_conn = db.connection_pool.make_connection()
         self.assertEqual(

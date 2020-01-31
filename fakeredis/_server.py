@@ -2492,15 +2492,18 @@ class FakeSelector(BaseSelector):
 class FakeConnection(redis.Connection):
     description_format = "FakeConnection<db=%(db)s>"
 
-    def __init__(self, server, db=0, password=None,
+    def __init__(self, server, db=0, username=None, password=None,
                  socket_timeout=None, socket_connect_timeout=None,
                  socket_keepalive=False, socket_keepalive_options=None,
                  socket_type=0, retry_on_timeout=False,
                  encoding='utf-8', encoding_errors='strict',
                  decode_responses=False, parser_class=_DummyParser,
-                 socket_read_size=65536, health_check_interval=0):
+                 socket_read_size=65536, health_check_interval=0,
+                 client_name=None):
         self.pid = os.getpid()
         self.db = db
+        self.username = username
+        self.client_name = client_name
         self.password = password
         # Allow socket attributes to be passed in and saved even if they aren't used
         self.socket_timeout = socket_timeout
@@ -2604,13 +2607,21 @@ class FakeRedisMixin(object):
                 'server': server
             }
             connection_pool = redis.connection.ConnectionPool(**kwargs)
+        # These need to be passed by name due to
+        # https://github.com/andymccurdy/redis-py/issues/1276
         super(FakeRedisMixin, self).__init__(
-            host, port, db, password, socket_timeout, socket_connect_timeout,
-            socket_keepalive, socket_keepalive_options, connection_pool,
-            unix_socket_path, encoding, encoding_errors, charset, errors,
-            decode_responses, retry_on_timeout,
-            ssl, ssl_keyfile, ssl_certfile, ssl_cert_reqs, ssl_ca_certs,
-            max_connections)
+            host=host, port=port, db=db, password=password, socket_timeout=socket_timeout,
+            socket_connect_timeout=socket_connect_timeout,
+            socket_keepalive=socket_keepalive,
+            socket_keepalive_options=socket_keepalive_options,
+            connection_pool=connection_pool,
+            unix_socket_path=unix_socket_path,
+            encoding=encoding, encoding_errors=encoding_errors,
+            charset=charset, errors=errors,
+            decode_responses=decode_responses, retry_on_timeout=retry_on_timeout,
+            ssl=ssl, ssl_keyfile=ssl_keyfile, ssl_certfile=ssl_certfile,
+            ssl_cert_reqs=ssl_cert_reqs, ssl_ca_certs=ssl_ca_certs,
+            max_connections=max_connections)
 
     @classmethod
     def from_url(cls, url, db=None, **kwargs):

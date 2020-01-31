@@ -1,17 +1,21 @@
 language: python
-python:
-  - 2.7
-  - 3.5
-  - 3.6
-  - 3.7
-  - pypy
-env:
-  - REDIS_PY=2.10.6
-  - REDIS_PY=3.0.1
-  - REDIS_PY=3.1.0
-  - REDIS_PY=3.2.1
-  - REDIS_PY=3.3.7
 sudo: false
+env:
+  - REDIS_PY=3.4.1
+python:
+  - 3.7
+jobs:
+  include:
+    - python: 2.7
+    - python: 3.5
+    - python: 3.6
+    - python: pypy
+    - env: REDIS_PY=2.10.6
+    - env: REDIS_PY=3.0.1
+    - env: REDIS_PY=3.1.0
+    - env: REDIS_PY=3.2.1
+    - env: REDIS_PY=3.3.11
+    - env: REDIS_PY=3.4.1
 cache:
   - pip
 services:
