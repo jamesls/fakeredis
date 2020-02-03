@@ -8,7 +8,7 @@ jobs:
   include:
     - python: 3.5
     - python: 3.6
-    - python: pypy
+    - python: pypy3
     - env: REDIS_PY=2.10.6
     - env: REDIS_PY=3.0.1
     - env: REDIS_PY=3.1.0
