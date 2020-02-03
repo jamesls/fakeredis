@@ -19,13 +19,12 @@ setup(
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: BSD License',
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7'
     ],
+    python_requires='>=3.5',
     install_requires=[
         # Minor version updates to redis tend to break fakeredis. If you
         # need to use fakeredis with a newer redis, please submit a PR that
