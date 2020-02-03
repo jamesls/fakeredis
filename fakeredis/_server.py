@@ -86,25 +86,6 @@ PONG = SimpleString(b'PONG')
 BGSAVE_STARTED = SimpleString(b'Background saving started')
 
 
-if six.PY2:
-    def isfinite(value):
-        return not math.isinf(value) and not math.isnan(value)
-
-    # Not the same as six.byte2int, which takes a bytes in both Python 2+3.
-    # This takes an integer in Python 3.
-    def byte_to_int(value):
-        return ord(value)
-else:
-    def isfinite(value):
-        return math.isfinite(value)
-
-    def byte_to_int(value):
-        assert isinstance(value, int)
-        return value
-
-    long = int
-
-
 def null_terminate(s):
     # Redis uses C functions on some strings, which means they stop at the
     # first NULL.
@@ -596,7 +577,7 @@ def valid_response_type(value, nested=False):
     if isinstance(value, NoResponse) and not nested:
         return True
     if value is not None and not isinstance(value, (bytes, SimpleString, redis.ResponseError,
-                                                    int, long, list)):
+                                                    int, list)):
         return False
     if isinstance(value, list):
         if any(not valid_response_type(item, True) for item in value):
@@ -726,8 +707,6 @@ class FakeSocket(object):
             return [self._decode_result(r) for r in result]
         elif isinstance(result, SimpleString):
             return result.value
-        elif six.PY2 and isinstance(result, int):
-            return long(result)
         else:
             return result
 
@@ -1267,7 +1246,7 @@ class FakeSocket(object):
             value = key.value[start:end]
         else:
             value = key.value
-        return sum([bin(byte_to_int(l)).count('1') for l in value])
+        return sum([bin(l).count('1') for l in value])
 
     @command((Key(bytes), Int))
     def decrby(self, key, amount):
@@ -1291,7 +1270,7 @@ class FakeSocket(object):
     def incrbyfloat(self, key, amount):
         # TODO: introduce convert_order so that we can specify amount is Float
         c = Float.decode(key.get(b'0')) + Float.decode(amount)
-        if not isfinite(c):
+        if not math.isfinite(c):
             raise redis.ResponseError(NONFINITE_MSG)
         encoded = Float.encode(c, True)
         key.update(encoded)
@@ -1308,7 +1287,7 @@ class FakeSocket(object):
         remaining = offset % 8
         actual_bitoffset = 7 - remaining
         try:
-            actual_val = byte_to_int(value[byte])
+            actual_val = value[byte]
         except IndexError:
             return 0
         return 1 if (1 << actual_bitoffset) & actual_val else 0
@@ -1324,7 +1303,7 @@ class FakeSocket(object):
             # bit.
             needed = byte - (len(val) - 1)
             val += b'\x00' * needed
-        old_byte = byte_to_int(val[byte])
+        old_byte = val[byte]
         if value == 1:
             new_byte = old_byte | (1 << actual_bitoffset)
         else:
@@ -1489,7 +1468,7 @@ class FakeSocket(object):
     @command((Key(Hash), bytes, bytes))
     def hincrbyfloat(self, key, field, amount):
         c = Float.decode(key.value.get(field, b'0')) + Float.decode(amount)
-        if not isfinite(c):
+        if not math.isfinite(c):
             raise redis.ResponseError(NONFINITE_MSG)
         encoded = Float.encode(c, True)
         key.value[field] = encoded
@@ -2249,14 +2228,14 @@ class FakeSocket(object):
     def _convert_redis_arg(self, lua_runtime, value):
         if isinstance(value, bytes):
             return six.ensure_binary(value)
-        elif isinstance(value, (int, long, float)):
+        elif isinstance(value, (int, float)):
             return six.ensure_binary('{:.17g}'.format(value))
         else:
             # TODO: add a constant for this, and add the context
             raise redis.ResponseError('Lua redis() command arguments must be strings or integers')
 
     def _convert_redis_result(self, lua_runtime, result):
-        if isinstance(result, (bytes, int, long)):
+        if isinstance(result, (bytes, int)):
             return result
         elif isinstance(result, SimpleString):
             return lua_runtime.table_from({b"ok": result.value})

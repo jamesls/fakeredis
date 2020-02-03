@@ -20,9 +20,6 @@ import redis.client
 import fakeredis
 from datetime import datetime, timedelta
 
-if not six.PY2:
-    long = int
-
 
 REDIS_VERSION = distutils.version.LooseVersion(redis.__version__)
 REDIS3 = REDIS_VERSION >= '3'
@@ -709,29 +706,26 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     @redis2_only
     def test_rpush_then_lrange_with_nested_list1(self):
-        self.assertEqual(self.redis.rpush('foo', [long(12345), long(6789)]), 1)
-        self.assertEqual(self.redis.rpush('foo', [long(54321), long(9876)]), 2)
+        self.assertEqual(self.redis.rpush('foo', [12345, 6789]), 1)
+        self.assertEqual(self.redis.rpush('foo', [54321, 9876]), 2)
         self.assertEqual(self.redis.lrange(
-            'foo', 0, -1), ['[12345L, 6789L]', '[54321L, 9876L]'] if six.PY2 else
-                           [b'[12345, 6789]', b'[54321, 9876]'])
+            'foo', 0, -1), [b'[12345, 6789]', b'[54321, 9876]'])
 
     @redis2_only
     def test_rpush_then_lrange_with_nested_list2(self):
-        self.assertEqual(self.redis.rpush('foo', [long(12345), 'banana']), 1)
-        self.assertEqual(self.redis.rpush('foo', [long(54321), 'elephant']), 2)
+        self.assertEqual(self.redis.rpush('foo', [12345, 'banana']), 1)
+        self.assertEqual(self.redis.rpush('foo', [54321, 'elephant']), 2)
         self.assertEqual(self.redis.lrange(
             'foo', 0, -1),
-            ['[12345L, \'banana\']', '[54321L, \'elephant\']'] if six.PY2 else
             [b'[12345, \'banana\']', b'[54321, \'elephant\']'])
 
     @redis2_only
     def test_rpush_then_lrange_with_nested_list3(self):
-        self.assertEqual(self.redis.rpush('foo', [long(12345), []]), 1)
-        self.assertEqual(self.redis.rpush('foo', [long(54321), []]), 2)
+        self.assertEqual(self.redis.rpush('foo', [12345, []]), 1)
+        self.assertEqual(self.redis.rpush('foo', [54321, []]), 2)
 
         self.assertEqual(self.redis.lrange(
-            'foo', 0, -1), ['[12345L, []]', '[54321L, []]'] if six.PY2 else
-                           [b'[12345, []]', b'[54321, []]'])
+            'foo', 0, -1), [b'[12345, []]', b'[54321, []]'])
 
     def test_lpush_then_lrange_all(self):
         self.assertEqual(self.redis.lpush('foo', 'bar'), 1)
@@ -3653,10 +3647,6 @@ class TestFakeStrictRedis(unittest.TestCase):
         rv = self.redis.expire('missing', 1)
         self.assertIs(rv, False)
 
-    def test_expire_long(self):
-        self.redis.set('foo', 'bar')
-        self.redis.expire('foo', long(1))
-
     @pytest.mark.slow
     def test_expire_should_expire_key_using_timedelta(self):
         self.redis.set('foo', 'bar')
@@ -4294,12 +4284,6 @@ class TestFakeRedis(unittest.TestCase):
         self.assertInRange(self.redis.pttl('foo'),
                            ttl * 1000 - d,
                            ttl * 1000)
-
-    def test_ttls_should_always_be_long(self):
-        self.redis.set('foo', 'bar')
-        self.redis.expire('foo', 1)
-        self.assertTrue(type(self.redis.ttl('foo')) is long)
-        self.assertTrue(type(self.redis.pttl('foo')) is long)
 
     def test_expire_should_not_handle_floating_point_values(self):
         self.redis.set('foo', 'bar')
