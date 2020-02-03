@@ -1745,15 +1745,27 @@ class FakeSocket(object):
     def scard(self, key):
         return len(key.value)
 
-    def _setop(self, op, stop_when_empty, dst, key, *keys):
+    def _calc_setop(self, op, stop_if_missing, key, *keys):
+        if stop_if_missing and not key.value:
+            return set()
         ans = key.value.copy()
         for other in keys:
-            if stop_when_empty and not ans:
-                break
             value = other.value if other.value is not None else set()
             if not isinstance(value, set):
                 raise redis.ResponseError(WRONGTYPE_MSG)
+            if stop_if_missing and not value:
+                return set()
             ans = op(ans, value)
+        return ans
+
+    def _setop(self, op, stop_if_missing, dst, key, *keys):
+        """Apply one of SINTER[STORE], SUNION[STORE], SDIFF[STORE].
+
+        If `stop_if_missing`, the output will be made an empty set as soon as
+        an empty input set is encountered (use for SINTER[STORE]). May assume
+        that `key` is a set (or empty), but `keys` could be anything.
+        """
+        ans = self._calc_setop(op, stop_if_missing, key, *keys)
         if dst is None:
             return list(ans)
         else:
@@ -1768,7 +1780,9 @@ class FakeSocket(object):
     def sdiffstore(self, dst, *keys):
         return self._setop(lambda a, b: a - b, False, dst, *keys)
 
-    @command((Key(set, missing_return=[]),), (Key(),))
+    # The following keys can't be marked as sets because of the
+    # stop_if_empty early-out.
+    @command((Key(set),), (Key(),))
     def sinter(self, *keys):
         return self._setop(lambda a, b: a & b, True, None, *keys)
 
