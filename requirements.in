@@ -1,0 +1,12 @@
+coverage
+flake8
+hypothesis<5
+lupa
+pytest
+pytest-cov
+redis==3.4.1       # Latest at time of writing
+six
+sortedcontainers
+
+# Not needed directly, but the latest versions don't support Python 3.5
+zipp<2
