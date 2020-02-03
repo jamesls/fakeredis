@@ -349,7 +349,7 @@ bad_commands = (
 )
 
 
-@hypothesis.settings(max_examples=1000, timeout=hypothesis.unlimited)
+@hypothesis.settings(max_examples=1000)
 class CommonMachine(hypothesis.stateful.GenericStateMachine):
     create_command_strategy = None
 
