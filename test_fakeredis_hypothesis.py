@@ -3,7 +3,7 @@ import functools
 
 import hypothesis
 import hypothesis.stateful
-from hypothesis.stateful import rule, initialize
+from hypothesis.stateful import rule, initialize, precondition
 import hypothesis.strategies as st
 import pytest
 import redis
@@ -360,7 +360,7 @@ attrs = st.fixed_dictionaries({
 
 @hypothesis.settings(max_examples=1000)
 class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
-    create_command_strategy = None
+    create_command_strategy = st.nothing()
 
     def __init__(self):
         super().__init__()
@@ -378,6 +378,7 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
         self.fields = []
         self.values = []
         self.scores = []
+        self.initialized_data = False
         try:
             self.real.execute_command('discard')
         except redis.ResponseError:
@@ -429,31 +430,32 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
                 # find such examples.
                 self.transaction_normalize.append(command.normalize)
 
-    def _init_attrs(self, attrs):
+    @initialize(attrs=attrs)
+    def init_attrs(self, attrs):
         for key, value in attrs.items():
             setattr(self, key, value)
 
-    def _init_data(self, init_commands):
-        for command in init_commands:
+    # hypothesis doesn't allow ordering of @initialize, so we have to put
+    # preconditions on rules to ensure we call init_data exactly once and
+    # after init_attrs.
+    @precondition(lambda self: not self.initialized_data)
+    @rule(commands=self_strategy.flatmap(
+        lambda self: st.lists(self.create_command_strategy)))
+    def init_data(self, commands):
+        for command in commands:
             self._compare(command)
+        self.initialized_data = True
 
-    @initialize(attrs=attrs, data=st.data())
-    def init(self, attrs, data):
-        self._init_attrs(attrs)
-        if self.create_command_strategy:
-            init_commands = data.draw(st.lists(self.create_command_strategy))
-            self._init_data(init_commands)
-
-    @rule(data=st.data())
-    def one_command(self, data):
-        command = data.draw(self.command_strategy)
+    @precondition(lambda self: self.initialized_data)
+    @rule(command=self_strategy.flatmap(lambda self: self.command_strategy))
+    def one_command(self, command):
         self._compare(command)
 
 
 class BaseTest:
     """Base class for test classes."""
 
-    create_command_strategy = None
+    create_command_strategy = st.nothing()
 
     @pytest.mark.slow
     def test(self):
