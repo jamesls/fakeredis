@@ -415,7 +415,8 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
             for n, r, f in zip(self.transaction_normalize, real_result, fake_result):
                 assert n(f) == n(r)
             self.transaction_normalize = []
-        elif real_exc is None and command.args and command.args[0].lower() == 'discard':
+        elif real_exc is None and command.args and command.args[0].lower() in ('discard', 'exec'):
+            assert fake_result == real_result
             self.transaction_normalize = []
         else:
             assert fake_result == real_result
