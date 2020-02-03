@@ -142,7 +142,7 @@ class Command(object):
         if N == 0:
             return False
         command = self.encode(self.args[0]).lower()
-        if not command.split(b' '):
+        if not command.split():
             return False
         if command == b'keys' and N == 2 and self.args[1] != b'*':
             return False
