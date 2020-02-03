@@ -1,6 +1,6 @@
 coverage
 flake8
-hypothesis<5
+hypothesis
 lupa
 pytest
 pytest-cov

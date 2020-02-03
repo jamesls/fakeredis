@@ -8,7 +8,7 @@ attrs==19.3.0             # via hypothesis, pytest
 coverage==5.0.3
 entrypoints==0.3          # via flake8
 flake8==3.7.9
-hypothesis==4.57.1
+hypothesis==5.4.1
 importlib-metadata==1.5.0  # via pluggy, pytest
 lupa==1.9
 mccabe==0.6.1             # via flake8
