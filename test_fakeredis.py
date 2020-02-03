@@ -9,10 +9,10 @@ import os
 import sys
 import threading
 import unittest
+from queue import Queue
 import distutils.version
 
 import six
-from six.moves.queue import Queue
 import pytest
 import redis
 import redis.client
@@ -4380,7 +4380,7 @@ class DecodeMixin(object):
     decode_responses = True
 
     def _round_str(self, x):
-        self.assertIsInstance(x, six.text_type)
+        self.assertIsInstance(x, str)
         return round(float(x))
 
     @classmethod

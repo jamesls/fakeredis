@@ -9,6 +9,7 @@ import functools
 import itertools
 import hashlib
 import weakref
+import queue
 from collections import defaultdict
 try:
     # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
@@ -18,7 +19,6 @@ except ImportError:
     from collections import MutableMapping
 
 import six
-from six.moves import queue
 import redis
 
 from ._zset import ZSet
@@ -331,7 +331,7 @@ class Int(object):
     def decode(cls, value):
         try:
             out = int(value)
-            if not cls.valid(out) or six.ensure_binary(str(out)) != value:
+            if not cls.valid(out) or str(out).encode() != value:
                 raise ValueError
         except ValueError:
             raise redis.ResponseError(cls.DECODE_ERROR)
@@ -340,7 +340,7 @@ class Int(object):
     @classmethod
     def encode(cls, value):
         if cls.valid(value):
-            return six.ensure_binary(str(value))
+            return str(value).encode()
         else:
             raise redis.ResponseError(cls.ENCODE_ERROR)
 
@@ -417,14 +417,14 @@ class Float(object):
     @classmethod
     def encode(cls, value, humanfriendly):
         if math.isinf(value):
-            return six.ensure_binary(str(value))
+            return str(value).encode()
         elif humanfriendly:
             # Algorithm from ld2string in redis
             out = '{:.17f}'.format(value)
             out = re.sub(r'(?:\.)?0+$', '', out)
-            return six.ensure_binary(out)
+            return out.encode()
         else:
-            return six.ensure_binary('{:.17g}'.format(value))
+            return '{:.17g}'.format(value).encode()
 
 
 class SortFloat(Float):
@@ -2227,9 +2227,9 @@ class FakeSocket(object):
 
     def _convert_redis_arg(self, lua_runtime, value):
         if isinstance(value, bytes):
-            return six.ensure_binary(value)
+            return value
         elif isinstance(value, (int, float)):
-            return six.ensure_binary('{:.17g}'.format(value))
+            return '{:.17g}'.format(value).encode()
         else:
             # TODO: add a constant for this, and add the context
             raise redis.ResponseError('Lua redis() command arguments must be strings or integers')
@@ -2275,8 +2275,8 @@ class FakeSocket(object):
                 item = result[index]
                 result_list.append(self._convert_lua_result(item))
             return result_list
-        elif isinstance(result, six.text_type):
-            return six.ensure_binary(result)
+        elif isinstance(result, str):
+            return result.encode()
         elif isinstance(result, float):
             return int(result)
         elif isinstance(result, bool):
@@ -2312,7 +2312,7 @@ class FakeSocket(object):
             raise redis.ResponseError(TOO_MANY_KEYS_MSG)
         if numkeys < 0:
             raise redis.ResponseError(NEGATIVE_KEYS_MSG)
-        sha1 = six.ensure_binary(hashlib.sha1(script).hexdigest())
+        sha1 = hashlib.sha1(script).hexdigest().encode()
         self._server.script_cache[sha1] = script
         lua_runtime = LuaRuntime(encoding=None, unpack_returned_tuples=True)
 
@@ -2361,7 +2361,7 @@ class FakeSocket(object):
             if len(args) != 1:
                 raise redis.ResponseError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
             script = args[0]
-            sha1 = six.ensure_binary(hashlib.sha1(script).hexdigest())
+            sha1 = hashlib.sha1(script).hexdigest().encode()
             self._server.script_cache[sha1] = script
             return sha1
         else:
