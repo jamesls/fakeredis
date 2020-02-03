@@ -1016,9 +1016,8 @@ class FakeSocket(object):
             raise redis.ResponseError(SRC_DST_SAME_MSG)
         if not key or key.key in self._server.dbs[db]:
             return 0
-        # TODO: what is the interaction with expiry and WATCH?
-        self._server.dbs[db][key.key] = self._server.dbs[self._db_num][key.key]
-        key.value = None   # Causes deletion
+        # TODO: what is the interaction with expiry?
+        self._server.dbs[db][key.key] = self._server.dbs[self._db_num].pop(key.key)
         return 1
 
     @command(())
