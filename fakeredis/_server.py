@@ -69,13 +69,13 @@ CONNECTION_ERROR_MSG = "FakeRedis is emulating a connection error."
 FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 
 
-class SimpleString(object):
+class SimpleString:
     def __init__(self, value):
         assert isinstance(value, bytes)
         self.value = value
 
 
-class NoResponse(object):
+class NoResponse:
     """Returned by pub/sub commands to indicate that no response should be returned"""
     pass
 
@@ -169,7 +169,7 @@ def compile_pattern(pattern):
     return re.compile(regex, re.S)
 
 
-class Item(object):
+class Item:
     """An item stored in the database"""
 
     __slots__ = ['value', 'expireat']
@@ -179,7 +179,7 @@ class Item(object):
         self.expireat = None
 
 
-class CommandItem(object):
+class CommandItem:
     """An item referenced by a command.
 
     It wraps an Item but has extra fields to manage updates and notifications.
@@ -315,7 +315,7 @@ class Hash(dict):
     redis_type = b'hash'
 
 
-class Int(object):
+class Int:
     """Argument converter for 64-bit signed integers"""
 
     DECODE_ERROR = INVALID_INT_MSG
@@ -374,7 +374,7 @@ class Timeout(Int):
     MIN_VALUE = 0
 
 
-class Float(object):
+class Float:
     """Argument converter for floating-point values.
 
     Redis uses long double for some cases (INCRBYFLOAT, HINCRBYFLOAT)
@@ -432,11 +432,11 @@ class SortFloat(Float):
 
     @classmethod
     def decode(cls, value):
-        return super(SortFloat, cls).decode(
+        return super().decode(
             value, allow_leading_whitespace=True, allow_empty=True, crop_null=True)
 
 
-class ScoreTest(object):
+class ScoreTest:
     """Argument converter for sorted set score endpoints."""
     def __init__(self, value, exclusive=False):
         self.value = value
@@ -471,7 +471,7 @@ class ScoreTest(object):
         return (self.value, BeforeAny() if self.exclusive else AfterAny())
 
 
-class StringTest(object):
+class StringTest:
     """Argument converter for sorted set LEX endpoints."""
     def __init__(self, value, exclusive):
         self.value = value
@@ -492,7 +492,7 @@ class StringTest(object):
 
 
 @functools.total_ordering
-class BeforeAny(object):
+class BeforeAny:
     def __gt__(self, other):
         return False
 
@@ -501,7 +501,7 @@ class BeforeAny(object):
 
 
 @functools.total_ordering
-class AfterAny(object):
+class AfterAny:
     def __lt__(self, other):
         return False
 
@@ -509,7 +509,7 @@ class AfterAny(object):
         return isinstance(other, AfterAny)
 
 
-class Key(object):
+class Key:
     """Marker to indicate that argument in signature is a key"""
     UNSPECIFIED = object()
 
@@ -518,7 +518,7 @@ class Key(object):
         self.missing_return = missing_return
 
 
-class Signature(object):
+class Signature:
     def __init__(self, name, fixed, repeat=(), flags=""):
         self.name = name
         self.fixed = fixed
@@ -594,7 +594,7 @@ def command(*args, **kwargs):
     return decorator
 
 
-class FakeServer(object):
+class FakeServer:
     def __init__(self):
         self.lock = threading.Lock()
         self.dbs = defaultdict(lambda: Database(self.lock))
@@ -607,7 +607,7 @@ class FakeServer(object):
         self.connected = True
 
 
-class FakeSocket(object):
+class FakeSocket:
     def __init__(self, server):
         self._server = server
         self._db = server.dbs[0]
@@ -2439,7 +2439,7 @@ setattr(FakeSocket, 'exec', FakeSocket.exec_)
 delattr(FakeSocket, 'exec_')
 
 
-class _DummyParser(object):
+class _DummyParser:
     def __init__(self, socket_read_size):
         self.socket_read_size = socket_read_size
 
@@ -2454,7 +2454,7 @@ class _DummyParser(object):
 try:
     from redis.selector import BaseSelector
 except ImportError:
-    class BaseSelector(object):
+    class BaseSelector:
         def __init__(self, sock):
             self.sock = sock
 
@@ -2519,7 +2519,7 @@ class FakeConnection(redis.Connection):
         self.next_health_check = 0
 
     def connect(self):
-        super(FakeConnection, self).connect()
+        super().connect()
         # The selector is set in redis.Connection.connect() after _connect() is called
         self._selector = FakeSelector(self._sock)
 
@@ -2561,7 +2561,7 @@ class FakeConnection(redis.Connection):
         return self._decode(response)
 
 
-class FakeRedisMixin(object):
+class FakeRedisMixin:
     def __init__(self, host='localhost', port=6379,
                  db=0, password=None, socket_timeout=None,
                  socket_connect_timeout=None,
@@ -2601,7 +2601,7 @@ class FakeRedisMixin(object):
             connection_pool = redis.connection.ConnectionPool(**kwargs)
         # These need to be passed by name due to
         # https://github.com/andymccurdy/redis-py/issues/1276
-        super(FakeRedisMixin, self).__init__(
+        super().__init__(
             host=host, port=port, db=db, password=password, socket_timeout=socket_timeout,
             socket_connect_timeout=socket_connect_timeout,
             socket_keepalive=socket_keepalive,
@@ -2620,7 +2620,7 @@ class FakeRedisMixin(object):
         server = kwargs.pop('server', None)
         if server is None:
             server = FakeServer()
-        self = super(FakeRedisMixin, cls).from_url(url, db, **kwargs)
+        self = super().from_url(url, db, **kwargs)
         # Now override how it creates connections
         pool = self.connection_pool
         pool.connection_class = FakeConnection

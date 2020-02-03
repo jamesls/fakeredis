@@ -1,4 +1,3 @@
-from __future__ import print_function, division, absolute_import
 import operator
 import functools
 
@@ -47,7 +46,7 @@ expires_seconds = st.integers(min_value=100000, max_value=10000000000)
 expires_ms = st.integers(min_value=100000000, max_value=10000000000000)
 
 
-class WrappedException(object):
+class WrappedException:
     """Wraps an exception for the purposes of comparison."""
     def __init__(self, exc):
         self.wrapped = exc
@@ -56,7 +55,7 @@ class WrappedException(object):
         return str(self.wrapped)
 
     def __repr__(self):
-        return 'WrappedException({0!r})'.format(self.wrapped)
+        return 'WrappedException({!r})'.format(self.wrapped)
 
     def __eq__(self, other):
         if not isinstance(other, WrappedException):
@@ -92,8 +91,7 @@ def sort_list(lst):
 def flatten(args):
     if isinstance(args, (list, tuple)):
         for arg in args:
-            for item in flatten(arg):
-                yield item
+            yield from flatten(arg)
     elif args is not None:
         yield args
 
@@ -102,7 +100,7 @@ def default_normalize(x):
     return x
 
 
-class Command(object):
+class Command:
     def __init__(self, *args):
         self.args = tuple(flatten(args))
 
@@ -360,7 +358,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
     STATE_RUNNING = 2
 
     def __init__(self):
-        super(CommonMachine, self).__init__()
+        super().__init__()
         self.fake = fakeredis.FakeStrictRedis()
         try:
             self.real = redis.StrictRedis('localhost', port=6379)
@@ -385,7 +383,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
     def teardown(self):
         self.real.connection_pool.disconnect()
         self.fake.connection_pool.disconnect()
-        super(CommonMachine, self).teardown()
+        super().teardown()
 
     def _evaluate(self, client, command):
         try:
@@ -404,7 +402,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
         if fake_exc is not None and real_exc is None:
             raise fake_exc
         elif real_exc is not None and fake_exc is None:
-            assert real_exc == fake_exc, "Expected exception {0} not raised".format(real_exc)
+            assert real_exc == fake_exc, "Expected exception {} not raised".format(real_exc)
         elif (real_exc is None and isinstance(real_result, list)
               and command.args and command.args[0].lower() == 'exec'):
             assert fake_result is not None
@@ -461,7 +459,7 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
             self._compare(step)
 
 
-class BaseTest(object):
+class BaseTest:
     create_command_strategy = None
 
     """Base class for test classes."""

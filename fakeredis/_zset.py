@@ -1,7 +1,7 @@
 import sortedcontainers
 
 
-class ZSet(object):
+class ZSet:
     def __init__(self):
         self._bylex = {}     # Maps value to score
         self._byscore = sortedcontainers.SortedList()

@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 from collections import namedtuple
 from time import sleep, time
 from redis.exceptions import ResponseError
@@ -137,30 +136,30 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_saving_non_ascii_chars_as_value(self):
         self.assertEqual(self.redis.set('foo', 'Ñandu'), True)
         self.assertEqual(self.redis.get('foo'),
-                         u'Ñandu'.encode('utf-8'))
+                         'Ñandu'.encode())
 
     def test_saving_unicode_type_as_value(self):
-        self.assertEqual(self.redis.set('foo', u'Ñandu'), True)
+        self.assertEqual(self.redis.set('foo', 'Ñandu'), True)
         self.assertEqual(self.redis.get('foo'),
-                         u'Ñandu'.encode('utf-8'))
+                         'Ñandu'.encode())
 
     def test_saving_non_ascii_chars_as_key(self):
         self.assertEqual(self.redis.set('Ñandu', 'foo'), True)
         self.assertEqual(self.redis.get('Ñandu'), b'foo')
 
     def test_saving_unicode_type_as_key(self):
-        self.assertEqual(self.redis.set(u'Ñandu', 'foo'), True)
-        self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
+        self.assertEqual(self.redis.set('Ñandu', 'foo'), True)
+        self.assertEqual(self.redis.get('Ñandu'), b'foo')
 
     def test_future_newbytes(self):
         bytes = pytest.importorskip('builtins', reason='future.types not available').bytes
         self.redis.set(bytes(b'\xc3\x91andu'), 'foo')
-        self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
+        self.assertEqual(self.redis.get('Ñandu'), b'foo')
 
     def test_future_newstr(self):
         str = pytest.importorskip('builtins', reason='future.types not available').str
-        self.redis.set(str(u'Ñandu'), 'foo')
-        self.assertEqual(self.redis.get(u'Ñandu'), b'foo')
+        self.redis.set('Ñandu', 'foo')
+        self.assertEqual(self.redis.get('Ñandu'), b'foo')
 
     def test_get_does_not_exist(self):
         self.assertEqual(self.redis.get('foo'), None)
@@ -4376,7 +4375,7 @@ class TestFakeRedis(unittest.TestCase):
             lock.extend(3)
 
 
-class DecodeMixin(object):
+class DecodeMixin:
     decode_responses = True
 
     def _round_str(self, x):
@@ -4399,13 +4398,13 @@ class DecodeMixin(object):
             return value
 
     def assertEqual(self, a, b, msg=None):
-        super(DecodeMixin, self).assertEqual(a, self._decode(b), msg)
+        super().assertEqual(a, self._decode(b), msg)
 
     def assertIn(self, member, container, msg=None):
-        super(DecodeMixin, self).assertIn(self._decode(member), container)
+        super().assertIn(self._decode(member), container)
 
     def assertItemsEqual(self, a, b):
-        super(DecodeMixin, self).assertItemsEqual(a, self._decode(b))
+        super().assertItemsEqual(a, self._decode(b))
 
 
 class TestFakeStrictRedisDecodeResponses(DecodeMixin, TestFakeStrictRedis):
