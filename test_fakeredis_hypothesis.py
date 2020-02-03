@@ -3,6 +3,7 @@ import functools
 
 import hypothesis
 import hypothesis.stateful
+from hypothesis.stateful import rule, initialize
 import hypothesis.strategies as st
 import pytest
 import redis
@@ -348,14 +349,18 @@ bad_commands = (
              st.lists(st.binary() | st.text()))
 )
 
+attrs = st.fixed_dictionaries({
+    'keys': st.lists(st.binary(), min_size=2, max_size=5, unique=True),
+    'fields': st.lists(st.binary(), min_size=2, max_size=5, unique=True),
+    'values': st.lists(st.binary() | int_as_bytes | float_as_bytes,
+                       min_size=2, max_size=5, unique=True),
+    'scores': st.lists(st.floats(width=32), min_size=2, max_size=5, unique=True)
+})
+
 
 @hypothesis.settings(max_examples=1000)
-class CommonMachine(hypothesis.stateful.GenericStateMachine):
+class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
     create_command_strategy = None
-
-    STATE_EMPTY = 0
-    STATE_INIT = 1
-    STATE_RUNNING = 2
 
     def __init__(self):
         super().__init__()
@@ -373,7 +378,6 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
         self.fields = []
         self.values = []
         self.scores = []
-        self.state = self.STATE_EMPTY
         try:
             self.real.execute_command('discard')
         except redis.ResponseError:
@@ -433,36 +437,24 @@ class CommonMachine(hypothesis.stateful.GenericStateMachine):
         for command in init_commands:
             self._compare(command)
 
-    def steps(self):
-        if self.state == self.STATE_EMPTY:
-            attrs = {
-                'keys': st.lists(st.binary(), min_size=2, max_size=5, unique=True),
-                'fields': st.lists(st.binary(), min_size=2, max_size=5, unique=True),
-                'values': st.lists(st.binary() | int_as_bytes | float_as_bytes,
-                                   min_size=2, max_size=5, unique=True),
-                'scores': st.lists(st.floats(width=32), min_size=2, max_size=5, unique=True)
-            }
-            return st.fixed_dictionaries(attrs)
-        elif self.state == self.STATE_INIT:
-            return st.lists(self.create_command_strategy)
-        else:
-            return self.command_strategy
+    @initialize(attrs=attrs, data=st.data())
+    def init(self, attrs, data):
+        self._init_attrs(attrs)
+        if self.create_command_strategy:
+            init_commands = data.draw(st.lists(self.create_command_strategy))
+            self._init_data(init_commands)
 
-    def execute_step(self, step):
-        if self.state == self.STATE_EMPTY:
-            self._init_attrs(step)
-            self.state = self.STATE_INIT if self.create_command_strategy else self.STATE_RUNNING
-        elif self.state == self.STATE_INIT:
-            self._init_data(step)
-            self.state = self.STATE_RUNNING
-        else:
-            self._compare(step)
+    @rule(data=st.data())
+    def one_command(self, data):
+        command = data.draw(self.command_strategy)
+        self._compare(command)
 
 
 class BaseTest:
+    """Base class for test classes."""
+
     create_command_strategy = None
 
-    """Base class for test classes."""
     @pytest.mark.slow
     def test(self):
         class Machine(CommonMachine):
