@@ -151,6 +151,9 @@ class Command(object):
         # reproduce this quirky behaviour, just skip these tests.
         if b'\0' in command:
             return False
+        # 'incr' flag to zadd not implemented yet
+        if command == b'zadd' and 'incr' in self.args:
+            return False
         return True
 
 
