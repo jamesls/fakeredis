@@ -371,6 +371,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.1.1
+-----
+- Support redis-py 3.4.
+
 1.1.0
 -----
 - `#257 <https://github.com/jamesls/fakeredis/pull/257>`_ Add other inputs for redis connection
