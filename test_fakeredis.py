@@ -158,7 +158,7 @@ class TestFakeStrictRedis(unittest.TestCase):
 
     def test_future_newstr(self):
         str = pytest.importorskip('builtins', reason='future.types not available').str
-        self.redis.set('Ñandu', 'foo')
+        self.redis.set(str('Ñandu'), 'foo')
         self.assertEqual(self.redis.get('Ñandu'), b'foo')
 
     def test_get_does_not_exist(self):
