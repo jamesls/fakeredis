@@ -20,7 +20,6 @@ from ._zset import ZSet
 
 
 MAX_STRING_SIZE = 512 * 1024 * 1024
-INF = float('inf')
 
 INVALID_EXPIRE_MSG = "invalid expire time in {}"
 WRONGTYPE_MSG = \
@@ -403,7 +402,7 @@ class Float:
                 # Values that over- or underflow- are explicitly rejected by
                 # redis. This is a crude hack to determine whether the input
                 # may have been such a value.
-                if out in (INF, -INF, 0.0) and re.match(b'^[^a-zA-Z]*[1-9]', value):
+                if out in (math.inf, -math.inf, 0.0) and re.match(b'^[^a-zA-Z]*[1-9]', value):
                     raise ValueError
             return out
         except ValueError:

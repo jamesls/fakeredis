@@ -2631,10 +2631,10 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.zadd('foo', {'zero': 0})
         self.zadd('foo2', {'one': 1})
         self.zadd('foo3', {'one': 1})
-        self.redis.zunionstore('bar', {'foo': float('inf')}, aggregate='SUM')
+        self.redis.zunionstore('bar', {'foo': math.inf}, aggregate='SUM')
         self.assertEqual(self.redis.zrange('bar', 0, -1, withscores=True),
                          [(b'zero', 0)])
-        self.redis.zunionstore('bar', OrderedDict([('foo2', math.nf), ('foo3', -math.inf)]))
+        self.redis.zunionstore('bar', OrderedDict([('foo2', math.inf), ('foo3', -math.inf)]))
         self.assertEqual(self.redis.zrange('bar', 0, -1, withscores=True),
                          [(b'one', 0)])
 
