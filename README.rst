@@ -379,11 +379,13 @@ Revision history
 - Fix a number of bugs in the Hypothesis tests that were causing spurious test
   failures or hangs.
 - Fix some obscure corner cases
+
   - If a WATCHed key is MOVEd, don't invalidate the transaction.
   - Some cases of passing a key of the wrong type to SINTER/SINTERSTORE were
     not reporting a WRONGTYPE error.
   - ZUNIONSTORE/ZINTERSTORE could generate different scores from real redis
     in corner cases (mostly involving infinities).
+
 - Speed up the implementation of BINCOUNT.
 
 1.1.1
