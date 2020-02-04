@@ -3,7 +3,7 @@ import functools
 
 import hypothesis
 import hypothesis.stateful
-from hypothesis.stateful import rule, initialize, precondition, multiple, Bundle
+from hypothesis.stateful import rule, initialize, precondition
 import hypothesis.strategies as st
 import pytest
 import redis
@@ -11,10 +11,22 @@ import redis
 import fakeredis
 
 
-keys = Bundle('keys')
-fields = Bundle('fields')
-values = Bundle('values')
-scores = Bundle('scores')
+self_strategy = st.runner()
+
+
+@st.composite
+def sample_attr(draw, name):
+    """Strategy for sampling a specific attribute from a state machine"""
+    machine = draw(self_strategy)
+    values = getattr(machine, name)
+    position = draw(st.integers(min_value=0, max_value=len(values) - 1))
+    return values[position]
+
+
+keys = sample_attr('keys')
+fields = sample_attr('fields')
+values = sample_attr('values')
+scores = sample_attr('scores')
 
 int_as_bytes = st.builds(lambda x: str(x).encode(), st.integers())
 float_as_bytes = st.builds(lambda x: repr(x).encode(), st.floats(width=32))
@@ -337,6 +349,14 @@ bad_commands = (
              st.lists(st.binary() | st.text()))
 )
 
+attrs = st.fixed_dictionaries({
+    'keys': st.lists(st.binary(), min_size=2, max_size=5, unique=True),
+    'fields': st.lists(st.binary(), min_size=2, max_size=5, unique=True),
+    'values': st.lists(st.binary() | int_as_bytes | float_as_bytes,
+                       min_size=2, max_size=5, unique=True),
+    'scores': st.lists(st.floats(width=32), min_size=2, max_size=5, unique=True)
+})
+
 
 @hypothesis.settings(max_examples=1000)
 class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
@@ -410,32 +430,16 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
                 # find such examples.
                 self.transaction_normalize.append(command.normalize)
 
-    @initialize(target=keys,
-                value=st.lists(st.binary(), min_size=2, max_size=5, unique=True))
-    def init_keys(self, value):
-        return multiple(*value)
-
-    @initialize(target=fields,
-                value=st.lists(st.binary(), min_size=2, max_size=5, unique=True))
-    def init_fields(self, value):
-        return multiple(*value)
-
-    @initialize(target=values,
-                value=st.lists(st.binary() | int_as_bytes | float_as_bytes,
-                               min_size=2, max_size=5, unique=True))
-    def init_values(self, value):
-        return multiple(*value)
-
-    @initialize(target=scores,
-                value=st.lists(st.floats(width=32), min_size=2, max_size=5, unique=True))
-    def init_scores(self, value):
-        return multiple(*value)
+    @initialize(attrs=attrs)
+    def init_attrs(self, attrs):
+        for key, value in attrs.items():
+            setattr(self, key, value)
 
     # hypothesis doesn't allow ordering of @initialize, so we have to put
     # preconditions on rules to ensure we call init_data exactly once and
     # after init_attrs.
     @precondition(lambda self: not self.initialized_data)
-    @rule(commands=st.runner().flatmap(
+    @rule(commands=self_strategy.flatmap(
         lambda self: st.lists(self.create_command_strategy)))
     def init_data(self, commands):
         for command in commands:
@@ -443,7 +447,7 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
         self.initialized_data = True
 
     @precondition(lambda self: self.initialized_data)
-    @rule(command=st.runner().flatmap(lambda self: self.command_strategy))
+    @rule(command=self_strategy.flatmap(lambda self: self.command_strategy))
     def one_command(self, command):
         self._compare(command)
 
