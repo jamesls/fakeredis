@@ -24,7 +24,7 @@ services:
 install:
   - pip install -r requirements.txt
   - pip install redis==$REDIS_PY
-  - pip install coverage coveralls-python
+  - pip install coveralls
 before_script:
   - flake8
 script:
