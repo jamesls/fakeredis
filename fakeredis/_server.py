@@ -1246,7 +1246,7 @@ class FakeSocket:
             value = key.value[start:end]
         else:
             value = key.value
-        return sum([bin(l).count('1') for l in value])
+        return bin(int.from_bytes(value, 'little')).count('1')
 
     @command((Key(bytes), Int))
     def decrby(self, key, amount):
