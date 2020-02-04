@@ -2159,8 +2159,6 @@ class FakeSocket:
         for s, w in sorted(zip(sets, weights), key=lambda x: len(x[0])):
             for member, score in s.items():
                 score *= w
-                if math.isnan(score):
-                    score = 0.0
                 if member not in out_members:
                     continue
                 if member in out:
@@ -2175,6 +2173,8 @@ class FakeSocket:
                         score = min(old, score)
                     else:
                         assert False     # pragma: nocover
+                if math.isnan(score):
+                    score = 0.0
                 out[member] = score
 
         out_zset = ZSet()
