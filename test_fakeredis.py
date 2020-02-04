@@ -4,6 +4,7 @@ from time import sleep, time
 from redis.exceptions import ResponseError
 import inspect
 from functools import wraps
+from collections import OrderedDict
 import os
 import sys
 import math
@@ -2621,7 +2622,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zunionstore_nan_to_zero(self):
         self.zadd('foo', {'x': math.inf})
         self.zadd('foo2', {'x': math.inf})
-        self.redis.zunionstore('bar', {'foo': 1.0, 'foo2': 0.0})
+        self.redis.zunionstore('bar', OrderedDict([('foo', 1.0), ('foo2', 0.0)]))
         # This is different to test_zinterstore_nan_to_zero because of a quirk
         # in redis. See https://github.com/antirez/redis/issues/3954.
         self.assertEqual(self.redis.zscore('bar', 'x'), math.inf)
@@ -2633,7 +2634,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zunionstore('bar', {'foo': float('inf')}, aggregate='SUM')
         self.assertEqual(self.redis.zrange('bar', 0, -1, withscores=True),
                          [(b'zero', 0)])
-        self.redis.zunionstore('bar', {'foo2': float('inf'), 'foo3': -float('inf')})
+        self.redis.zunionstore('bar', OrderedDict([('foo2', math.nf), ('foo3', -math.inf)]))
         self.assertEqual(self.redis.zrange('bar', 0, -1, withscores=True),
                          [(b'one', 0)])
 
@@ -2712,7 +2713,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zinterstore_nan_to_zero(self):
         self.zadd('foo', {'x': math.inf})
         self.zadd('foo2', {'x': math.inf})
-        self.redis.zinterstore('bar', {'foo': 1.0, 'foo2': 0.0})
+        self.redis.zinterstore('bar', OrderedDict([('foo', 1.0), ('foo2', 0.0)]))
         self.assertEqual(self.redis.zscore('bar', 'x'), 0.0)
 
     def test_zunionstore_nokey(self):
