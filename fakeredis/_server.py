@@ -2149,7 +2149,10 @@ class FakeSocket:
             else:
                 out_members.intersection_update(s)
 
-        out = ZSet()
+        # We first build a regular dict and turn it into a ZSet. The
+        # reason is subtle: a ZSet won't update a score from -0 to +0
+        # (or vice versa) through assignment, but a regular dict will.
+        out = {}
         for s, w in zip(sets, weights):
             for member, score in s.items():
                 score *= w
@@ -2171,8 +2174,12 @@ class FakeSocket:
                         assert False     # pragma: nocover
                 out[member] = score
 
-        dest.value = out
-        return len(out)
+        out_zset = ZSet()
+        for member, score in out.items():
+            out_zset[member] = score
+
+        dest.value = out_zset
+        return len(out_zset)
 
     @command((Key(), Int, bytes), (bytes,))
     def zunionstore(self, dest, numkeys, *args):
