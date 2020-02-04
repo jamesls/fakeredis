@@ -2154,6 +2154,10 @@ class FakeSocket:
         for s, w in sorted(zip(sets, weights), key=lambda x: len(x[0])):
             for member, score in s.items():
                 score *= w
+                # Redis only does this step for ZUNIONSTORE. See
+                # https://github.com/antirez/redis/issues/3954.
+                if func == 'ZUNIONSTORE' and math.isnan(score):
+                    score = 0.0
                 if member not in out_members:
                     continue
                 if member in out:

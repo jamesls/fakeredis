@@ -2619,6 +2619,14 @@ class TestFakeStrictRedis(unittest.TestCase):
                          [(b'one', 3), (b'two', 6), (b'four', 8)])
 
     def test_zunionstore_nan_to_zero(self):
+        self.zadd('foo', {'x': math.inf})
+        self.zadd('foo2', {'x': math.inf})
+        self.redis.zunionstore('bar', {'foo': 1.0, 'foo2': 0.0})
+        # This is different to test_zinterstore_nan_to_zero because of a quirk
+        # in redis. See https://github.com/antirez/redis/issues/3954.
+        self.assertEqual(self.redis.zscore('bar', 'x'), math.inf)
+
+    def test_zunionstore_nan_to_zero2(self):
         self.zadd('foo', {'zero': 0})
         self.zadd('foo2', {'one': 1})
         self.zadd('foo3', {'one': 1})
@@ -2700,6 +2708,12 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_zinterstore_nokey(self):
         with self.assertRaises(redis.ResponseError):
             self.redis.zinterstore('baz', [], aggregate='MAX')
+
+    def test_zinterstore_nan_to_zero(self):
+        self.zadd('foo', {'x': math.inf})
+        self.zadd('foo2', {'x': math.inf})
+        self.redis.zinterstore('bar', {'foo': 1.0, 'foo2': 0.0})
+        self.assertEqual(self.redis.zscore('bar', 'x'), 0.0)
 
     def test_zunionstore_nokey(self):
         with self.assertRaises(redis.ResponseError):
