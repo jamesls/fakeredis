@@ -6,6 +6,7 @@ import inspect
 from functools import wraps
 import os
 import sys
+import math
 import threading
 import unittest
 from queue import Queue
@@ -2627,6 +2628,12 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.zunionstore('bar', {'foo2': float('inf'), 'foo3': -float('inf')})
         self.assertEqual(self.redis.zrange('bar', 0, -1, withscores=True),
                          [(b'one', 0)])
+
+    def test_zunionstore_nan_to_zero_ordering(self):
+        self.zadd('foo', {'e1': math.inf})
+        self.zadd('bar', {'e1': -math.inf, 'e2': 0.0})
+        self.redis.zunionstore('baz', ['foo', 'bar', 'foo'])
+        self.assertEqual(self.redis.zscore('baz', 'e1'), 0.0)
 
     def test_zunionstore_mixed_set_types(self):
         # No score, redis will use 1.0.

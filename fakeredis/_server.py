@@ -2153,7 +2153,10 @@ class FakeSocket:
         # reason is subtle: a ZSet won't update a score from -0 to +0
         # (or vice versa) through assignment, but a regular dict will.
         out = {}
-        for s, w in zip(sets, weights):
+        # The sort affects the order of floating-point operations.
+        # Note that redis uses qsort(1), which has no stability guarantees,
+        # so we can't be sure to match it in all cases.
+        for s, w in sorted(zip(sets, weights), key=lambda x: len(x[0])):
             for member, score in s.items():
                 score *= w
                 if math.isnan(score):
