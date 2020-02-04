@@ -11,12 +11,7 @@ import hashlib
 import weakref
 import queue
 from collections import defaultdict
-try:
-    # Python 3.8+ https://docs.python.org/3/whatsnew/3.7.html#id3
-    from collections.abc import MutableMapping
-except ImportError:
-    # Python 2.6, 2.7
-    from collections import MutableMapping
+from collections.abc import MutableMapping
 
 import six
 import redis
