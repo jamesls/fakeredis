@@ -427,8 +427,7 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
                 # find such examples.
                 self.transaction_normalize.append(command.normalize)
         if (len(command.args) == 1
-                and isinstance(command.args[0], str)
-                and command.args[0].lower() in ('discard', 'exec')):
+                and Command.encode(command.args[0]).lower() in (b'discard', b'exec')):
             self.transaction_normalize = []
 
     @initialize(attrs=attrs)
