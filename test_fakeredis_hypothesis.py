@@ -418,9 +418,6 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
             for n, r, f in zip(self.transaction_normalize, real_result, fake_result):
                 assert n(f) == n(r)
             self.transaction_normalize = []
-        elif real_exc is None and command.args and command.args[0].lower() in ('discard', 'exec'):
-            assert fake_result == real_result
-            self.transaction_normalize = []
         else:
             assert fake_result == real_result
             if real_result == b'QUEUED':
@@ -429,6 +426,10 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
                 # transaction. But it is extremely unlikely that hypothesis will
                 # find such examples.
                 self.transaction_normalize.append(command.normalize)
+        if (len(command.args) == 1
+                and isinstance(command.args[0], str)
+                and command.args[0].lower() in ('multi', 'discard', 'exec')):
+            self.transaction_normalize = []
 
     @initialize(attrs=attrs)
     def init_attrs(self, attrs):
