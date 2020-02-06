@@ -2568,6 +2568,15 @@ class FakeConnection(redis.Connection):
             raise response
         return self._decode(response)
 
+    def repr_pieces(self):
+        pieces = [
+            ('server', self._server),
+            ('db', self.db)
+        ]
+        if self.client_name:
+            pieces.append(('client_name', self.client_name))
+        return pieces
+
 
 class FakeRedisMixin:
     def __init__(self, host='localhost', port=6379,

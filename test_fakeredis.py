@@ -4542,6 +4542,13 @@ class TestInitArgs(unittest.TestCase):
         )
         self.assertEqual(fake_conn.socket_keepalive_options, {})
 
+    def test_repr(self):
+        # repr is human-readable, so we only test that it doesn't crash,
+        # and that it contains the db number.
+        db = fakeredis.FakeStrictRedis.from_url('redis://localhost:6379/11')
+        rep = repr(db)
+        self.assertIn('db=11', rep)
+
 
 class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     # Wrap some redis commands to abstract differences between redis-py 2 and 3.
