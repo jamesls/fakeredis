@@ -371,6 +371,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.2.1
+-----
+- `#262 <https://github.com/jamesls/fakeredis/issues/262>`_ Cannot repr redis object without host attribute
+- Fix a bug in the hypothesis test framework that occasionally caused a failure
+
 1.2.0
 -----
 - Drop support for Python 2.7.
