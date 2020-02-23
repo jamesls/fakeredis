@@ -2649,8 +2649,10 @@ class FakeRedisMixin:
 
 
 class FakeStrictRedis(FakeRedisMixin, redis.StrictRedis):
-    pass
+    def __call__(self):
+        return self
 
 
 class FakeRedis(FakeRedisMixin, redis.Redis):
-    pass
+    def __call__(self):
+        return self
