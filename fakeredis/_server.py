@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import threading
@@ -13,11 +14,20 @@ import queue
 from collections import defaultdict
 from collections.abc import MutableMapping
 
+import lupa
 import six
 import redis
 
 from ._zset import ZSet
 
+
+LOGGER = logging.getLogger('fakeredis')
+REDIS_LOG_LEVELS = {
+    b'LOG_DEBUG': logging.DEBUG,
+    b'LOG_VERBOSE': logging.INFO,
+    b'LOG_NOTICE': logging.INFO,
+    b'LOG_WARNING': logging.WARNING
+}
 
 MAX_STRING_SIZE = 512 * 1024 * 1024
 
@@ -2312,6 +2322,12 @@ class FakeSocket:
         except Exception as ex:
             return lua_runtime.table_from({b"err": str(ex)})
 
+    def _lua_redis_log(self, lua_runtime, expected_globals, lvl, *args):
+        self._check_for_lua_globals(lua_runtime, expected_globals)
+        if len(args) == 1:
+            msg = args[0]
+            LOGGER.log(lvl or logging.INFO, msg.decode('utf-8') if isinstance(msg, bytes) else msg)
+
     @command((bytes, Int), (bytes,), flags='s')
     def eval(self, script, numkeys, *keys_and_args):
         from lupa import LuaRuntime, LuaError
@@ -2326,10 +2342,14 @@ class FakeSocket:
 
         set_globals = lua_runtime.eval(
             """
-            function(keys, argv, redis_call, redis_pcall)
+            function(keys, argv, redis_call, redis_pcall, redis_log, redis_log_levels)
                 redis = {}
                 redis.call = redis_call
                 redis.pcall = redis_pcall
+                redis.log = redis_log
+                for level, pylevel in python.iterex(redis_log_levels.items()) do
+                    redis[level] = pylevel
+                end
                 redis.error_reply = function(msg) return {err=msg} end
                 redis.status_reply = function(msg) return {ok=msg} end
                 KEYS = keys
@@ -2342,7 +2362,9 @@ class FakeSocket:
             lua_runtime.table_from(keys_and_args[:numkeys]),
             lua_runtime.table_from(keys_and_args[numkeys:]),
             functools.partial(self._lua_redis_call, lua_runtime, expected_globals),
-            functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals)
+            functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals),
+            functools.partial(self._lua_redis_log, lua_runtime, expected_globals),
+            lupa.as_attrgetter(REDIS_LOG_LEVELS)
         )
         expected_globals.update(lua_runtime.globals().keys())
 

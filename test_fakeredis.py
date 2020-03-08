@@ -4160,6 +4160,24 @@ class TestFakeStrictRedis(unittest.TestCase):
         result = script(args=[42])
         self.assertEqual(result, b'42')
 
+    def test_lua_log(self):
+        if not isinstance(self.redis, fakeredis.FakeRedis) and not isinstance(self.redis, fakeredis.FakeStrictRedis):
+            pytest.skip("Works only on fakeredis, as testing real redis will require access to its logs")
+        logger = fakeredis._server.LOGGER
+        script = """
+            redis.log(redis.LOG_DEBUG, "debug")
+            redis.log(redis.LOG_VERBOSE, "verbose")
+            redis.log(redis.LOG_NOTICE, "notice")
+            redis.log(redis.LOG_WARNING, "warning")
+        """
+        script = self.redis.register_script(script)
+        with self.assertLogs(logger, 'DEBUG') as cm:
+            script()
+            self.assertEqual(cm.output, ['DEBUG:%s:debug' % logger.name,
+                                         'INFO:%s:verbose' % logger.name,
+                                         'INFO:%s:notice' % logger.name,
+                                         'WARNING:%s:warning' % logger.name])
+
     @redis3_only
     def test_unlink(self):
         self.redis.set('foo', 'bar')
