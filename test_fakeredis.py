@@ -4161,7 +4161,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(result, b'42')
 
     def test_lua_log(self):
-        if not isinstance(self.redis, fakeredis.FakeRedis) and not isinstance(self.redis, fakeredis.FakeStrictRedis):
+        if not isinstance(self.redis, (fakeredis.FakeRedis, fakeredis.FakeStrictRedis)):
             pytest.skip("Works only on fakeredis, as testing real redis will require access to its logs")
         logger = fakeredis._server.LOGGER
         script = """
@@ -4177,6 +4177,45 @@ class TestFakeStrictRedis(unittest.TestCase):
                                          'INFO:%s:verbose' % logger.name,
                                          'INFO:%s:notice' % logger.name,
                                          'WARNING:%s:warning' % logger.name])
+
+    def test_lua_log_no_message(self):
+        if not isinstance(self.redis, (fakeredis.FakeRedis, fakeredis.FakeStrictRedis)):
+            pytest.skip("Works only on fakeredis, as testing real redis will require access to its logs")
+        script = "redis.log(redis.LOG_DEBUG)"
+        script = self.redis.register_script(script)
+        with self.assertRaises(redis.ResponseError):
+            script()
+
+    def test_lua_log_different_types(self):
+        if not isinstance(self.redis, (fakeredis.FakeRedis, fakeredis.FakeStrictRedis)):
+            pytest.skip("Works only on fakeredis, as testing real redis will require access to its logs")
+        logger = fakeredis._server.LOGGER
+        script = "redis.log(redis.LOG_DEBUG, 'string', 1, true, 3.14, 'string')"
+        script = self.redis.register_script(script)
+        with self.assertLogs(logger, 'DEBUG') as cm:
+            script()
+        self.assertEqual(cm.output, ['DEBUG:%s:string 1 3.14 string' % logger.name])
+
+    def test_lua_log_wrong_level(self):
+        if not isinstance(self.redis, (fakeredis.FakeRedis, fakeredis.FakeStrictRedis)):
+            pytest.skip("Works only on fakeredis, as testing real redis will require access to its logs")
+        script = "redis.log(10, 'string')"
+        script = self.redis.register_script(script)
+        with self.assertRaises(redis.ResponseError):
+            script()
+
+    def test_lua_log_defined_vars(self):
+        if not isinstance(self.redis, (fakeredis.FakeRedis, fakeredis.FakeStrictRedis)):
+            pytest.skip("Works only on fakeredis, as testing real redis will require access to its logs")
+        logger = fakeredis._server.LOGGER
+        script = """
+            local var='string'
+            redis.log(redis.LOG_DEBUG, var)
+        """
+        script = self.redis.register_script(script)
+        with self.assertLogs(logger, 'DEBUG') as cm:
+            script()
+        self.assertEqual(cm.output, ['DEBUG:%s:string' % logger.name])
 
     @redis3_only
     def test_unlink(self):
