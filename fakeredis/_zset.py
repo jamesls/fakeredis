@@ -85,3 +85,15 @@ class ZSet:
 
     def items(self):
         return self._bylex.items()
+
+
+class ZSetGeospatial(ZSet):
+    def __init__(self):
+        self._bylex = {}     # Maps value to score
+
+    def add(self, value, score):
+        self._bylex[value] = score
+        return True
+
+    def discard(self, key):
+        self._bylex.pop(key, None)

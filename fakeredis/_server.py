@@ -1,23 +1,24 @@
-import os
-import time
-import threading
+import functools
+import hashlib
+import itertools
 import math
+import os
+import queue
 import random
 import re
+import threading
+import time
 import warnings
-import functools
-import itertools
-import hashlib
 import weakref
-import queue
 from collections import defaultdict
 from collections.abc import MutableMapping
+from geohash import encode as geohash_encode
+from math import radians, cos, sin, asin, sqrt
 
-import six
 import redis
+import six
 
-from ._zset import ZSet
-
+from ._zset import ZSet, ZSetGeospatial
 
 MAX_STRING_SIZE = 512 * 1024 * 1024
 
@@ -557,7 +558,12 @@ class Signature:
                 default = None
                 if type_.type_ is not None:
                     if item is not None and type(item.value) != type_.type_:
-                        raise redis.ResponseError(WRONGTYPE_MSG)
+                        # For GEO queries, the type is ZSetGeospatial which is a subset of ZSet
+                        # We need to make sure that if the type_ here is ZSet, we also accept ZSetGeospatial items
+                        if isinstance(item.value, ZSetGeospatial) and ZSet == type_.type_:
+                            pass
+                        else:
+                            raise redis.ResponseError(WRONGTYPE_MSG)
                     if item is None:
                         if type_.type_ is not bytes:
                             default = type_.type_()
@@ -571,7 +577,7 @@ def valid_response_type(value, nested=False):
     if isinstance(value, NoResponse) and not nested:
         return True
     if value is not None and not isinstance(value, (bytes, SimpleString, redis.ResponseError,
-                                                    int, list)):
+                                                    int, list, tuple, float)):
         return False
     if isinstance(value, list):
         if any(not valid_response_type(item, True) for item in value):
@@ -2437,6 +2443,93 @@ class FakeSocket:
                     sock.responses.put(msg)
                     receivers += 1
         return receivers
+
+    # Geospatial commands
+    @command((Key(ZSetGeospatial), bytes), (bytes,))
+    def geoadd(self, key, *values):
+        old_size = len(key.value)
+        for i in range(0, len(values), 3):
+            key.value.add(values[i+2], {'lng': float(values[i]), 'lat': float(values[i+1])})
+        key.updated()
+        return len(key.value) - old_size
+
+    @command((Key(ZSetGeospatial), bytes), (bytes,))
+    def geopos(self, key, *members):
+        response = []
+        for member in members:
+            if key.value.get(member):
+                response.append((key.value.get(member).get('lng'), key.value.get(member).get('lat'), ))
+        return response
+
+    def _distance(self, point1, point2, unit):
+        # Using the Haversine formula
+        # Approximate radius of the Earth using mean radius https://en.wikipedia.org/wiki/Earth_radius
+        radius_map = {
+            b'm': 6371008.7714,
+            b'km': 6371.0087714,
+            b'mi': 3958.76131603933,
+            b'ft': 20902259.748687658459,
+        }
+        radius = radius_map.get(unit)
+        # convert decimal degrees to radians
+        lng1, lat1 = map(radians, [float(point1[0]), float(point1[1])])
+        lng2, lat2 = map(radians, [float(point2[0]), float(point2[1])])
+
+        # Haversine formula
+        dlon = lng2 - lng1
+        dlat = lat2 - lat1
+        a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+        c = 2 * asin(sqrt(a))
+        return radius * c
+
+    @command((Key(ZSetGeospatial), bytes), (bytes,))
+    def geodist(self, key, place1, place2, unit):
+        lng1 = key.value.get(place1).get('lng')
+        lat1 = key.value.get(place1).get('lat')
+        lng2 = key.value.get(place2).get('lng')
+        lat2 = key.value.get(place2).get('lat')
+        return self._distance((lng1, lat1,), (lng2, lat2, ), unit)
+
+    @command((Key(ZSetGeospatial), bytes), (bytes,))
+    def georadius(self, key, longitude, latitude, radius, unit=None,
+                  withdist=False, withcoord=False, exclude=None):
+        # withhash, count, sort, store, store_dist NOT IMPLEMENTED
+        result = []
+        for name, item in key.value.items():
+            if exclude != name:
+                distance = self._distance(point1=(longitude, latitude, ),
+                                          point2=(item.get('lng'), item.get('lat'), ),
+                                          unit=unit)
+                if float(distance) < float(radius):
+                    match = name
+                    if withdist or withcoord:
+                        match = [name]
+                        if withdist:
+                            match.append(distance)
+                        if withcoord:
+                            match.append((item.get('lng'), item.get('lat'), ))
+                    result.append(match)
+        return result
+
+    @command((Key(ZSetGeospatial), bytes), (bytes,))
+    def georadiusbymember(self, key, member, radius, unit=None, withdist=False, withcoord=False):
+        longitude = key.value.get(member, {}).get('lng')
+        latitude = key.value.get(member, {}).get('lat')
+        if not longitude or not latitude:
+            return []
+        return self.georadius(key=key, longitude=longitude, latitude=latitude,
+                              radius=radius, unit=unit, withdist=withdist,
+                              withcoord=withcoord, exclude=member)
+
+    @command((Key(ZSetGeospatial), bytes), (bytes,))
+    def geohash(self, key, *members):
+        response = []
+        for member in members:
+            if key.value.get(member):
+                lng = key.value.get(member).get('lng')
+                lat = key.value.get(member).get('lat')
+                response.append(geohash_encode(lat, lng).encode())
+        return response
 
 
 setattr(FakeSocket, 'del', FakeSocket.del_)

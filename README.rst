@@ -227,16 +227,6 @@ generic
  * wait
 
 
-geo
----
-
- * geoadd
- * geohash
- * geopos
- * geodist
- * georadius
- * georadiusbymember
-
 
 pubsub
 ------
