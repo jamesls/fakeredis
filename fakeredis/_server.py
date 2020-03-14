@@ -2339,7 +2339,7 @@ class FakeSocket:
         msg = ' '.join([x.decode('utf-8')
                         if isinstance(x, bytes) else str(x)
                         for x in args if not isinstance(x, bool)])
-        LOGGER.log(REDIS_LOG_LEVELS_TO_LOGGING.get(lvl, logging.WARNING), msg)
+        LOGGER.log(REDIS_LOG_LEVELS_TO_LOGGING[lvl], msg)
 
     @command((bytes, Int), (bytes,), flags='s')
     def eval(self, script, numkeys, *keys_and_args):
