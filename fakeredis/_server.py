@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import threading
@@ -18,6 +19,20 @@ import redis
 
 from ._zset import ZSet
 
+
+LOGGER = logging.getLogger('fakeredis')
+REDIS_LOG_LEVELS = {
+    b'LOG_DEBUG': 0,
+    b'LOG_VERBOSE': 1,
+    b'LOG_NOTICE': 2,
+    b'LOG_WARNING': 3
+}
+REDIS_LOG_LEVELS_TO_LOGGING = {
+    0: logging.DEBUG,
+    1: logging.INFO,
+    2: logging.INFO,
+    3: logging.WARNING
+}
 
 MAX_STRING_SIZE = 512 * 1024 * 1024
 
@@ -59,6 +74,9 @@ BAD_SUBCOMMAND_MSG = "Unknown {} subcommand or wrong # of args."
 BAD_COMMAND_IN_PUBSUB_MSG = \
     "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT allowed in this context"
 CONNECTION_ERROR_MSG = "FakeRedis is emulating a connection error."
+REQUIRES_MORE_ARGS = "{} requires {} arguments or more."
+LOG_WRONG_FIRST_ARG = "First argument must be a number (log level)."
+LOG_INVALID_DEBUG_LEVEL = "Invalid debug level."
 
 FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 
@@ -2312,9 +2330,20 @@ class FakeSocket:
         except Exception as ex:
             return lua_runtime.table_from({b"err": str(ex)})
 
+    def _lua_redis_log(self, lua_runtime, expected_globals, lvl, *args):
+        self._check_for_lua_globals(lua_runtime, expected_globals)
+        if len(args) < 1:
+            raise redis.ResponseError(REQUIRES_MORE_ARGS.format("redis.log()", "two"))
+        if lvl not in REDIS_LOG_LEVELS.values():
+            raise redis.ResponseError(LOG_INVALID_DEBUG_LEVEL)
+        msg = ' '.join([x.decode('utf-8')
+                        if isinstance(x, bytes) else str(x)
+                        for x in args if not isinstance(x, bool)])
+        LOGGER.log(REDIS_LOG_LEVELS_TO_LOGGING[lvl], msg)
+
     @command((bytes, Int), (bytes,), flags='s')
     def eval(self, script, numkeys, *keys_and_args):
-        from lupa import LuaRuntime, LuaError
+        from lupa import LuaRuntime, LuaError, as_attrgetter
 
         if numkeys > len(keys_and_args):
             raise redis.ResponseError(TOO_MANY_KEYS_MSG)
@@ -2326,10 +2355,14 @@ class FakeSocket:
 
         set_globals = lua_runtime.eval(
             """
-            function(keys, argv, redis_call, redis_pcall)
+            function(keys, argv, redis_call, redis_pcall, redis_log, redis_log_levels)
                 redis = {}
                 redis.call = redis_call
                 redis.pcall = redis_pcall
+                redis.log = redis_log
+                for level, pylevel in python.iterex(redis_log_levels.items()) do
+                    redis[level] = pylevel
+                end
                 redis.error_reply = function(msg) return {err=msg} end
                 redis.status_reply = function(msg) return {ok=msg} end
                 KEYS = keys
@@ -2342,7 +2375,9 @@ class FakeSocket:
             lua_runtime.table_from(keys_and_args[:numkeys]),
             lua_runtime.table_from(keys_and_args[numkeys:]),
             functools.partial(self._lua_redis_call, lua_runtime, expected_globals),
-            functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals)
+            functools.partial(self._lua_redis_pcall, lua_runtime, expected_globals),
+            functools.partial(self._lua_redis_log, lua_runtime, expected_globals),
+            as_attrgetter(REDIS_LOG_LEVELS)
         )
         expected_globals.update(lua_runtime.globals().keys())
 
