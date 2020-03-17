@@ -371,6 +371,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.3.0
+-----
+- `#266 <https://github.com/jamesls/fakeredis/pull/266>`_ Implement redis.log in Lua
+
 1.2.1
 -----
 - `#262 <https://github.com/jamesls/fakeredis/issues/262>`_ Cannot repr redis object without host attribute
