@@ -2290,9 +2290,9 @@ class FakeSocket:
                     if key == b'ok':
                         return SimpleString(msg)
                     elif nested:
-                        return redis.ResponseError(msg)
+                        return redis.ResponseError(msg.decode('utf-8', 'replace'))
                     else:
-                        raise redis.ResponseError(msg)
+                        raise redis.ResponseError(msg.decode('utf-8', 'replace'))
             # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
             result_list = []
             for index in itertools.count(1):
@@ -2383,8 +2383,9 @@ class FakeSocket:
 
         try:
             result = lua_runtime.execute(script)
-        except LuaError as ex:
-            raise redis.ResponseError(str(ex))
+        except (LuaError, redis.ResponseError) as ex:
+            raise redis.ResponseError("Error running script (call to f_{}): @user_script:?: {}"
+                                      .format(sha1.decode(), ex))
 
         self._check_for_lua_globals(lua_runtime, expected_globals)
 

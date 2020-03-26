@@ -4023,10 +4023,17 @@ class TestFakeStrictRedis(unittest.TestCase):
     def test_eval_return_error(self):
         with self.assertRaises(redis.ResponseError) as cm:
             self.redis.eval('return {err="Testing"}', 0)
+        self.assertIsInstance(cm.exception.args[0], str)
         self.assertIn('Testing', str(cm.exception))
         with self.assertRaises(redis.ResponseError) as cm:
             self.redis.eval('return redis.error_reply("Testing")', 0)
+        self.assertIsInstance(cm.exception.args[0], str)
         self.assertIn('Testing', str(cm.exception))
+
+    def test_eval_return_redis_error(self):
+        with self.assertRaises(redis.ResponseError) as cm:
+            self.redis.eval('return redis.pcall("BADCOMMAND")', 0)
+        self.assertIsInstance(cm.exception.args[0], str)
 
     def test_eval_return_ok(self):
         val = self.redis.eval('return {ok="Testing"}', 0)
