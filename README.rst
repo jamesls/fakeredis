@@ -371,6 +371,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.3.1
+-----
+- Make errors from Lua behave more like real redis
+
 1.3.0
 -----
 - `#266 <https://github.com/jamesls/fakeredis/pull/266>`_ Implement redis.log in Lua
