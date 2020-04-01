@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 from collections import namedtuple
 from time import sleep, time
 from redis.exceptions import ResponseError
@@ -5059,7 +5058,3 @@ class TestPubSubConnected(unittest.TestCase):
         self.assertEqual(msg, check, 'Message was not published to channel')
         with self.assertRaises(redis.ConnectionError):
             self.pubsub.get_message()
-
-
-if __name__ == '__main__':
-    unittest.main()
