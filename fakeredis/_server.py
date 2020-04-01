@@ -714,7 +714,7 @@ class FakeSocket:
         return result
 
     def _decode_result(self, result):
-        """Turn SimpleString into native string and int into long, recursively"""
+        """Turn SimpleString into native string, recursively"""
         if isinstance(result, list):
             return [self._decode_result(r) for r in result]
         elif isinstance(result, SimpleString):
