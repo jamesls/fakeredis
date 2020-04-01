@@ -124,7 +124,7 @@ async def create_connection(server=None, *, db=None, password=None, ssl=None,
     return conn
 
 
-async def create_redis(server, *, db=None, password=None, ssl=None,
+async def create_redis(server=None, *, db=None, password=None, ssl=None,
                        encoding=None, commands_factory=aioredis.Redis,
                        parser=None, timeout=None,
                        connection_cls=None, loop=None):

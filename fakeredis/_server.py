@@ -636,6 +636,9 @@ class FakeSocket:
         self._parser = self._parse_commands()
         self._parser.send(None)
 
+    def put_response(self, msg):
+        self.responses.put(msg)
+
     def shutdown(self, flags):
         self._parser.close()
 
@@ -765,7 +768,8 @@ class FakeSocket:
     def sendall(self, data):
         if not self._server.connected:
             raise redis.ConnectionError(CONNECTION_ERROR_MSG)
-        data = six.ensure_binary(data, encoding='ascii')
+        if isinstance(data, str):
+            data = data.encode('ascii')
         self._parser.send(data)
 
     def _process_command(self, fields):
@@ -794,7 +798,7 @@ class FakeSocket:
             result = exc
         result = self._decode_result(result)
         if not isinstance(result, NoResponse):
-            self.responses.put(result)
+            self.put_response(result)
 
     def notify_watch(self):
         self._watch_notified = True
@@ -2421,7 +2425,7 @@ class FakeSocket:
                 subs.add(self)
                 self._pubsub += 1
             msg = [mtype, channel, self._pubsub]
-            self.responses.put(msg)
+            self.put_response(msg)
         return NoResponse()
 
     def _unsubscribe(self, channels, subscribers, mtype):
@@ -2438,7 +2442,7 @@ class FakeSocket:
                     del subscribers[channel]
                 self._pubsub -= 1
             msg = [mtype, channel, self._pubsub]
-            self.responses.put(msg)
+            self.put_response(msg)
         return NoResponse()
 
     @command((bytes,), (bytes,), flags='s')
@@ -2463,14 +2467,14 @@ class FakeSocket:
         msg = [b'message', channel, message]
         subs = self._server.subscribers.get(channel, set())
         for sock in subs:
-            sock.responses.put(msg)
+            sock.put_response(msg)
             receivers += 1
         for (pattern, socks) in self._server.psubscribers.items():
             regex = compile_pattern(pattern)
             if regex.match(channel):
                 msg = [b'pmessage', pattern, channel, message]
                 for sock in socks:
-                    sock.responses.put(msg)
+                    sock.put_response(msg)
                     receivers += 1
         return receivers
 
