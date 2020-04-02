@@ -97,6 +97,28 @@ Fakeredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
 of redis 5.0.
 
+Support for aioredis
+====================
+You can also use fakeredis to mock out aioredis_. This is a much newer
+addition (added in 1.4.0) with less testing, so your mileage may vary. For
+example:
+
+.. code-block:: python
+
+  >>> import fakeredis.aioredis
+  >>> r = await fakeredis.aioredis.create_redis_pool()
+  >>> await r.set('foo', 'bar')
+  True
+  >>> await r.get('foo')
+  b'bar'
+
+.. _aioredis: https://aioredis.readthedocs.io/
+
+You can pass a `FakeServer` as the first argument to `create_redis` or
+`create_redis_pool` to share state (you can even share state with a
+`fakeredis.FakeRedis`). It should even be safe to do this state sharing between
+threads (as long as each connection/pool is only used in one thread).
+
 Porting to fakeredis 1.0
 ========================
 
@@ -110,7 +132,7 @@ that may require changes to your code:
    tests. If you need to share state between instances, create a FakeServer,
    as described above.
 
-2. FakeRedis is now a subclass of FakeStrictRedis, and similarly
+2. FakeRedis is now a subclass of Redis, and similarly
    FakeStrictRedis is a subclass of StrictRedis. Code that uses `isinstance`
    may behave differently.
 

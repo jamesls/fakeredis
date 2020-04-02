@@ -1,3 +1,4 @@
+aioredis
 coverage
 flake8
 hypothesis
