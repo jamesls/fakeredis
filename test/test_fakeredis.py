@@ -76,6 +76,7 @@ class TestFakeStrictRedis(unittest.TestCase):
     def setUp(self):
         self.server = fakeredis.FakeServer()
         self.redis = self.create_redis()
+        self.redis.flushall()
 
     def tearDown(self):
         self.redis.flushall()

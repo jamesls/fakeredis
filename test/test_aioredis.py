@@ -114,6 +114,10 @@ class TestRealCommands(TestFakeCommands):
     async def setUp(self):
         try:
             self.redis = await aioredis.create_redis_pool('redis://localhost')
-            await self.redis.ping()
+            await self.redis.flushall()
         except ConnectionRefusedError:
             pytest.skip('redis is not running')
+
+    async def tearDown(self):
+        await self.redis.flushall()
+        await super().tearDown()
