@@ -1877,8 +1877,10 @@ class FakeSocket:
         old_size = len(key.value)
         for member in members:
             key.value.discard(member)
+        deleted = old_size - len(key.value)
+        if deleted:
             key.updated()
-        return old_size - len(key.value)
+        return deleted
 
     @command((Key(set), Int), (bytes, bytes))
     def sscan(self, key, cursor, *args):

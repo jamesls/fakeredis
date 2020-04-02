@@ -3094,6 +3094,16 @@ class TestFakeStrictRedis(unittest.TestCase):
             p.execute()
         self.assertFalse(self.redis.exists('foo'))
 
+    def test_pipeline_srem_no_change(self):
+        # A regression test for a case picked up by hypothesis tests
+        p = self.redis.pipeline()
+        p.watch('foo')
+        self.redis.srem('foo', 'bar')
+        p.multi()
+        p.set('foo', 'baz')
+        p.execute()
+        self.assertEqual(self.redis.get('foo'), b'baz')
+
     def test_key_patterns(self):
         self.redis.mset({'one': 1, 'two': 2, 'three': 3, 'four': 4})
         self.assertItemsEqual(self.redis.keys('*o*'),
