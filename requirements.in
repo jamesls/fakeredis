@@ -1,4 +1,5 @@
 aioredis
+asynctest
 coverage
 flake8
 hypothesis
