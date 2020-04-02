@@ -57,6 +57,7 @@ class TestFakeCommands(asynctest.TestCase):
         await task
 
     async def test_blocking_ready(self):
+        """Blocking command which does not need to block."""
         self.redis.rpush('list', 'x')
         with await self.redis as r:
             result = await r.blpop('list', timeout=1)
@@ -64,12 +65,14 @@ class TestFakeCommands(asynctest.TestCase):
 
     @pytest.mark.slow
     async def test_blocking_timeout(self):
+        """Blocking command that times out without completing."""
         with await self.redis as r:
             result = await r.blpop('missing', timeout=1)
         assert result is None
 
     @pytest.mark.slow
     async def test_blocking_unblock(self):
+        """Blocking command that gets unblocked after some time."""
         async def unblock():
             await asyncio.sleep(0.1)
             await self.redis.rpush('list', 'y')
@@ -79,6 +82,15 @@ class TestFakeCommands(asynctest.TestCase):
             result = await r.blpop('list', timeout=1)
         assert result == [b'list', b'y']
         await task
+
+    @pytest.mark.slow
+    async def test_blocking_pipeline(self):
+        """Blocking command with another command issued behind it."""
+        with await self.redis as r:   # Ensure commands use same connection
+            await r.set('foo', 'bar')
+            fut = asyncio.ensure_future(r.blpop('list', timeout=1))
+            assert (await r.get('foo')) == b'bar'
+            assert (await fut) is None
 
 
 class TestRealCommands(TestFakeCommands):
