@@ -262,6 +262,7 @@ class Database(MutableMapping):
         self.time = 0.0
         self._watches = defaultdict(set)      # key to set of connections
         self.condition = threading.Condition(lock)
+        self._change_callbacks = set()
 
     def swap(self, other):
         self._dict, other._dict = other._dict, self._dict
@@ -271,6 +272,8 @@ class Database(MutableMapping):
         for sock in self._watches.get(key, set()):
             sock.notify_watch()
         self.condition.notify_all()
+        for callback in self._change_callbacks:
+            callback()
 
     def add_watch(self, key, sock):
         self._watches[key].add(sock)
@@ -280,6 +283,12 @@ class Database(MutableMapping):
         watches.discard(sock)
         if not watches:
             del self._watches[key]
+
+    def add_change_callback(self, callback):
+        self._change_callbacks.add(callback)
+
+    def remove_change_callback(self, callback):
+        self._change_callbacks.remove(callback)
 
     def clear(self):
         for key in self:
@@ -633,11 +642,22 @@ class FakeSocket:
         self._watches = set()
         self._pubsub = 0      # Count of subscriptions
         self.responses = queue.Queue()
+        # Prevents parser from processing commands. Not used in this module,
+        # but set by aioredis module to prevent new commands being processed
+        # while handling a blocking command.
+        self._paused = False
         self._parser = self._parse_commands()
         self._parser.send(None)
 
     def put_response(self, msg):
         self.responses.put(msg)
+
+    def pause(self):
+        self._paused = True
+
+    def resume(self):
+        self._paused = False
+        self._parser.send(b'')
 
     def shutdown(self, flags):
         self._parser.close()
@@ -676,7 +696,7 @@ class FakeSocket:
         """
         buf = b''
         while True:
-            while b'\n' not in buf:
+            while self._paused or b'\n' not in buf:
                 buf += yield
             line, buf = self._extract_line(buf)
             assert line[:1] == b'*'      # array

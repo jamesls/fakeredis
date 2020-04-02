@@ -72,10 +72,10 @@ class TestFakeCommands(asynctest.TestCase):
     async def test_blocking_unblock(self):
         async def unblock():
             await asyncio.sleep(0.1)
-            self.redis.rpush('list', 'y')
+            await self.redis.rpush('list', 'y')
 
-        task = self.loop.create_task(unblock())
         with await self.redis as r:
+            task = self.loop.create_task(unblock())
             result = await r.blpop('list', timeout=1)
         assert result == [b'list', b'y']
         await task
