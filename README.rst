@@ -119,6 +119,10 @@ You can pass a `FakeServer` as the first argument to `create_redis` or
 `fakeredis.FakeRedis`). It should even be safe to do this state sharing between
 threads (as long as each connection/pool is only used in one thread).
 
+It is highly recommended that you only use the aioredis support with
+Python 3.5.3 or higher. Earlier versions will not work correctly with
+non-default event loops.
+
 Porting to fakeredis 1.0
 ========================
 
