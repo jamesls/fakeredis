@@ -34,7 +34,8 @@ class FakeSocket(_server.FakeSocket):
         except asyncio.TimeoutError:
             result = None
         finally:
-            self._db.remove_change_callback(callback)
+            with self._server.lock:
+                self._db.remove_change_callback(callback)
             self.put_response(result)
             self.resume()
 
