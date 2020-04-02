@@ -33,6 +33,7 @@ setup(
         'redis<3.5', 'six>=1.12', 'sortedcontainers'
     ],
     extras_require={
-        "lua": ['lupa']
+        'lua': ['lupa'],
+        'aioredis': ['aioredis']
     }
 )

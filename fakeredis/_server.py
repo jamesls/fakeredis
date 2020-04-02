@@ -36,47 +36,49 @@ REDIS_LOG_LEVELS_TO_LOGGING = {
 
 MAX_STRING_SIZE = 512 * 1024 * 1024
 
-INVALID_EXPIRE_MSG = "invalid expire time in {}"
+INVALID_EXPIRE_MSG = "ERR invalid expire time in {}"
 WRONGTYPE_MSG = \
     "WRONGTYPE Operation against a key holding the wrong kind of value"
-SYNTAX_ERROR_MSG = "syntax error"
-INVALID_INT_MSG = "value is not an integer or out of range"
-INVALID_FLOAT_MSG = "value is not a valid float"
-INVALID_OFFSET_MSG = "offset is out of range"
-INVALID_BIT_OFFSET_MSG = "bit offset is not an integer or out of range"
-INVALID_BIT_VALUE_MSG = "bit is not an integer or out of range"
-INVALID_DB_MSG = "DB index is out of range"
-INVALID_MIN_MAX_FLOAT_MSG = "min or max is not a float"
-INVALID_MIN_MAX_STR_MSG = "min or max not a valid string range item"
-STRING_OVERFLOW_MSG = "string exceeds maximum allowed size (512MB)"
-OVERFLOW_MSG = "increment or decrement would overflow"
-NONFINITE_MSG = "increment would produce NaN or Infinity"
-SCORE_NAN_MSG = "resulting score is not a number (NaN)"
-INVALID_SORT_FLOAT_MSG = "One or more scores can't be converted into double"
-SRC_DST_SAME_MSG = "source and destination objects are the same"
-NO_KEY_MSG = "no such key"
-INDEX_ERROR_MSG = "index out of range"
-ZADD_NX_XX_ERROR_MSG = "ZADD allows either 'nx' or 'xx', not both"
-ZUNIONSTORE_KEYS_MSG = "at least 1 input key is needed for ZUNIONSTORE/ZINTERSTORE"
-WRONG_ARGS_MSG = "wrong number of arguments for '{}' command"
-UNKNOWN_COMMAND_MSG = "unknown command '{}'"
-EXECABORT_MSG = "Transaction discarded because of previous errors."
-MULTI_NESTED_MSG = "MULTI calls can not be nested"
-WITHOUT_MULTI_MSG = "{0} without MULTI"
-WATCH_INSIDE_MULTI_MSG = "WATCH inside MULTI is not allowed"
-NEGATIVE_KEYS_MSG = "Number of keys can't be negative"
-TOO_MANY_KEYS_MSG = "Number of keys can't be greater than number of args"
-TIMEOUT_NEGATIVE_MSG = "timeout is negative"
-NO_MATCHING_SCRIPT_MSG = "No matching script. Please use EVAL."
-GLOBAL_VARIABLE_MSG = "Script attempted to set global variables: {}"
-COMMAND_IN_SCRIPT_MSG = "This Redis command is not allowed from scripts"
-BAD_SUBCOMMAND_MSG = "Unknown {} subcommand or wrong # of args."
+SYNTAX_ERROR_MSG = "ERR syntax error"
+INVALID_INT_MSG = "ERR value is not an integer or out of range"
+INVALID_FLOAT_MSG = "ERR value is not a valid float"
+INVALID_OFFSET_MSG = "ERR offset is out of range"
+INVALID_BIT_OFFSET_MSG = "ERR bit offset is not an integer or out of range"
+INVALID_BIT_VALUE_MSG = "ERR bit is not an integer or out of range"
+INVALID_DB_MSG = "ERR DB index is out of range"
+INVALID_MIN_MAX_FLOAT_MSG = "ERR min or max is not a float"
+INVALID_MIN_MAX_STR_MSG = "ERR min or max not a valid string range item"
+STRING_OVERFLOW_MSG = "ERR string exceeds maximum allowed size (512MB)"
+OVERFLOW_MSG = "ERR increment or decrement would overflow"
+NONFINITE_MSG = "ERR increment would produce NaN or Infinity"
+SCORE_NAN_MSG = "ERR resulting score is not a number (NaN)"
+INVALID_SORT_FLOAT_MSG = "ERR One or more scores can't be converted into double"
+SRC_DST_SAME_MSG = "ERR source and destination objects are the same"
+NO_KEY_MSG = "ERR no such key"
+INDEX_ERROR_MSG = "ERR index out of range"
+ZADD_NX_XX_ERROR_MSG = "ERR ZADD allows either 'nx' or 'xx', not both"
+ZUNIONSTORE_KEYS_MSG = "ERR at least 1 input key is needed for ZUNIONSTORE/ZINTERSTORE"
+WRONG_ARGS_MSG = "ERR wrong number of arguments for '{}' command"
+UNKNOWN_COMMAND_MSG = "ERR unknown command '{}'"
+EXECABORT_MSG = "EXECABORT Transaction discarded because of previous errors."
+MULTI_NESTED_MSG = "ERR MULTI calls can not be nested"
+WITHOUT_MULTI_MSG = "ERR {0} without MULTI"
+WATCH_INSIDE_MULTI_MSG = "ERR WATCH inside MULTI is not allowed"
+NEGATIVE_KEYS_MSG = "ERR Number of keys can't be negative"
+TOO_MANY_KEYS_MSG = "ERR Number of keys can't be greater than number of args"
+TIMEOUT_NEGATIVE_MSG = "ERR timeout is negative"
+NO_MATCHING_SCRIPT_MSG = "NOSCRIPT No matching script. Please use EVAL."
+GLOBAL_VARIABLE_MSG = "ERR Script attempted to set global variables: {}"
+COMMAND_IN_SCRIPT_MSG = "ERR This Redis command is not allowed from scripts"
+BAD_SUBCOMMAND_MSG = "ERR Unknown {} subcommand or wrong # of args."
 BAD_COMMAND_IN_PUBSUB_MSG = \
-    "only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT allowed in this context"
+    "ERR only (P)SUBSCRIBE / (P)UNSUBSCRIBE / PING / QUIT allowed in this context"
 CONNECTION_ERROR_MSG = "FakeRedis is emulating a connection error."
-REQUIRES_MORE_ARGS = "{} requires {} arguments or more."
-LOG_WRONG_FIRST_ARG = "First argument must be a number (log level)."
-LOG_INVALID_DEBUG_LEVEL = "Invalid debug level."
+REQUIRES_MORE_ARGS_MSG = "ERR {} requires {} arguments or more."
+LOG_INVALID_DEBUG_LEVEL_MSG = "ERR Invalid debug level."
+LUA_COMMAND_ARG_MSG = "ERR Lua redis() command arguments must be strings or integers"
+LUA_WRONG_NUMBER_ARGS_MSG = "ERR wrong number or type of arguments"
+SCRIPT_ERROR_MSG = "ERR Error running script (call to f_{}): @user_script:?: {}"
 
 FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 
@@ -84,6 +86,14 @@ FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 class SimpleString:
     def __init__(self, value):
         assert isinstance(value, bytes)
+        self.value = value
+
+
+class SimpleError(Exception):
+    """Exception that will be turned into a frontend-specific exception."""
+
+    def __init__(self, value):
+        assert isinstance(value, str)
         self.value = value
 
 
@@ -262,6 +272,7 @@ class Database(MutableMapping):
         self.time = 0.0
         self._watches = defaultdict(set)      # key to set of connections
         self.condition = threading.Condition(lock)
+        self._change_callbacks = set()
 
     def swap(self, other):
         self._dict, other._dict = other._dict, self._dict
@@ -271,6 +282,8 @@ class Database(MutableMapping):
         for sock in self._watches.get(key, set()):
             sock.notify_watch()
         self.condition.notify_all()
+        for callback in self._change_callbacks:
+            callback()
 
     def add_watch(self, key, sock):
         self._watches[key].add(sock)
@@ -280,6 +293,12 @@ class Database(MutableMapping):
         watches.discard(sock)
         if not watches:
             del self._watches[key]
+
+    def add_change_callback(self, callback):
+        self._change_callbacks.add(callback)
+
+    def remove_change_callback(self, callback):
+        self._change_callbacks.remove(callback)
 
     def clear(self):
         for key in self:
@@ -346,7 +365,7 @@ class Int:
             if not cls.valid(out) or str(out).encode() != value:
                 raise ValueError
         except ValueError:
-            raise redis.ResponseError(cls.DECODE_ERROR)
+            raise SimpleError(cls.DECODE_ERROR)
         return out
 
     @classmethod
@@ -354,7 +373,7 @@ class Int:
         if cls.valid(value):
             return str(value).encode()
         else:
-            raise redis.ResponseError(cls.ENCODE_ERROR)
+            raise SimpleError(cls.ENCODE_ERROR)
 
 
 class BitOffset(Int):
@@ -424,7 +443,7 @@ class Float:
                     raise ValueError
             return out
         except ValueError:
-            raise redis.ResponseError(cls.DECODE_ERROR)
+            raise SimpleError(cls.DECODE_ERROR)
 
     @classmethod
     def encode(cls, value, humanfriendly):
@@ -465,8 +484,8 @@ class ScoreTest:
                 value, allow_leading_whitespace=True, allow_erange=True,
                 allow_empty=True, crop_null=True)
             return cls(value, exclusive)
-        except redis.ResponseError:
-            raise redis.ResponseError(INVALID_MIN_MAX_FLOAT_MSG)
+        except SimpleError:
+            raise SimpleError(INVALID_MIN_MAX_FLOAT_MSG)
 
     def __str__(self):
         if self.exclusive:
@@ -500,7 +519,7 @@ class StringTest:
         elif value[:1] == b'[':
             return cls(value[1:], False)
         else:
-            raise redis.ResponseError(INVALID_MIN_MAX_STR_MSG)
+            raise SimpleError(INVALID_MIN_MAX_STR_MSG)
 
 
 @functools.total_ordering
@@ -541,7 +560,7 @@ class Signature:
         if len(args) != len(self.fixed):
             delta = len(args) - len(self.fixed)
             if delta < 0 or not self.repeat:
-                raise redis.ResponseError(WRONG_ARGS_MSG.format(self.name))
+                raise SimpleError(WRONG_ARGS_MSG.format(self.name))
 
     def apply(self, args, db):
         """Returns a tuple, which is either:
@@ -552,7 +571,7 @@ class Signature:
         if self.repeat:
             delta = len(args) - len(self.fixed)
             if delta % len(self.repeat) != 0:
-                raise redis.ResponseError(WRONG_ARGS_MSG.format(self.name))
+                raise SimpleError(WRONG_ARGS_MSG.format(self.name))
 
         types = list(self.fixed)
         for i in range(len(args) - len(types)):
@@ -575,7 +594,7 @@ class Signature:
                 default = None
                 if type_.type_ is not None:
                     if item is not None and type(item.value) != type_.type_:
-                        raise redis.ResponseError(WRONGTYPE_MSG)
+                        raise SimpleError(WRONGTYPE_MSG)
                     if item is None:
                         if type_.type_ is not bytes:
                             default = type_.type_()
@@ -588,7 +607,7 @@ class Signature:
 def valid_response_type(value, nested=False):
     if isinstance(value, NoResponse) and not nested:
         return True
-    if value is not None and not isinstance(value, (bytes, SimpleString, redis.ResponseError,
+    if value is not None and not isinstance(value, (bytes, SimpleString, SimpleError,
                                                     int, list)):
         return False
     if isinstance(value, list):
@@ -633,8 +652,22 @@ class FakeSocket:
         self._watches = set()
         self._pubsub = 0      # Count of subscriptions
         self.responses = queue.Queue()
+        # Prevents parser from processing commands. Not used in this module,
+        # but set by aioredis module to prevent new commands being processed
+        # while handling a blocking command.
+        self._paused = False
         self._parser = self._parse_commands()
         self._parser.send(None)
+
+    def put_response(self, msg):
+        self.responses.put(msg)
+
+    def pause(self):
+        self._paused = True
+
+    def resume(self):
+        self._paused = False
+        self._parser.send(b'')
 
     def shutdown(self, flags):
         self._parser.close()
@@ -673,7 +706,7 @@ class FakeSocket:
         """
         buf = b''
         while True:
-            while b'\n' not in buf:
+            while self._paused or b'\n' not in buf:
                 buf += yield
             line, buf = self._extract_line(buf)
             assert line[:1] == b'*'      # array
@@ -700,25 +733,30 @@ class FakeSocket:
             else:
                 args, command_items = ret
                 if from_script and FLAG_NO_SCRIPT in sig.flags:
-                    raise redis.ResponseError(COMMAND_IN_SCRIPT_MSG)
+                    raise SimpleError(COMMAND_IN_SCRIPT_MSG)
                 if self._pubsub and sig.name not in [
                         'ping', 'subscribe', 'unsubscribe',
                         'psubscribe', 'punsubscribe', 'quit']:
-                    raise redis.ResponseError(BAD_COMMAND_IN_PUBSUB_MSG)
+                    raise SimpleError(BAD_COMMAND_IN_PUBSUB_MSG)
                 result = func(*args)
                 assert valid_response_type(result)
-        except redis.ResponseError as exc:
+        except SimpleError as exc:
             result = exc
         for command_item in command_items:
             command_item.writeback()
         return result
 
+    def _decode_error(self, error):
+        return redis.connection.BaseParser().parse_error(error.value)
+
     def _decode_result(self, result):
-        """Turn SimpleString into native string, recursively"""
+        """Convert SimpleString and SimpleError, recursively"""
         if isinstance(result, list):
             return [self._decode_result(r) for r in result]
         elif isinstance(result, SimpleString):
             return result.value
+        elif isinstance(result, SimpleError):
+            return self._decode_error(result)
         else:
             return result
 
@@ -759,13 +797,14 @@ class FakeSocket:
         if name.startswith('_') or not func or not hasattr(func, '_fakeredis_sig'):
             # redis remaps \r or \n in an error to ' ' to make it legal protocol
             clean_name = name.replace('\r', ' ').replace('\n', ' ')
-            raise redis.ResponseError(UNKNOWN_COMMAND_MSG.format(clean_name))
+            raise SimpleError(UNKNOWN_COMMAND_MSG.format(clean_name))
         return func, func_name
 
     def sendall(self, data):
         if not self._server.connected:
             raise redis.ConnectionError(CONNECTION_ERROR_MSG)
-        data = six.ensure_binary(data, encoding='ascii')
+        if isinstance(data, str):
+            data = data.encode('ascii')
         self._parser.send(data)
 
     def _process_command(self, fields):
@@ -786,7 +825,7 @@ class FakeSocket:
                     result = QUEUED
                 else:
                     result = self._run_command(func, sig, fields[1:], False)
-        except redis.ResponseError as exc:
+        except SimpleError as exc:
             if self._transaction is not None:
                 # TODO: should not apply if the exception is from _run_command
                 # e.g. watch inside multi
@@ -794,7 +833,7 @@ class FakeSocket:
             result = exc
         result = self._decode_result(result)
         if not isinstance(result, NoResponse):
-            self.responses.put(result)
+            self.put_response(result)
 
     def notify_watch(self):
         self._watch_notified = True
@@ -841,16 +880,16 @@ class FakeSocket:
         pattern = None
         count = 10
         if len(args) % 2 != 0:
-            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            raise SimpleError(SYNTAX_ERROR_MSG)
         for i in range(0, len(args), 2):
             if casematch(args[i], b'match'):
                 pattern = args[i + 1]
             elif casematch(args[i], b'count'):
                 count = Int.decode(args[i + 1])
                 if count <= 0:
-                    raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                    raise SimpleError(SYNTAX_ERROR_MSG)
             else:
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
 
         if cursor >= len(keys):
             return [0, []]
@@ -881,7 +920,7 @@ class FakeSocket:
     @command((), (bytes,))
     def ping(self, *args):
         if len(args) > 1:
-            raise redis.ResponseError(WRONG_ARGS_MSG.format('ping'))
+            raise SimpleError(WRONG_ARGS_MSG.format('ping'))
         if self._pubsub:
             return [b'pong', args[0] if args else b'']
         else:
@@ -1004,7 +1043,7 @@ class FakeSocket:
     @command((Key(), DbIndex))
     def move(self, key, db):
         if db == self._db_num:
-            raise redis.ResponseError(SRC_DST_SAME_MSG)
+            raise SimpleError(SRC_DST_SAME_MSG)
         if not key or key.key in self._server.dbs[db]:
             return 0
         # TODO: what is the interaction with expiry?
@@ -1021,7 +1060,7 @@ class FakeSocket:
     @command((Key(), Key()))
     def rename(self, key, newkey):
         if not key:
-            raise redis.ResponseError(NO_KEY_MSG)
+            raise SimpleError(NO_KEY_MSG)
         # TODO: check interaction with WATCH
         if newkey.key != key.key:
             newkey.value = key.value
@@ -1032,7 +1071,7 @@ class FakeSocket:
     @command((Key(), Key()))
     def renamenx(self, key, newkey):
         if not key:
-            raise redis.ResponseError(NO_KEY_MSG)
+            raise SimpleError(NO_KEY_MSG)
         if newkey:
             return 0
         self.rename(key, newkey)
@@ -1083,7 +1122,7 @@ class FakeSocket:
         get = []
         if key.value is not None:
             if not isinstance(key.value, (set, list, ZSet)):
-                raise redis.ResponseError(WRONGTYPE_MSG)
+                raise SimpleError(WRONGTYPE_MSG)
 
         while i < len(args):
             arg = args[i]
@@ -1097,8 +1136,8 @@ class FakeSocket:
                 try:
                     limit_start = Int.decode(args[i + 1])
                     limit_count = Int.decode(args[i + 2])
-                except redis.ResponseError:
-                    raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                except SimpleError:
+                    raise SimpleError(SYNTAX_ERROR_MSG)
                 else:
                     i += 2
             elif casematch(arg, b'store') and i + 1 < len(args):
@@ -1113,7 +1152,7 @@ class FakeSocket:
                 get.append(args[i + 1])
                 i += 1
             else:
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
             i += 1
 
         # TODO: force sorting if the object is a set and either in Lua or
@@ -1179,7 +1218,7 @@ class FakeSocket:
     @command((), flags='s')
     def multi(self):
         if self._transaction is not None:
-            raise redis.ResponseError(MULTI_NESTED_MSG)
+            raise SimpleError(MULTI_NESTED_MSG)
         self._transaction = []
         self._transaction_failed = False
         return OK
@@ -1187,7 +1226,7 @@ class FakeSocket:
     @command((), flags='s')
     def discard(self):
         if self._transaction is None:
-            raise redis.ResponseError(WITHOUT_MULTI_MSG.format('DISCARD'))
+            raise SimpleError(WITHOUT_MULTI_MSG.format('DISCARD'))
         self._transaction = None
         self._transaction_failed = False
         self._clear_watches()
@@ -1196,10 +1235,10 @@ class FakeSocket:
     @command((), name='exec', flags='s')
     def exec_(self):
         if self._transaction is None:
-            raise redis.ResponseError(WITHOUT_MULTI_MSG.format('EXEC'))
+            raise SimpleError(WITHOUT_MULTI_MSG.format('EXEC'))
         if self._transaction_failed:
             self._transaction = None
-            raise redis.exceptions.ExecAbortError(EXECABORT_MSG)
+            raise SimpleError(EXECABORT_MSG)
         transaction = self._transaction
         self._transaction = None
         self._transaction_failed = False
@@ -1212,7 +1251,7 @@ class FakeSocket:
             try:
                 self._in_transaction = True
                 ans = self._run_command(func, sig, args, False)
-            except redis.ResponseError as exc:
+            except SimpleError as exc:
                 ans = exc
             finally:
                 self._in_transaction = False
@@ -1222,7 +1261,7 @@ class FakeSocket:
     @command((Key(),), (Key(),), flags='s')
     def watch(self, *keys):
         if self._transaction is not None:
-            raise redis.ResponseError(WATCH_INSIDE_MULTI_MSG)
+            raise SimpleError(WATCH_INSIDE_MULTI_MSG)
         for key in keys:
             if key not in self._watches:
                 self._watches.add((key.key, self._db))
@@ -1241,7 +1280,7 @@ class FakeSocket:
     def append(self, key, value):
         old = key.get(b'')
         if len(old) + len(value) > MAX_STRING_SIZE:
-            raise redis.ResponseError(STRING_OVERFLOW_MSG)
+            raise SimpleError(STRING_OVERFLOW_MSG)
         key.update(key.get(b'') + value)
         return len(key.value)
 
@@ -1251,7 +1290,7 @@ class FakeSocket:
         # we can't declare them as Int.
         if args:
             if len(args) != 2:
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
             start = Int.decode(args[0])
             end = Int.decode(args[1])
             start, end = self._fix_range_string(start, end, len(key.value))
@@ -1283,7 +1322,7 @@ class FakeSocket:
         # TODO: introduce convert_order so that we can specify amount is Float
         c = Float.decode(key.get(b'0')) + Float.decode(amount)
         if not math.isfinite(c):
-            raise redis.ResponseError(NONFINITE_MSG)
+            raise SimpleError(NONFINITE_MSG)
         encoded = Float.encode(c, True)
         key.update(encoded)
         return encoded
@@ -1379,17 +1418,17 @@ class FakeSocket:
             elif casematch(args[i], b'ex') and i + 1 < len(args):
                 ex = Int.decode(args[i + 1])
                 if ex <= 0:
-                    raise redis.ResponseError(INVALID_EXPIRE_MSG.format('set'))
+                    raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             elif casematch(args[i], b'px') and i + 1 < len(args):
                 px = Int.decode(args[i + 1])
                 if px <= 0:
-                    raise redis.ResponseError(INVALID_EXPIRE_MSG.format('set'))
+                    raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             else:
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
         if (xx and nx) or (px is not None and ex is not None):
-            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            raise SimpleError(SYNTAX_ERROR_MSG)
 
         if nx and key:
             return None
@@ -1405,7 +1444,7 @@ class FakeSocket:
     @command((Key(), Int, bytes))
     def setex(self, key, seconds, value):
         if seconds <= 0:
-            raise redis.ResponseError(INVALID_EXPIRE_MSG.format('setex'))
+            raise SimpleError(INVALID_EXPIRE_MSG.format('setex'))
         key.value = value
         key.expireat = self._db.time + seconds
         return OK
@@ -1413,7 +1452,7 @@ class FakeSocket:
     @command((Key(), Int, bytes))
     def psetex(self, key, ms, value):
         if ms <= 0:
-            raise redis.ResponseError(INVALID_EXPIRE_MSG.format('psetex'))
+            raise SimpleError(INVALID_EXPIRE_MSG.format('psetex'))
         key.value = value
         key.expireat = self._db.time + ms / 1000.0
         return OK
@@ -1428,11 +1467,11 @@ class FakeSocket:
     @command((Key(bytes), Int, bytes))
     def setrange(self, key, offset, value):
         if offset < 0:
-            raise redis.ResponseError(INVALID_OFFSET_MSG)
+            raise SimpleError(INVALID_OFFSET_MSG)
         elif not value:
             return len(key.get(b''))
         elif offset + len(value) > MAX_STRING_SIZE:
-            raise redis.ResponseError(STRING_OVERFLOW_MSG)
+            raise SimpleError(STRING_OVERFLOW_MSG)
         else:
             out = key.get(b'')
             if len(out) < offset:
@@ -1481,7 +1520,7 @@ class FakeSocket:
     def hincrbyfloat(self, key, field, amount):
         c = Float.decode(key.value.get(field, b'0')) + Float.decode(amount)
         if not math.isfinite(c):
-            raise redis.ResponseError(NONFINITE_MSG)
+            raise SimpleError(NONFINITE_MSG)
         encoded = Float.encode(c, True)
         key.value[field] = encoded
         key.updated()
@@ -1545,7 +1584,7 @@ class FakeSocket:
             item = CommandItem(key, self._db, item=self._db.get(key), default=[])
             if not isinstance(item.value, list):
                 if first_pass:
-                    raise redis.ResponseError(WRONGTYPE_MSG)
+                    raise SimpleError(WRONGTYPE_MSG)
                 else:
                     continue
             if item.value:
@@ -1572,14 +1611,14 @@ class FakeSocket:
         src = CommandItem(source, self._db, item=self._db.get(source), default=[])
         if not isinstance(src.value, list):
             if first_pass:
-                raise redis.ResponseError(WRONGTYPE_MSG)
+                raise SimpleError(WRONGTYPE_MSG)
             else:
                 return None
         if not src.value:
             return None    # Empty list
         dst = CommandItem(destination, self._db, item=self._db.get(destination), default=[])
         if not isinstance(dst.value, list):
-            raise redis.ResponseError(WRONGTYPE_MSG)
+            raise SimpleError(WRONGTYPE_MSG)
         el = src.value.pop()
         dst.value.insert(0, el)
         src.updated()
@@ -1605,7 +1644,7 @@ class FakeSocket:
     @command((Key(list), bytes, bytes, bytes))
     def linsert(self, key, where, pivot, value):
         if not casematch(where, b'before') and not casematch(where, b'after'):
-            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            raise SimpleError(SYNTAX_ERROR_MSG)
         if not key:
             return 0
         else:
@@ -1674,12 +1713,12 @@ class FakeSocket:
     @command((Key(list), Int, bytes))
     def lset(self, key, index, value):
         if not key:
-            raise redis.ResponseError(NO_KEY_MSG)
+            raise SimpleError(NO_KEY_MSG)
         try:
             key.value[index] = value
             key.updated()
         except IndexError:
-            raise redis.ResponseError(INDEX_ERROR_MSG)
+            raise SimpleError(INDEX_ERROR_MSG)
         return OK
 
     @command((Key(list), Int, Int))
@@ -1743,7 +1782,7 @@ class FakeSocket:
         for other in keys:
             value = other.value if other.value is not None else set()
             if not isinstance(value, set):
-                raise redis.ResponseError(WRONGTYPE_MSG)
+                raise SimpleError(WRONGTYPE_MSG)
             if stop_if_missing and not value:
                 return set()
             ans = op(ans, value)
@@ -1812,7 +1851,7 @@ class FakeSocket:
             return item
         else:
             if count < 0:
-                raise redis.ResponseError(INDEX_ERROR_MSG)
+                raise SimpleError(INDEX_ERROR_MSG)
             items = self.srandmember(key, count)
             for item in items:
                 key.value.remove(item)
@@ -1931,11 +1970,11 @@ class FakeSocket:
                 break
 
         if nx and xx:
-            raise redis.ResponseError(ZADD_NX_XX_ERROR_MSG)
+            raise SimpleError(ZADD_NX_XX_ERROR_MSG)
 
         elements = args[i:]
         if not elements or len(elements) % 2 != 0:
-            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            raise SimpleError(SYNTAX_ERROR_MSG)
         # Parse all scores first, before updating
         items = [
             (Float.decode(elements[j]), elements[j + 1])
@@ -1976,7 +2015,7 @@ class FakeSocket:
         except TypeError:
             score = increment
         if math.isnan(score):
-            raise redis.ResponseError(SCORE_NAN_MSG)
+            raise SimpleError(SCORE_NAN_MSG)
         key.value[member] = score
         key.updated()
         return Float.encode(score, False)
@@ -1989,7 +2028,7 @@ class FakeSocket:
         zset = key.value
         # TODO: does redis allow multiple WITHSCORES?
         if len(args) > 1 or (args and not casematch(args[0], b'withscores')):
-            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            raise SimpleError(SYNTAX_ERROR_MSG)
         start, stop = self._fix_range(start, stop, len(zset))
         if reverse:
             start, stop = len(zset) - stop, len(zset) - start
@@ -2008,7 +2047,7 @@ class FakeSocket:
     def _zrangebylex(self, key, min, max, reverse, *args):
         if args:
             if len(args) != 3 or not casematch(args[0], b'limit'):
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
             offset = Int.decode(args[1])
             count = Int.decode(args[2])
         else:
@@ -2043,7 +2082,7 @@ class FakeSocket:
                 count = Int.decode(args[i + 2])
                 i += 3
             else:
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
         zset = key.value
         items = list(zset.irange_score(min.lower_bound, max.upper_bound, reverse=reverse))
         items = self._limit_items(items, offset, count)
@@ -2126,13 +2165,13 @@ class FakeSocket:
         elif isinstance(value, ZSet):
             return value
         else:
-            raise redis.ResponseError(WRONGTYPE_MSG)
+            raise SimpleError(WRONGTYPE_MSG)
 
     def _zunioninter(self, func, dest, numkeys, *args):
         if numkeys < 1:
-            raise redis.ResponseError(ZUNIONSTORE_KEYS_MSG)
+            raise SimpleError(ZUNIONSTORE_KEYS_MSG)
         if numkeys > len(args):
-            raise redis.ResponseError(SYNTAX_ERROR_MSG)
+            raise SimpleError(SYNTAX_ERROR_MSG)
         aggregate = b'sum'
         sets = []
         for i in range(numkeys):
@@ -2149,10 +2188,10 @@ class FakeSocket:
             elif casematch(arg, b'aggregate') and i + 1 < len(args):
                 aggregate = casenorm(args[i + 1])
                 if aggregate not in (b'sum', b'min', b'max'):
-                    raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                    raise SimpleError(SYNTAX_ERROR_MSG)
                 i += 2
             else:
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
 
         out_members = set(sets[0])
         for s in sets[1:]:
@@ -2224,7 +2263,7 @@ class FakeSocket:
     def flushdb(self, *args):
         if args:
             if len(args) != 1 or not casematch(args[0], b'async'):
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
         self._db.clear()
         return OK
 
@@ -2232,7 +2271,7 @@ class FakeSocket:
     def flushall(self, *args):
         if args:
             if len(args) != 1 or not casematch(args[0], b'async'):
-                raise redis.ResponseError(SYNTAX_ERROR_MSG)
+                raise SimpleError(SYNTAX_ERROR_MSG)
         for db in self._server.dbs.values():
             db.clear()
         # TODO: clear watches and/or pubsub as well?
@@ -2257,8 +2296,8 @@ class FakeSocket:
         elif isinstance(value, (int, float)):
             return '{:.17g}'.format(value).encode()
         else:
-            # TODO: add a constant for this, and add the context
-            raise redis.ResponseError('Lua redis() command arguments must be strings or integers')
+            # TODO: add the context
+            raise SimpleError(LUA_COMMAND_ARG_MSG)
 
     def _convert_redis_result(self, lua_runtime, result):
         if isinstance(result, (bytes, int)):
@@ -2273,7 +2312,7 @@ class FakeSocket:
                 for item in result
             ]
             return lua_runtime.table_from(converted)
-        elif isinstance(result, redis.ResponseError):
+        elif isinstance(result, SimpleError):
             raise result
         else:
             raise RuntimeError("Unexpected return type from redis: {}".format(type(result)))
@@ -2285,14 +2324,13 @@ class FakeSocket:
                 if key in result:
                     msg = self._convert_lua_result(result[key])
                     if not isinstance(msg, bytes):
-                        # TODO: put in a constant for this
-                        raise redis.ResponseError("wrong number or type of arguments")
+                        raise SimpleError(LUA_WRONG_NUMBER_ARGS_MSG)
                     if key == b'ok':
                         return SimpleString(msg)
                     elif nested:
-                        return redis.ResponseError(msg.decode('utf-8', 'replace'))
+                        return SimpleError(msg.decode('utf-8', 'replace'))
                     else:
-                        raise redis.ResponseError(msg.decode('utf-8', 'replace'))
+                        raise SimpleError(msg.decode('utf-8', 'replace'))
             # Convert Lua tables into lists, starting from index 1, mimicking the behavior of StrictRedis.
             result_list = []
             for index in itertools.count(1):
@@ -2314,7 +2352,7 @@ class FakeSocket:
         if actual_globals != expected_globals:
             unexpected = [six.ensure_str(var, 'utf-8', 'replace')
                           for var in actual_globals - expected_globals]
-            raise redis.ResponseError(GLOBAL_VARIABLE_MSG.format(", ".join(unexpected)))
+            raise SimpleError(GLOBAL_VARIABLE_MSG.format(", ".join(unexpected)))
 
     def _lua_redis_call(self, lua_runtime, expected_globals, op, *args):
         # Check if we've set any global variables before making any change.
@@ -2333,9 +2371,9 @@ class FakeSocket:
     def _lua_redis_log(self, lua_runtime, expected_globals, lvl, *args):
         self._check_for_lua_globals(lua_runtime, expected_globals)
         if len(args) < 1:
-            raise redis.ResponseError(REQUIRES_MORE_ARGS.format("redis.log()", "two"))
+            raise SimpleError(REQUIRES_MORE_ARGS_MSG.format("redis.log()", "two"))
         if lvl not in REDIS_LOG_LEVELS.values():
-            raise redis.ResponseError(LOG_INVALID_DEBUG_LEVEL)
+            raise SimpleError(LOG_INVALID_DEBUG_LEVEL_MSG)
         msg = ' '.join([x.decode('utf-8')
                         if isinstance(x, bytes) else str(x)
                         for x in args if not isinstance(x, bool)])
@@ -2346,9 +2384,9 @@ class FakeSocket:
         from lupa import LuaRuntime, LuaError, as_attrgetter
 
         if numkeys > len(keys_and_args):
-            raise redis.ResponseError(TOO_MANY_KEYS_MSG)
+            raise SimpleError(TOO_MANY_KEYS_MSG)
         if numkeys < 0:
-            raise redis.ResponseError(NEGATIVE_KEYS_MSG)
+            raise SimpleError(NEGATIVE_KEYS_MSG)
         sha1 = hashlib.sha1(script).hexdigest().encode()
         self._server.script_cache[sha1] = script
         lua_runtime = LuaRuntime(encoding=None, unpack_returned_tuples=True)
@@ -2383,9 +2421,8 @@ class FakeSocket:
 
         try:
             result = lua_runtime.execute(script)
-        except (LuaError, redis.ResponseError) as ex:
-            raise redis.ResponseError("Error running script (call to f_{}): @user_script:?: {}"
-                                      .format(sha1.decode(), ex))
+        except (LuaError, SimpleError) as ex:
+            raise SimpleError(SCRIPT_ERROR_MSG.format(sha1.decode(), ex))
 
         self._check_for_lua_globals(lua_runtime, expected_globals)
 
@@ -2396,20 +2433,20 @@ class FakeSocket:
         try:
             script = self._server.script_cache[sha1]
         except KeyError:
-            raise redis.exceptions.NoScriptError(NO_MATCHING_SCRIPT_MSG)
+            raise SimpleError(NO_MATCHING_SCRIPT_MSG)
         return self.eval(script, numkeys, *keys_and_args)
 
     @command((bytes,), (bytes,), flags='s')
     def script(self, subcmd, *args):
         if casematch(subcmd, b'load'):
             if len(args) != 1:
-                raise redis.ResponseError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
+                raise SimpleError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
             script = args[0]
             sha1 = hashlib.sha1(script).hexdigest().encode()
             self._server.script_cache[sha1] = script
             return sha1
         else:
-            raise redis.ResponseError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
+            raise SimpleError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
 
     # Pubsub commands
     # TODO: pubsub command
@@ -2421,7 +2458,7 @@ class FakeSocket:
                 subs.add(self)
                 self._pubsub += 1
             msg = [mtype, channel, self._pubsub]
-            self.responses.put(msg)
+            self.put_response(msg)
         return NoResponse()
 
     def _unsubscribe(self, channels, subscribers, mtype):
@@ -2438,7 +2475,7 @@ class FakeSocket:
                     del subscribers[channel]
                 self._pubsub -= 1
             msg = [mtype, channel, self._pubsub]
-            self.responses.put(msg)
+            self.put_response(msg)
         return NoResponse()
 
     @command((bytes,), (bytes,), flags='s')
@@ -2463,14 +2500,14 @@ class FakeSocket:
         msg = [b'message', channel, message]
         subs = self._server.subscribers.get(channel, set())
         for sock in subs:
-            sock.responses.put(msg)
+            sock.put_response(msg)
             receivers += 1
         for (pattern, socks) in self._server.psubscribers.items():
             regex = compile_pattern(pattern)
             if regex.match(channel):
                 msg = [b'pmessage', pattern, channel, message]
                 for sock in socks:
-                    sock.responses.put(msg)
+                    sock.put_response(msg)
                     receivers += 1
         return receivers
 
