@@ -397,6 +397,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.4.0
+-----
+- Add support for aioredis.
+- Fix interaction of no-op SREM with WATCH.
+
 1.3.1
 -----
 - Make errors from Lua behave more like real redis
