@@ -25,6 +25,7 @@ install:
   - pip install -r requirements.txt
   - pip install redis==$REDIS_PY
   - pip install coveralls
+  - pip install .
 before_script:
   - flake8
 script:
