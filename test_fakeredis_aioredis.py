@@ -38,6 +38,17 @@ class TestFakeCommands(asynctest.TestCase):
         result = await self.redis.get('key1')
         assert result == b'value1'
 
+    async def test_transaction_fail(self):
+        # ensure that the WATCH applies to the same connection as the MULTI/EXEC.
+        await self.redis.set('foo', '1')
+        with await self.redis as r:
+            await r.watch('foo')
+            await self.redis.set('foo', '2')    # Different connection
+            tr = r.multi_exec()
+            tr.get('foo')
+            with pytest.raises(aioredis.MultiExecError):
+                result = await tr.execute()
+
     async def test_pubsub(self):
         ch, = await self.redis.subscribe('channel')
         queue = asyncio.Queue()
