@@ -92,6 +92,12 @@ class TestFakeCommands(asynctest.TestCase):
             assert (await r.get('foo')) == b'bar'
             assert (await fut) is None
 
+    async def test_error(self):
+        await self.redis.set('foo', 'bar')
+        with pytest.raises(aioredis.ReplyError) as excinfo:
+            await self.redis.rpush('foo', 'baz')
+        assert str(excinfo.value).startswith('WRONGTYPE ')
+
 
 class TestRealCommands(TestFakeCommands):
     async def setUp(self):

@@ -1,6 +1,7 @@
 import asyncio
 import sys
 
+import redis
 import aioredis
 import async_timeout
 
@@ -64,10 +65,12 @@ class FakeReader:
         pass       # No parser needed, we get already-parsed data
 
     async def readobj(self):
-        # TODO: what about exceptions?
         if self._socket.responses is None:
             raise asyncio.CancelledError
-        return await self._socket.responses.get()
+        result = await self._socket.responses.get()
+        if isinstance(result, redis.ResponseError):
+            result = aioredis.ReplyError(str(result))
+        return result
 
     def at_eof(self):
         return self._socket.responses is None
