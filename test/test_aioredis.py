@@ -47,7 +47,7 @@ class TestFakeCommands(asynctest.TestCase):
             tr = r.multi_exec()
             tr.get('foo')
             with pytest.raises(aioredis.MultiExecError):
-                result = await tr.execute()
+                await tr.execute()
 
     async def test_pubsub(self):
         ch, = await self.redis.subscribe('channel')

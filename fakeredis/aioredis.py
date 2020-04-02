@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import warnings
 
 import redis
 import aioredis
@@ -45,7 +46,9 @@ class FakeSocket(_server.FakeSocket):
         if ret is not None or self._in_transaction:
             return ret
         event = asyncio.Event()
-        callback = lambda: loop.call_soon_threadsafe(event.set)
+
+        def callback():
+            loop.call_soon_threadsafe(event.set)
         self._db.add_change_callback(callback)
         self.pause()
         loop.create_task(self._async_blocking(timeout, func, event, callback))
@@ -184,7 +187,7 @@ async def create_pool(server=None, *, db=None, password=None, ssl=None,
                       pool_cls=None, connection_cls=None):
     # Mostly copied from aioredis.pool.create_pool.
     if pool_cls:
-        assert issubclass(pool_cls, AbcPool),\
+        assert issubclass(pool_cls, aioredis.AbcPool),\
                 "pool_class does not meet the AbcPool contract"
         cls = pool_cls
     else:
