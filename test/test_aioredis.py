@@ -103,11 +103,28 @@ class TestFakeCommands(asynctest.TestCase):
             assert (await r.get('foo')) == b'bar'
             assert (await fut) is None
 
-    async def test_error(self):
+    async def test_wrongtype_error(self):
         await self.redis.set('foo', 'bar')
         with pytest.raises(aioredis.ReplyError) as excinfo:
             await self.redis.rpush('foo', 'baz')
         assert str(excinfo.value).startswith('WRONGTYPE ')
+
+    async def test_syntax_error(self):
+        with pytest.raises(aioredis.ReplyError) as excinfo:
+            await self.redis.execute('get')
+        assert str(excinfo.value) == "ERR wrong number of arguments for 'get' command"
+
+    async def test_no_script_error(self):
+        with pytest.raises(aioredis.ReplyError) as excinfo:
+            await self.redis.evalsha('0123456789abcdef0123456789abcdef')
+        assert str(excinfo.value).startswith('NOSCRIPT ')
+
+    async def test_failed_script_error(self):
+        await self.redis.set('foo', 'bar')
+        with pytest.raises(aioredis.ReplyError) as excinfo:
+            await self.redis.eval(
+                'return redis.call("ZCOUNT", KEYS[1])', ['foo'])
+        assert str(excinfo.value).startswith('ERR Error running script')
 
 
 class TestRealCommands(TestFakeCommands):

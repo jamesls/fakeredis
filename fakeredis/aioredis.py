@@ -2,7 +2,6 @@ import asyncio
 import sys
 import warnings
 
-import redis
 import aioredis
 import async_timeout
 
@@ -16,6 +15,9 @@ class FakeSocket(_server.FakeSocket):
 
     def put_response(self, msg):
         self.responses.put_nowait(msg)
+
+    def _decode_error(self, error):
+        return aioredis.ReplyError(error.value)
 
     async def _async_blocking(self, timeout, func, event, callback):
         try:
@@ -72,8 +74,6 @@ class FakeReader:
         if self._socket.responses is None:
             raise asyncio.CancelledError
         result = await self._socket.responses.get()
-        if isinstance(result, redis.ResponseError):
-            result = aioredis.ReplyError(str(result))
         return result
 
     def at_eof(self):
@@ -90,7 +90,6 @@ class FakeWriter:
         self.transport = socket       # So that aioredis can call writer.transport.close()
 
     def write(self, data):
-        # TODO: remap redis errors
         self.transport.sendall(data)
 
 
