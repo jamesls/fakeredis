@@ -2,7 +2,7 @@ language: python
 sudo: false
 dist: bionic
 env:
-  - REDIS_PY=3.5.0
+  - REDIS_PY="==3.5.0"
 python:
   - 3.8
 jobs:
@@ -12,20 +12,21 @@ jobs:
     - python: 3.7
     - python: 3.8
     - python: pypy3
-    - env: REDIS_PY=2.10.6
-    - env: REDIS_PY=3.0.1
-    - env: REDIS_PY=3.1.0
-    - env: REDIS_PY=3.2.1
-    - env: REDIS_PY=3.3.11
-    - env: REDIS_PY=3.4.1
-    - env: REDIS_PY=3.5.0
+    - env: REDIS_PY="==2.10.6"
+    - env: REDIS_PY="==3.0.1"
+    - env: REDIS_PY="==3.1.0"
+    - env: REDIS_PY="==3.2.1"
+    - env: REDIS_PY="==3.3.11"
+    - env: REDIS_PY="==3.4.1"
+    - env: REDIS_PY="==3.5.0"
+    - env: REDIS_PY=">=3.5.0,<3.6.0"
 cache:
   - pip
 services:
   - redis-server
 install:
   - pip install -r requirements.txt
-  - pip install redis==$REDIS_PY
+  - pip install redis$REDIS_PY
   - pip install coveralls
   - pip install .
 before_script:
