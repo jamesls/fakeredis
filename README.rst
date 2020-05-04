@@ -397,6 +397,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.4.1
+-----
+- `#268 <https://github.com/jamesls/fakeredis/pull/268>`_ Support redis-py 3.5
+  (no code changes, just setup.py)
+
 1.4.0
 -----
 - Add support for aioredis.
