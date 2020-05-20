@@ -2293,9 +2293,10 @@ class FakeSocket:
     # (script debug and script kill will probably not be supported)
 
     def _convert_redis_arg(self, lua_runtime, value):
-        if isinstance(value, bytes):
+        # Type checks are exact to avoid issues like bool being a subclass of int.
+        if type(value) is bytes:
             return value
-        elif isinstance(value, (int, float)):
+        elif type(value) in {int, float}:
             return '{:.17g}'.format(value).encode()
         else:
             # TODO: add the context

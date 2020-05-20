@@ -4025,6 +4025,13 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.assertEqual(val, 1)
         self.assertNotIsInstance(val, bool)
 
+    def test_eval_call_bool(self):
+        # Redis doesn't allow Lua bools to be passed to [p]call
+        with self.assertRaises(redis.ResponseError) as cm:
+            self.redis.eval('return redis.call("SET", KEYS[1], true)', 1, "testkey")
+        self.assertIn('Lua redis() command arguments must be strings or integers',
+                      str(cm.exception))
+
     @redis2_only
     def test_eval_none_arg(self):
         val = self.redis.eval('return ARGV[1] == "None"', 0, None)
