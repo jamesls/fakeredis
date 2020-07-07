@@ -8,7 +8,7 @@ import os
 import sys
 import math
 import threading
-import unittest
+import logging
 from queue import Queue
 import distutils.version
 
@@ -29,7 +29,7 @@ UpdateCommand = namedtuple('UpdateCommand', 'input expected_return_value expecte
 
 
 def redis_must_be_running(cls):
-    # This can probably be improved.  This will determines
+    # This can probably be improved.  This will determine
     # at import time if the tests should be run, but we probably
     # want it to be when the tests are actually run.
     try:
@@ -46,8 +46,8 @@ def redis_must_be_running(cls):
                 def skip_test(*args, **kwargs):
                     pytest.skip("Redis is not running.")
                 setattr(cls, name, skip_test)
-        cls.setUp = lambda x: None
-        cls.tearDown = lambda x: None
+        cls.setup = lambda x: None
+        cls.teardown = lambda x: None
     return cls
 
 
@@ -57,10 +57,11 @@ redis3_only = pytest.mark.skipif(not REDIS3, reason="Test is only applicable to 
 
 def fake_only(reason):
     def wrap(func):
-        def wrapper(self):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
             if not isinstance(self.redis, (fakeredis.FakeRedis, fakeredis.FakeStrictRedis)):
                 pytest.skip("Works only on fakeredis: %s" % reason)
-            func(self)
+            func(self, *args, **kwargs)
         return wrapper
     return wrap
 
@@ -70,15 +71,15 @@ def key_val_dict(size=100):
             for i in range(size)}
 
 
-class TestFakeStrictRedis(unittest.TestCase):
+class TestFakeStrictRedis:
     decode_responses = False
 
-    def setUp(self):
+    def setup(self):
         self.server = fakeredis.FakeServer()
         self.redis = self.create_redis()
         self.redis.flushall()
 
-    def tearDown(self):
+    def teardown(self):
         self.redis.flushall()
         del self.redis
 
@@ -2817,18 +2818,19 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'bar')
         self.redis.rpush('greet', 'hello')
         p = self.redis.pipeline()
-        self.addCleanup(p.reset)
+        try:
+            p.watch('greet', 'foo')
+            nextf = six.ensure_binary(p.get('foo')) + b'baz'
+            # Simulate change happening on another thread.
+            self.redis.rpush('greet', 'world')
+            # Begin pipelining.
+            p.multi()
+            p.set('foo', nextf)
 
-        p.watch('greet', 'foo')
-        nextf = six.ensure_binary(p.get('foo')) + b'baz'
-        # Simulate change happening on another thread.
-        self.redis.rpush('greet', 'world')
-        # Begin pipelining.
-        p.multi()
-        p.set('foo', nextf)
-
-        with pytest.raises(redis.WatchError):
-            p.execute()
+            with pytest.raises(redis.WatchError):
+                p.execute()
+        finally:
+            p.reset()
 
     def test_pipeline_succeeds_despite_unwatched_key_changed(self):
         # Same setup as before except for the params to the WATCH command.
@@ -2873,23 +2875,25 @@ class TestFakeStrictRedis(unittest.TestCase):
         self.redis.set('foo', 'one')
         self.redis.set('bar', 'baz')
         p = self.redis.pipeline()
-        self.addCleanup(p.reset)
 
-        p.watch('foo')
-        # Simulate change happening on another thread.
-        self.redis.set('foo', 'three')
-        p.multi()
-        p.set('foo', 'three')
-        with pytest.raises(redis.WatchError):
-            p.execute()
+        try:
+            p.watch('foo')
+            # Simulate change happening on another thread.
+            self.redis.set('foo', 'three')
+            p.multi()
+            p.set('foo', 'three')
+            with pytest.raises(redis.WatchError):
+                p.execute()
 
-        # Now watch another key.  It should be ok to change
-        # foo as we're no longer watching it.
-        p.watch('bar')
-        self.redis.set('foo', 'four')
-        p.multi()
-        p.set('bar', 'five')
-        assert p.execute() == [True]
+            # Now watch another key.  It should be ok to change
+            # foo as we're no longer watching it.
+            p.watch('bar')
+            self.redis.set('foo', 'four')
+            p.multi()
+            p.set('bar', 'five')
+            assert p.execute() == [True]
+        finally:
+            p.reset()
 
     def test_pipeline_transaction_shortcut(self):
         # This example taken pretty much from the redis-py documentation.
@@ -4037,7 +4041,7 @@ class TestFakeStrictRedis(unittest.TestCase):
         assert result == b'42'
 
     @fake_only("requires access to redis log file")
-    def test_lua_log(self):
+    def test_lua_log(self, caplog):
         logger = fakeredis._server.LOGGER
         script = """
             redis.log(redis.LOG_DEBUG, "debug")
@@ -4046,14 +4050,14 @@ class TestFakeStrictRedis(unittest.TestCase):
             redis.log(redis.LOG_WARNING, "warning")
         """
         script = self.redis.register_script(script)
-        with self.assertLogs(logger, 'DEBUG') as cm:
+        with caplog.at_level('DEBUG'):
             script()
-            assert cm.output == [
-                'DEBUG:%s:debug' % logger.name,
-                'INFO:%s:verbose' % logger.name,
-                'INFO:%s:notice' % logger.name,
-                'WARNING:%s:warning' % logger.name
-            ]
+        assert caplog.record_tuples == [
+            (logger.name, logging.DEBUG, 'debug'),
+            (logger.name, logging.INFO, 'verbose'),
+            (logger.name, logging.INFO, 'notice'),
+            (logger.name, logging.WARNING, 'warning')
+        ]
 
     def test_lua_log_no_message(self):
         script = "redis.log(redis.LOG_DEBUG)"
@@ -4062,13 +4066,15 @@ class TestFakeStrictRedis(unittest.TestCase):
             script()
 
     @fake_only("requires access to redis log file")
-    def test_lua_log_different_types(self):
+    def test_lua_log_different_types(self, caplog):
         logger = fakeredis._server.LOGGER
         script = "redis.log(redis.LOG_DEBUG, 'string', 1, true, 3.14, 'string')"
         script = self.redis.register_script(script)
-        with self.assertLogs(logger, 'DEBUG') as cm:
+        with caplog.at_level('DEBUG'):
             script()
-        assert cm.output == ['DEBUG:%s:string 1 3.14 string' % logger.name]
+        assert caplog.record_tuples == [
+            (logger.name, logging.DEBUG, 'string 1 3.14 string')
+        ]
 
     def test_lua_log_wrong_level(self):
         script = "redis.log(10, 'string')"
@@ -4077,16 +4083,16 @@ class TestFakeStrictRedis(unittest.TestCase):
             script()
 
     @fake_only("requires access to redis log file")
-    def test_lua_log_defined_vars(self):
+    def test_lua_log_defined_vars(self, caplog):
         logger = fakeredis._server.LOGGER
         script = """
             local var='string'
             redis.log(redis.LOG_DEBUG, var)
         """
         script = self.redis.register_script(script)
-        with self.assertLogs(logger, 'DEBUG') as cm:
+        with caplog.at_level('DEBUG'):
             script()
-        assert cm.output == ['DEBUG:%s:string' % logger.name]
+        assert caplog.record_tuples == [(logger.name, logging.DEBUG, 'string')]
 
     @redis3_only
     def test_unlink(self):
@@ -4096,14 +4102,14 @@ class TestFakeStrictRedis(unittest.TestCase):
 
 
 @redis2_only
-class TestFakeRedis(unittest.TestCase):
+class TestFakeRedis:
     decode_responses = False
 
-    def setUp(self):
+    def setup(self):
         self.server = fakeredis.FakeServer()
         self.redis = self.create_redis()
 
-    def tearDown(self):
+    def teardown(self):
         self.redis.flushall()
         del self.redis
 
@@ -4381,7 +4387,7 @@ class TestRealStrictRedisDecodeResponses(TestFakeStrictRedisDecodeResponses):
         return redis.StrictRedis('localhost', port=6379, db=db, decode_responses=True)
 
 
-class TestInitArgs(unittest.TestCase):
+class TestInitArgs:
     def test_singleton(self):
         shared_server = fakeredis.FakeServer()
         r1 = fakeredis.FakeStrictRedis()
@@ -4466,7 +4472,7 @@ class TestInitArgs(unittest.TestCase):
         assert 'db=11' in rep
 
 
-class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
+class TestFakeStrictRedisConnectionErrors:
     # Wrap some redis commands to abstract differences between redis-py 2 and 3.
     def zadd(self, key, d):
         if REDIS3:
@@ -4477,10 +4483,10 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
     def create_redis(self):
         return fakeredis.FakeStrictRedis(db=0, connected=False)
 
-    def setUp(self):
+    def setup(self):
         self.redis = self.create_redis()
 
-    def tearDown(self):
+    def teardown(self):
         del self.redis
 
     def test_flushdb(self):
@@ -4882,8 +4888,8 @@ class TestFakeStrictRedisConnectionErrors(unittest.TestCase):
             list(self.redis.hscan_iter('name'))
 
 
-class TestPubSubConnected(unittest.TestCase):
-    def setUp(self):
+class TestPubSubConnected:
+    def setup(self):
         self.server = fakeredis.FakeServer()
         self.server.connected = False
         self.redis = fakeredis.FakeStrictRedis(server=self.server)
