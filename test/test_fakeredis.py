@@ -110,7 +110,8 @@ def r(request, create_redis):
     yield r
     if connected:
         r.flushall()
-    r.close()
+    if hasattr(r, 'close'):
+        r.close()     # Older versions of redis-py don't have this method
 
 
 def test_large_command(r):
