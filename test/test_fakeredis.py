@@ -128,18 +128,18 @@ def test_dbsize(r):
 def test_flushdb(r):
     r.set('foo', 'bar')
     assert r.keys() == [b'foo']
-    assert r.flushdb() == True
+    assert r.flushdb() is True
     assert r.keys() == []
 
 
 def test_set_then_get(r):
-    assert r.set('foo', 'bar') == True
+    assert r.set('foo', 'bar') is True
     assert r.get('foo') == b'bar'
 
 
 @redis2_only
 def test_set_None_value(r):
-    assert r.set('foo', None) == True
+    assert r.set('foo', None) is True
     assert r.get('foo') == b'None'
 
 
@@ -150,22 +150,22 @@ def test_set_float_value(r):
 
 
 def test_saving_non_ascii_chars_as_value(r):
-    assert r.set('foo', 'Ñandu') == True
+    assert r.set('foo', 'Ñandu') is True
     assert r.get('foo') == 'Ñandu'.encode()
 
 
 def test_saving_unicode_type_as_value(r):
-    assert r.set('foo', 'Ñandu') == True
+    assert r.set('foo', 'Ñandu') is True
     assert r.get('foo') == 'Ñandu'.encode()
 
 
 def test_saving_non_ascii_chars_as_key(r):
-    assert r.set('Ñandu', 'foo') == True
+    assert r.set('Ñandu', 'foo') is True
     assert r.get('Ñandu') == b'foo'
 
 
 def test_saving_unicode_type_as_key(r):
-    assert r.set('Ñandu', 'foo') == True
+    assert r.set('Ñandu', 'foo') is True
     assert r.get('Ñandu') == b'foo'
 
 
@@ -186,7 +186,7 @@ def test_get_does_not_exist(r):
 
 
 def test_get_with_non_str_keys(r):
-    assert r.set('2', 'bar') == True
+    assert r.set('2', 'bar') is True
     assert r.get(2) == b'bar'
 
 
@@ -197,7 +197,7 @@ def test_get_invalid_type(r):
 
 
 def test_set_non_str_keys(r):
-    assert r.set(2, 'bar') == True
+    assert r.set(2, 'bar') is True
     assert r.get(2) == b'bar'
     assert r.get('2') == b'bar'
 
@@ -618,31 +618,31 @@ def test_mset_with_no_keys(r):
 
 
 def test_mset(r):
-    assert r.mset({'foo': 'one', 'bar': 'two'}) == True
-    assert r.mset({'foo': 'one', 'bar': 'two'}) == True
+    assert r.mset({'foo': 'one', 'bar': 'two'}) is True
+    assert r.mset({'foo': 'one', 'bar': 'two'}) is True
     assert r.mget('foo', 'bar') == [b'one', b'two']
 
 
 @redis2_only
 def test_mset_accepts_kwargs(r):
-    assert r.mset(foo='one', bar='two') == True
-    assert r.mset(foo='one', baz='three') == True
+    assert r.mset(foo='one', bar='two') is True
+    assert r.mset(foo='one', baz='three') is True
     assert r.mget('foo', 'bar', 'baz') == [b'one', b'two', b'three']
 
 
 def test_msetnx(r):
-    assert r.msetnx({'foo': 'one', 'bar': 'two'}) == True
-    assert r.msetnx({'bar': 'two', 'baz': 'three'}) == False
+    assert r.msetnx({'foo': 'one', 'bar': 'two'}) is True
+    assert r.msetnx({'bar': 'two', 'baz': 'three'}) is False
     assert r.mget('foo', 'bar', 'baz') == [b'one', b'two', None]
 
 
 def test_setex(r):
-    assert r.setex('foo', 100, 'bar') == True
+    assert r.setex('foo', 100, 'bar') is True
     assert r.get('foo') == b'bar'
 
 
 def test_setex_using_timedelta(r):
-    assert r.setex('foo', timedelta(seconds=100), 'bar') == True
+    assert r.setex('foo', timedelta(seconds=100), 'bar') is True
     assert r.get('foo') == b'bar'
 
 
@@ -652,22 +652,22 @@ def test_setex_using_float(r):
 
 
 def test_set_ex(r):
-    assert r.set('foo', 'bar', ex=100) == True
+    assert r.set('foo', 'bar', ex=100) is True
     assert r.get('foo') == b'bar'
 
 
 def test_set_ex_using_timedelta(r):
-    assert r.set('foo', 'bar', ex=timedelta(seconds=100)) == True
+    assert r.set('foo', 'bar', ex=timedelta(seconds=100)) is True
     assert r.get('foo') == b'bar'
 
 
 def test_set_px(r):
-    assert r.set('foo', 'bar', px=100) == True
+    assert r.set('foo', 'bar', px=100) is True
     assert r.get('foo') == b'bar'
 
 
 def test_set_px_using_timedelta(r):
-    assert r.set('foo', 'bar', px=timedelta(milliseconds=100)) == True
+    assert r.set('foo', 'bar', px=timedelta(milliseconds=100)) is True
     assert r.get('foo') == b'bar'
 
 
@@ -720,14 +720,14 @@ def test_setex_using_timedelta_raises_wrong_ex(r):
 
 
 def test_setnx(r):
-    assert r.setnx('foo', 'bar') == True
+    assert r.setnx('foo', 'bar') is True
     assert r.get('foo') == b'bar'
-    assert r.setnx('foo', 'baz') == False
+    assert r.setnx('foo', 'baz') is False
     assert r.get('foo') == b'bar'
 
 
 def test_set_nx(r):
-    assert r.set('foo', 'bar', nx=True) == True
+    assert r.set('foo', 'bar', nx=True) is True
     assert r.get('foo') == b'bar'
     assert r.set('foo', 'bar', nx=True) is None
     assert r.get('foo') == b'bar'
@@ -736,7 +736,7 @@ def test_set_nx(r):
 def test_set_xx(r):
     assert r.set('foo', 'bar', xx=True) is None
     r.set('foo', 'bar')
-    assert r.set('foo', 'bar', xx=True) == True
+    assert r.set('foo', 'bar', xx=True) is True
 
 
 def test_del_operator(r):
@@ -747,7 +747,7 @@ def test_del_operator(r):
 
 def test_delete(r):
     r['foo'] = 'bar'
-    assert r.delete('foo') == True
+    assert r.delete('foo') == 1
     assert r.get('foo') is None
 
 
@@ -781,7 +781,7 @@ def test_delete_multiple(r):
 
 
 def test_delete_nonexistent_key(r):
-    assert r.delete('foo') == False
+    assert r.delete('foo') == 0
 
 
 # Tests for the list type.
@@ -1426,14 +1426,14 @@ def test_hdel(r):
     r.hset('foo', 'k2', 'v2')
     r.hset('foo', 'k3', 'v3')
     assert r.hget('foo', 'k1') == b'v1'
-    assert r.hdel('foo', 'k1') == True
+    assert r.hdel('foo', 'k1') == 1
     assert r.hget('foo', 'k1') is None
-    assert r.hdel('foo', 'k1') == False
+    assert r.hdel('foo', 'k1') == 0
     # Since redis>=2.7.6 returns number of deleted items.
     assert r.hdel('foo', 'k2', 'k3') == 2
     assert r.hget('foo', 'k2') is None
     assert r.hget('foo', 'k3') is None
-    assert r.hdel('foo', 'k2', 'k3') == False
+    assert r.hdel('foo', 'k2', 'k3') == 0
 
 
 def test_hdel_wrong_type(r):
@@ -1510,8 +1510,8 @@ def test_hincrbyfloat_precision(r):
 
 
 def test_hsetnx(r):
-    assert r.hsetnx('foo', 'newkey', 'v1') == True
-    assert r.hsetnx('foo', 'newkey', 'v1') == False
+    assert r.hsetnx('foo', 'newkey', 'v1') == 1
+    assert r.hsetnx('foo', 'newkey', 'v1') == 0
     assert r.hget('foo', 'newkey') == b'v1'
 
 
@@ -1522,7 +1522,7 @@ def test_hmsetset_empty_raises_error(r):
 
 def test_hmsetset(r):
     r.hset('foo', 'k1', 'v1')
-    assert r.hmset('foo', {'k2': 'v2', 'k3': 'v3'}) == True
+    assert r.hmset('foo', {'k2': 'v2', 'k3': 'v3'}) is True
 
 
 @redis2_only
@@ -1741,9 +1741,9 @@ def test_sinterstore(r):
 
 
 def test_sismember(r):
-    assert r.sismember('foo', 'member1') == False
+    assert r.sismember('foo', 'member1') is False
     r.sadd('foo', 'member1')
-    assert r.sismember('foo', 'member1') == True
+    assert r.sismember('foo', 'member1') is True
 
 
 def test_sismember_wrong_type(r):
@@ -1778,12 +1778,12 @@ def test_smembers_runtime_error(r):
 def test_smove(r):
     r.sadd('foo', 'member1')
     r.sadd('foo', 'member2')
-    assert r.smove('foo', 'bar', 'member1') == True
+    assert r.smove('foo', 'bar', 'member1') is True
     assert r.smembers('bar') == {b'member1'}
 
 
 def test_smove_non_existent_key(r):
-    assert r.smove('foo', 'bar', 'member1') == False
+    assert r.smove('foo', 'bar', 'member1') is False
 
 
 def test_smove_wrong_type(r):
@@ -1840,15 +1840,15 @@ def test_srandmember_wrong_type(r):
 def test_srem(r):
     r.sadd('foo', 'member1', 'member2', 'member3', 'member4')
     assert r.smembers('foo') == {b'member1', b'member2', b'member3', b'member4'}
-    assert r.srem('foo', 'member1') == True
+    assert r.srem('foo', 'member1') == 1
     assert r.smembers('foo') == {b'member2', b'member3', b'member4'}
-    assert r.srem('foo', 'member1') == False
+    assert r.srem('foo', 'member1') == 0
     # Since redis>=2.7.6 returns number of deleted items.
     assert r.srem('foo', 'member2', 'member3') == 2
     assert r.smembers('foo') == {b'member4'}
-    assert r.srem('foo', 'member3', 'member4') == True
+    assert r.srem('foo', 'member3', 'member4') == 1
     assert r.smembers('foo') == set()
-    assert r.srem('foo', 'member3', 'member4') == False
+    assert r.srem('foo', 'member3', 'member4') == 0
 
 
 def test_srem_wrong_type(r):
@@ -2229,14 +2229,14 @@ def test_zrem(r):
     zadd(r, 'foo', {'two': 2})
     zadd(r, 'foo', {'three': 3})
     zadd(r, 'foo', {'four': 4})
-    assert r.zrem('foo', 'one') == True
+    assert r.zrem('foo', 'one') == 1
     assert r.zrange('foo', 0, -1) == [b'two', b'three', b'four']
     # Since redis>=2.7.6 returns number of deleted items.
     assert r.zrem('foo', 'two', 'three') == 2
     assert r.zrange('foo', 0, -1) == [b'four']
-    assert r.zrem('foo', 'three', 'four') == True
+    assert r.zrem('foo', 'three', 'four') == 1
     assert r.zrange('foo', 0, -1) == []
-    assert r.zrem('foo', 'three', 'four') == False
+    assert r.zrem('foo', 'three', 'four') == 0
 
 
 def test_zrem_non_existent_member(r):
@@ -2245,7 +2245,7 @@ def test_zrem_non_existent_member(r):
 
 def test_zrem_numeric_member(r):
     zadd(r, 'foo', {'128': 13.0, '129': 12.0})
-    assert r.zrem('foo', 128) == True
+    assert r.zrem('foo', 128) == 1
     assert r.zrange('foo', 0, -1) == [b'129']
 
 
@@ -2461,7 +2461,7 @@ def test_zrevrangebyscore_cast_scores(r):
     expected_with_cast_round = [(b'two_a_also', 2.0), (b'two', 2.0)]
     assert (
         r.zrevrangebyscore('foo', 3, 2, withscores=True)
-         == expected_without_cast_round
+        == expected_without_cast_round
     )
     assert (
         r.zrevrangebyscore('foo', 3, 2, withscores=True,
@@ -2951,7 +2951,7 @@ def test_multidb(r, create_redis):
     assert r1['r1'] == b'r1'
     assert r2['r2'] == b'r2'
 
-    assert r1.flushall() == True
+    assert r1.flushall() is True
 
     assert 'r1' not in r1
     assert 'r2' not in r2
@@ -3921,7 +3921,7 @@ def test_expire_should_expire_key(r):
     r.expire('foo', 1)
     sleep(1.5)
     assert r.get('foo') is None
-    assert r.expire('bar', 1) == False
+    assert r.expire('bar', 1) is False
 
 
 def test_expire_should_return_true_for_existing_key(r):
@@ -3940,7 +3940,7 @@ def test_expire_should_expire_key_using_timedelta(r):
     r.expire('foo', timedelta(seconds=1))
     sleep(1.5)
     assert r.get('foo') is None
-    assert r.expire('bar', 1) == False
+    assert r.expire('bar', 1) is False
 
 
 @pytest.mark.slow
@@ -3949,7 +3949,7 @@ def test_expire_should_expire_immediately_with_millisecond_timedelta(r):
     assert r.get('foo') == b'bar'
     r.expire('foo', timedelta(milliseconds=750))
     assert r.get('foo') is None
-    assert r.expire('bar', 1) == False
+    assert r.expire('bar', 1) is False
 
 
 @pytest.mark.slow
@@ -3959,7 +3959,7 @@ def test_pexpire_should_expire_key(r):
     r.pexpire('foo', 150)
     sleep(0.2)
     assert r.get('foo') is None
-    assert r.pexpire('bar', 1) == False
+    assert r.pexpire('bar', 1) == 0
 
 
 def test_pexpire_should_return_truthy_for_existing_key(r):
@@ -3980,7 +3980,7 @@ def test_pexpire_should_expire_key_using_timedelta(r):
     assert r.get('foo') == b'bar'
     sleep(0.5)
     assert r.get('foo') is None
-    assert r.pexpire('bar', 1) == False
+    assert r.pexpire('bar', 1) == 0
 
 
 @pytest.mark.slow
@@ -3990,7 +3990,7 @@ def test_expireat_should_expire_key_by_datetime(r):
     r.expireat('foo', datetime.now() + timedelta(seconds=1))
     sleep(1.5)
     assert r.get('foo') is None
-    assert r.expireat('bar', datetime.now()) == False
+    assert r.expireat('bar', datetime.now()) is False
 
 
 @pytest.mark.slow
@@ -4000,7 +4000,7 @@ def test_expireat_should_expire_key_by_timestamp(r):
     r.expireat('foo', int(time() + 1))
     sleep(1.5)
     assert r.get('foo') is None
-    assert r.expire('bar', 1) == False
+    assert r.expire('bar', 1) is False
 
 
 def test_expireat_should_return_true_for_existing_key(r):
@@ -4019,7 +4019,7 @@ def test_pexpireat_should_expire_key_by_datetime(r):
     r.pexpireat('foo', datetime.now() + timedelta(milliseconds=150))
     sleep(0.2)
     assert r.get('foo') is None
-    assert r.pexpireat('bar', datetime.now()) == False
+    assert r.pexpireat('bar', datetime.now()) == 0
 
 
 @pytest.mark.slow
@@ -4029,7 +4029,7 @@ def test_pexpireat_should_expire_key_by_timestamp(r):
     r.pexpireat('foo', int(time() * 1000 + 150))
     sleep(0.2)
     assert r.get('foo') is None
-    assert r.expire('bar', 1) == False
+    assert r.expire('bar', 1) is False
 
 
 def test_pexpireat_should_return_true_for_existing_key(r):
@@ -4558,11 +4558,11 @@ def test_unlink(r):
 @pytest.mark.parametrize('create_redis', ['FakeRedis', 'Redis'], indirect=True)
 class TestLegacy:
     def test_setex(self, r):
-        assert r.setex('foo', 'bar', 100) == True
+        assert r.setex('foo', 'bar', 100) is True
         assert r.get('foo') == b'bar'
 
     def test_setex_using_timedelta(self, r):
-        assert r.setex('foo', 'bar', timedelta(seconds=100)) == True
+        assert r.setex('foo', 'bar', timedelta(seconds=100)) is True
         assert r.get('foo') == b'bar'
 
     def test_lrem_positive_count(self, r):
@@ -4850,10 +4850,10 @@ class TestInitArgs:
         fake_conn = db.connection_pool.make_connection()
         assert fake_conn.socket_connect_timeout == 11
         assert fake_conn.socket_timeout == 12
-        assert fake_conn.socket_keepalive == True
+        assert fake_conn.socket_keepalive is True
         assert fake_conn.socket_keepalive_options == {60: 30}
         assert fake_conn.socket_type == 1
-        assert fake_conn.retry_on_timeout == True
+        assert fake_conn.retry_on_timeout is True
 
         # Make fallback logic match redis-py
         db = fakeredis.FakeStrictRedis.from_url(
