@@ -71,20 +71,8 @@ def key_val_dict(size=100):
             for i in range(size)}
 
 
-class TestFakeStrictRedis:
+class NoDecodeMixin:
     decode_responses = False
-
-    def setup(self):
-        self.server = fakeredis.FakeServer()
-        self.redis = self.create_redis()
-        self.redis.flushall()
-
-    def teardown(self):
-        self.redis.flushall()
-        del self.redis
-
-    def create_redis(self, db=0):
-        return fakeredis.FakeStrictRedis(db=db, server=self.server)
 
     def _round_str(self, x):
         assert isinstance(x, bytes)
@@ -442,12 +430,9 @@ class TestFakeStrictRedis:
         self.redis.set('abc\n', '')
         self.redis.set('abc\\', '')
         self.redis.set('abcde', '')
-        if self.decode_responses:
-            assert sorted(self.redis.keys()) == [b'', b'abc\n', b'abc\\', b'abcde']
-        else:
-            self.redis.set(b'\xfe\xcd', '')
-            assert sorted(self.redis.keys()) == [b'', b'abc\n', b'abc\\', b'abcde', b'\xfe\xcd']
-            assert self.redis.keys('??') == [b'\xfe\xcd']
+        self.redis.set(b'\xfe\xcd', '')
+        assert sorted(self.redis.keys()) == [b'', b'abc\n', b'abc\\', b'abcde', b'\xfe\xcd']
+        assert self.redis.keys('??') == [b'\xfe\xcd']
         # empty pattern not the same as no pattern
         assert self.redis.keys('') == [b'']
         # ? must match \n
@@ -1598,14 +1583,8 @@ class TestFakeStrictRedis:
         self.redis.sadd('foo', b'member3')
         res = self.redis.srandmember('foo', 2)
         assert len(res) == 2
-
-        if self.decode_responses:
-            superset = {'member1', 'member2', 'member3'}
-        else:
-            superset = {b'member1', b'member2', b'member3'}
-
         for e in res:
-            assert e in superset
+            assert e in {b'member1', b'member2', b'member3'}
 
     def test_srandmember_wrong_type(self):
         self.zadd('foo', {'member': 1})
@@ -4324,43 +4303,48 @@ class TestFakeRedis:
 class DecodeMixin:
     decode_responses = True
 
-    def _round_str(self, x):
-        assert isinstance(x, str)
-        return round(float(x))
+    def test_decode_str(self):
+        self.redis.set('foo', 'bar')
+        assert self.redis.get('foo') == 'bar'
 
-    @classmethod
-    def _decode(cls, value):
-        if isinstance(value, list):
-            return [cls._decode(item) for item in value]
-        elif isinstance(value, tuple):
-            return tuple([cls._decode(item) for item in value])
-        elif isinstance(value, set):
-            return {cls._decode(item) for item in value}
-        elif isinstance(value, dict):
-            return {cls._decode(k): cls._decode(v) for k, v in value.items()}
-        elif isinstance(value, bytes):
-            return value.decode('utf-8')
-        else:
-            return value
+    def test_decode_set(self):
+        self.redis.sadd('foo', 'member1')
+        assert self.redis.smembers('foo') == {'member1'}
 
-    def assertEqual(self, a, b, msg=None):
-        super().assertEqual(a, self._decode(b), msg)
+    def test_decode_list(self):
+        self.redis.rpush('foo', 'a', 'b')
+        assert self.redis.lrange('foo', 0, -1) == ['a', 'b']
 
-    def assertIn(self, member, container, msg=None):
-        super().assertIn(self._decode(member), container)
+    def test_decode_dict(self):
+        self.redis.hset('foo', 'key', 'value')
+        assert self.redis.hgetall('foo') == {'key': 'value'}
 
-    def assertCountEqual(self, a, b):
-        super().assertCountEqual(a, self._decode(b))
+    def test_decode_error(self):
+        self.redis.set('foo', 'bar')
+        with pytest.raises(ResponseError) as exc_info:
+            self.redis.hset('foo', 'bar', 'baz')
+        assert isinstance(exc_info.value.args[0], str)
 
 
-class TestFakeStrictRedisDecodeResponses(DecodeMixin, TestFakeStrictRedis):
+class TestFakeStrictRedisBase:
+    def setup(self):
+        self.server = fakeredis.FakeServer()
+        self.redis = self.create_redis()
+        self.redis.flushall()
+
+    def teardown(self):
+        self.redis.flushall()
+        del self.redis
+
+
+class TestFakeStrictRedis(NoDecodeMixin, TestFakeStrictRedisBase):
+    def create_redis(self, db=0):
+        return fakeredis.FakeStrictRedis(db=db, server=self.server)
+
+
+class TestFakeStrictRedisDecodeResponses(DecodeMixin, TestFakeStrictRedisBase):
     def create_redis(self, db=0):
         return fakeredis.FakeStrictRedis(db=db, decode_responses=True, server=self.server)
-
-
-class TestFakeRedisDecodeResponses(DecodeMixin, TestFakeRedis):
-    def create_redis(self, db=0):
-        return fakeredis.FakeRedis(db=db, decode_responses=True, server=self.server)
 
 
 @redis_must_be_running
@@ -4373,12 +4357,6 @@ class TestRealRedis(TestFakeRedis):
 class TestRealStrictRedis(TestFakeStrictRedis):
     def create_redis(self, db=0):
         return redis.StrictRedis('localhost', port=6379, db=db)
-
-
-@redis_must_be_running
-class TestRealRedisDecodeResponses(TestFakeRedisDecodeResponses):
-    def create_redis(self, db=0):
-        return redis.Redis('localhost', port=6379, db=db, decode_responses=True)
 
 
 @redis_must_be_running
