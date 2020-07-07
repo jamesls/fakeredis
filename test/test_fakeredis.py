@@ -3011,11 +3011,11 @@ class TestFakeStrictRedis:
     def test_swapdb_same_db(self):
         assert self.redis.swapdb(1, 1)
 
-    def test_bgsave(self):
-        assert self.redis.bgsave()
-
     def test_save(self):
         assert self.redis.save()
+
+    def test_bgsave(self):
+        assert self.redis.bgsave()
 
     def test_lastsave(self):
         assert isinstance(self.redis.lastsave(), datetime)
