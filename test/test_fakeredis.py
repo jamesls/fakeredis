@@ -71,13 +71,6 @@ def is_redis_running():
         return True
 
 
-@pytest.fixture
-def fake_server(request):
-    server = fakeredis.FakeServer()
-    server.connected = request.node.get_closest_marker('disconnected') is None
-    return server
-
-
 @pytest.fixture(params=['StrictRedis', 'FakeStrictRedis'])
 def create_redis(request):
     name = request.param
