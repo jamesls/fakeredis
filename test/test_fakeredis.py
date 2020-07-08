@@ -1967,30 +1967,18 @@ def test_zadd_with_nx(r, input, return_value, state):
 
 
 @redis3_only
-def test_zadd_with_ch(r):
-    zadd(r, 'foo', {'four': 4.0, 'three': 3.0})
-
-    updates = [
-        UpdateCommand(
-            input={'four': 4.0, 'three': 1.0},
-            expected_return_value=1,
-            expected_state=[(b'four', 4.0), (b'three', 1.0)]),
-        UpdateCommand(
-            input={'four': 4.0, 'three': 3.0, 'zero': 0.0},
-            expected_return_value=2,
-            expected_state=[(b'four', 4.0), (b'three', 3.0), (b'zero', 0.0)]),
-        UpdateCommand(
-            input={'two': 2.0, 'one': 1.0},
-            expected_return_value=2,
-            expected_state=[(b'four', 4.0), (b'three', 3.0), (b'two', 2.0), (b'one', 1.0), (b'zero', 0.0)]),
+@pytest.mark.parametrize(
+    'input,return_value,state',
+    [
+        ({'four': 4.0, 'three': 1.0}, 1, [(b'three', 1.0), (b'four', 4.0)]),
+        ({'four': 4.0, 'three': 1.0, 'zero': 0.0}, 2, [(b'zero', 0.0), (b'three', 1.0), (b'four', 4.0)]),
+        ({'two': 2.0, 'one': 1.0}, 2, [(b'one', 1.0), (b'two', 2.0), (b'three', 3.0), (b'four', 4.0)])
     ]
-
-    for update in updates:
-        assert zadd(r, 'foo', update.input, ch=True) == update.expected_return_value
-        assert (
-            sorted(r.zrange('foo', 0, -1, withscores=True))
-            == sorted(update.expected_state)
-        )
+)
+def test_zadd_with_ch(r, input, return_value, state):
+    zadd(r, 'foo', {'four': 4.0, 'three': 3.0})
+    assert zadd(r, 'foo', input, ch=True) == return_value
+    assert r.zrange('foo', 0, -1, withscores=True) == state
 
 
 @redis3_only
