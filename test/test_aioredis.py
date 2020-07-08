@@ -2,31 +2,35 @@ import asyncio
 
 import pytest
 import aioredis
+from async_generator import yield_, async_generator
 
 import fakeredis.aioredis
 
 
 @pytest.fixture(params=['fake', 'real'])
-def r(request, event_loop):
+@async_generator
+async def r(request):
     if request.param == 'fake':
-        ret = event_loop.run_until_complete(fakeredis.aioredis.create_redis_pool())
+        ret = await fakeredis.aioredis.create_redis_pool()
     else:
         if not request.getfixturevalue('is_redis_running'):
             pytest.skip('Redis is not running')
-        ret = event_loop.run_until_complete(aioredis.create_redis_pool('redis://localhost'))
-    event_loop.run_until_complete(ret.flushall())
-    yield ret
-    event_loop.run_until_complete(ret.flushall())
+        ret = await aioredis.create_redis_pool('redis://localhost')
+    await ret.flushall()
+
+    await yield_(ret)
+
+    await ret.flushall()
     ret.close()
-    event_loop.run_until_complete(ret.wait_closed())
+    await ret.wait_closed()
 
 
 @pytest.fixture
-def conn(r, event_loop):
+@async_generator
+async def conn(r):
     """A single connection, rather than a pool."""
-    conn = event_loop.run_until_complete(r)
-    with conn:
-        yield conn
+    with await r as conn:
+        await yield_(conn)
 
 
 @pytest.mark.asyncio
