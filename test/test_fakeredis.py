@@ -1,4 +1,3 @@
-from collections import namedtuple
 from time import sleep, time
 from redis.exceptions import ResponseError
 from collections import OrderedDict
