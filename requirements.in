@@ -1,10 +1,10 @@
 aioredis
-asynctest
 coverage
 flake8
 hypothesis
 lupa
 pytest
+pytest-asyncio
 pytest-cov
 redis==3.4.1       # Latest at time of writing
 six

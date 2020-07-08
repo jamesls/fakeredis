@@ -1,6 +1,5 @@
 import asyncio
 
-import asynctest
 import pytest
 import aioredis
 
