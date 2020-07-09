@@ -7,7 +7,15 @@ from async_generator import yield_, async_generator
 import fakeredis.aioredis
 
 
-@pytest.fixture(params=['fake', 'real'])
+pytestmark = [pytest.mark.asyncio]
+
+
+@pytest.fixture(
+    params=[
+        pytest.param('fake', marks=pytest.mark.fake),
+        pytest.param('real', marks=pytest.mark.real)
+    ]
+)
 @async_generator
 async def r(request):
     if request.param == 'fake':
@@ -33,13 +41,11 @@ async def conn(r):
         await yield_(conn)
 
 
-@pytest.mark.asyncio
 async def test_ping(r):
     pong = await r.ping()
     assert pong == b'PONG'
 
 
-@pytest.mark.asyncio
 async def test_types(r):
     await r.hmset_dict('hash', key1='value1', key2='value2', key3=123)
     result = await r.hgetall('hash', encoding='utf-8')
@@ -50,7 +56,6 @@ async def test_types(r):
     }
 
 
-@pytest.mark.asyncio
 async def test_transaction(r):
     tr = r.multi_exec()
     tr.set('key1', 'value1')
@@ -62,7 +67,6 @@ async def test_transaction(r):
     assert result == b'value1'
 
 
-@pytest.mark.asyncio
 async def test_transaction_fail(r, conn):
     # ensure that the WATCH applies to the same connection as the MULTI/EXEC.
     await r.set('foo', '1')
@@ -74,7 +78,6 @@ async def test_transaction_fail(r, conn):
         await tr.execute()
 
 
-@pytest.mark.asyncio
 async def test_pubsub(r, event_loop):
     ch, = await r.subscribe('channel')
     queue = asyncio.Queue()
@@ -94,7 +97,6 @@ async def test_pubsub(r, event_loop):
     await task
 
 
-@pytest.mark.asyncio
 async def test_blocking_ready(r, conn):
     """Blocking command which does not need to block."""
     await r.rpush('list', 'x')
@@ -102,7 +104,6 @@ async def test_blocking_ready(r, conn):
     assert result == [b'list', b'x']
 
 
-@pytest.mark.asyncio
 @pytest.mark.slow
 async def test_blocking_timeout(conn):
     """Blocking command that times out without completing."""
@@ -110,7 +111,6 @@ async def test_blocking_timeout(conn):
     assert result is None
 
 
-@pytest.mark.asyncio
 @pytest.mark.slow
 async def test_blocking_unblock(r, conn, event_loop):
     """Blocking command that gets unblocked after some time."""
@@ -124,7 +124,6 @@ async def test_blocking_unblock(r, conn, event_loop):
     await task
 
 
-@pytest.mark.asyncio
 @pytest.mark.slow
 async def test_blocking_pipeline(conn):
     """Blocking command with another command issued behind it."""
@@ -134,27 +133,23 @@ async def test_blocking_pipeline(conn):
     assert (await fut) is None
 
 
-@pytest.mark.asyncio
 async def test_wrongtype_error(r):
     await r.set('foo', 'bar')
     with pytest.raises(aioredis.ReplyError, match='^WRONGTYPE'):
         await r.rpush('foo', 'baz')
 
 
-@pytest.mark.asyncio
 async def test_syntax_error(r):
     with pytest.raises(aioredis.ReplyError,
                        match="^ERR wrong number of arguments for 'get' command$"):
         await r.execute('get')
 
 
-@pytest.mark.asyncio
 async def test_no_script_error(r):
     with pytest.raises(aioredis.ReplyError, match='^NOSCRIPT '):
         await r.evalsha('0123456789abcdef0123456789abcdef')
 
 
-@pytest.mark.asyncio
 async def test_failed_script_error(r):
     await r.set('foo', 'bar')
     with pytest.raises(aioredis.ReplyError, match='^ERR Error running script'):

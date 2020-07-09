@@ -23,6 +23,11 @@ REDIS3 = REDIS_VERSION >= '3'
 
 redis2_only = pytest.mark.skipif(REDIS3, reason="Test is only applicable to redis-py 2.x")
 redis3_only = pytest.mark.skipif(not REDIS3, reason="Test is only applicable to redis-py 3.x")
+fake_only = pytest.mark.parametrize(
+    'create_redis',
+    [pytest.param('FakeStrictRedis', marks=pytest.mark.fake)],
+    indirect=True
+)
 
 
 def key_val_dict(size=100):
@@ -71,7 +76,12 @@ def is_redis_running():
         return True
 
 
-@pytest.fixture(params=['StrictRedis', 'FakeStrictRedis'])
+@pytest.fixture(
+    params=[
+        pytest.param('StrictRedis', marks=pytest.mark.real),
+        pytest.param('FakeStrictRedis', marks=pytest.mark.fake)
+    ]
+)
 def create_redis(request):
     name = request.param
     if not name.startswith('Fake') and not request.getfixturevalue('is_redis_running'):
@@ -4389,7 +4399,7 @@ def test_script(r):
     assert result == b'42'
 
 
-@pytest.mark.parametrize('create_redis', ['FakeStrictRedis'], indirect=True)
+@fake_only
 def test_lua_log(r, caplog):
     logger = fakeredis._server.LOGGER
     script = """
@@ -4416,7 +4426,7 @@ def test_lua_log_no_message(r):
         script()
 
 
-@pytest.mark.parametrize('create_redis', ['FakeStrictRedis'], indirect=True)
+@fake_only
 def test_lua_log_different_types(r, caplog):
     logger = fakeredis._server.LOGGER
     script = "redis.log(redis.LOG_DEBUG, 'string', 1, true, 3.14, 'string')"
@@ -4435,7 +4445,7 @@ def test_lua_log_wrong_level(r):
         script()
 
 
-@pytest.mark.parametrize('create_redis', ['FakeStrictRedis'], indirect=True)
+@fake_only
 def test_lua_log_defined_vars(r, caplog):
     logger = fakeredis._server.LOGGER
     script = """
@@ -4456,8 +4466,15 @@ def test_unlink(r):
 
 
 @redis2_only
-@pytest.mark.parametrize('create_redis', ['FakeRedis', 'Redis'], indirect=True)
-class TestLegacy:
+@pytest.mark.parametrize(
+    'create_redis',
+    [
+        pytest.param('FakeRedis', marks=pytest.mark.fake),
+        pytest.param('Redis', marks=pytest.mark.real)
+    ],
+    indirect=True
+)
+class TestNonStrict:
     def test_setex(self, r):
         assert r.setex('foo', 'bar', 100) is True
         assert r.get('foo') == b'bar'
@@ -4688,6 +4705,7 @@ class TestDecodeResponses:
         assert isinstance(exc_info.value.args[0], str)
 
 
+@pytest.mark.fake
 class TestInitArgs:
     def test_singleton(self):
         shared_server = fakeredis.FakeServer()
@@ -4774,7 +4792,7 @@ class TestInitArgs:
 
 
 @pytest.mark.disconnected
-@pytest.mark.parametrize('create_redis', ['FakeStrictRedis'], indirect=True)
+@fake_only
 class TestFakeStrictRedisConnectionErrors:
     def test_flushdb(self, r):
         with pytest.raises(redis.ConnectionError):
@@ -5175,23 +5193,23 @@ class TestFakeStrictRedisConnectionErrors:
             list(r.hscan_iter('name'))
 
 
+@pytest.mark.disconnected
+@fake_only
 class TestPubSubConnected:
-    def setup(self):
-        self.server = fakeredis.FakeServer()
-        self.server.connected = False
-        self.redis = fakeredis.FakeStrictRedis(server=self.server)
-        self.pubsub = self.redis.pubsub()
+    @pytest.fixture
+    def pubsub(self, r):
+        return r.pubsub()
 
-    def test_basic_subscribe(self):
+    def test_basic_subscribe(self, pubsub):
         with pytest.raises(redis.ConnectionError):
-            self.pubsub.subscribe('logs')
+            pubsub.subscribe('logs')
 
-    def test_subscription_conn_lost(self):
-        self.server.connected = True
-        self.pubsub.subscribe('logs')
-        self.server.connected = False
+    def test_subscription_conn_lost(self, fake_server, pubsub):
+        fake_server.connected = True
+        pubsub.subscribe('logs')
+        fake_server.connected = False
         # The initial message is already in the pipe
-        msg = self.pubsub.get_message()
+        msg = pubsub.get_message()
         check = {
             'type': 'subscribe',
             'pattern': None,
@@ -5200,4 +5218,4 @@ class TestPubSubConnected:
         }
         assert msg == check, 'Message was not published to channel'
         with pytest.raises(redis.ConnectionError):
-            self.pubsub.get_message()
+            pubsub.get_message()
