@@ -331,7 +331,7 @@ bugs in Github.
    generally not produce the same results, and in Python versions before 3.6
    may produce different results each time the process is re-run.
 
-7. SCAN/ZSCAN/HSCAN/SSCAN will not necessary iterate all items if items are
+7. SCAN/ZSCAN/HSCAN/SSCAN will not necessarily iterate all items if items are
    deleted or renamed during iteration. They also won't necessarily iterate in
    the same chunk sizes or the same order as redis.
 
@@ -355,43 +355,38 @@ To ensure parity with the real redis, there are a set of integration tests
 that mirror the unittests.  For every unittest that is written, the same
 test is run against a real redis instance using a real redis-py client
 instance.  In order to run these tests you must have a redis server running
-on localhost, port 6379 (the default settings).  The integration tests use
-db=10 in order to minimize collisions with an existing redis instance.
+on localhost, port 6379 (the default settings). **WARNING**: the tests will
+completely wipe your database!
 
 
-To run all the tests, install the requirements file::
+First install the requirements file::
 
     pip install -r requirements.txt
 
-If you just want to run the unittests::
+To run all the tests::
 
-    pytest test_fakeredis.py::TestFakeStrictRedis test_fakeredis.py::TestFakeRedis
+    pytest
+
+If you only want to run tests against fake redis, without a real redis::
+
+    pytest -m fake
 
 Because this module is attempting to provide the same interface as `redis-py`_,
 the python bindings to redis, a reasonable way to test this to to take each
 unittest and run it against a real redis server.  fakeredis and the real redis
-server should give the same result.  This ensures parity between the two.  You
-can run these "integration" tests like this::
+server should give the same result. To run tests against a real redis instance
+instead::
 
-    pytest test_fakeredis.py::TestRealStrictRedis test_fakeredis.py::TestRealRedis test_fakeredis_hypothesis.py
-
-In terms of implementation, ``TestRealRedis`` is a subclass of
-``TestFakeRedis`` that overrides a factory method to create
-an instance of ``redis.Redis`` (an actual python client for redis)
-instead of ``fakeredis.FakeStrictRedis``.
-
-To run both the unittests and the "integration" tests, run::
-
-    pytest
+    pytest -m real
 
 If redis is not running and you try to run tests against a real redis server,
-these tests will have a result of 'S' for skipped.
+these tests will have a result of 's' for skipped.
 
 There are some tests that test redis blocking operations that are somewhat
 slow.  If you want to skip these tests during day to day development,
 they have all been tagged as 'slow' so you can skip them by running::
 
-    pytest -m "not slow" test_fakeredis.py
+    pytest -m "not slow"
 
 
 Revision history
