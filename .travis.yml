@@ -19,7 +19,7 @@ jobs:
     - env: REDIS_PY="3.3.11"
     - env: REDIS_PY="3.4.1"
     - env: REDIS_PY="3.5.0"
-    - env: REDIS_PY="3.5.*"
+    - env: REDIS_PY="3.5.*" COVERAGE="yes"
 cache:
   - pip
 services:
@@ -28,12 +28,11 @@ install:
   - pip install -r requirements.txt
   - pip install redis==$REDIS_PY
   - pip install coveralls
-  - pip install .
+  - if [ "$COVERAGE" = "yes" ]; then pip install -e .; else pip install .; fi
 before_script:
   - flake8
 script:
-  - coverage erase
-  - pytest --cov=fakeredis
+  - if [ "$COVERAGE" = "yes" ]; then pytest --cov=fakeredis --cov-branch; else pytest; fi
 notifications:
   email:
     - js@jamesls.com
