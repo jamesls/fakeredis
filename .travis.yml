@@ -37,4 +37,5 @@ notifications:
   email:
     - js@jamesls.com
     - bmerry@ska.ac.za
-after_success: coveralls
+after_success:
+  - if [ "$COVERAGE" = "yes" ]; then coveralls; fi
