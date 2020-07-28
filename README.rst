@@ -26,12 +26,13 @@ be automatically installed.
 Alternatives
 ============
 
-Consider using birdisle_ instead of fakeredis. It embeds the redis codebase
-into a Python extension, so it implements the full redis command set and
-behaves far more closely to a real redis implementation. The disadvantage is
-that it currently only works on Linux.
+Consider using birdisle_ or redislite_ instead of fakeredis. They embed the redis codebase
+into Python, so they implement the full redis command set and
+behave far more similarly to a real redis implementation.
 
 .. _birdisle: https://birdisle.readthedocs.io/en/latest/
+.. _redislite: https://redislite.readthedocs.io/en/latest/
+
 
 
 How to Use
