@@ -29,7 +29,7 @@ for k, v in list(commands.items()):
 
 
 implemented_commands = set()
-for name, method in inspect.getmembers(fakeredis.server.FakeSocket):
+for name, method in inspect.getmembers(fakeredis._server.FakeSocket):
     if hasattr(method, '_fakeredis_sig'):
         implemented_commands.add(name)
 # Currently no programmatic way to discover implemented subcommands

@@ -146,7 +146,6 @@ that may require changes to your code:
    constructor of the latter (provided no server is provided).
 
 
-
 Unimplemented Commands
 ======================
 
@@ -154,25 +153,22 @@ All of the redis commands are implemented in fakeredis with
 these exceptions:
 
 
-connection
-----------
-
- * auth
- * quit
-
-
 server
 ------
 
+ * acl load
+ * acl save
+ * acl list
+ * acl users
+ * acl getuser
+ * acl setuser
+ * acl deluser
+ * acl cat
+ * acl genpass
+ * acl whoami
+ * acl log
+ * acl help
  * bgrewriteaof
- * client id
- * client kill
- * client list
- * client getname
- * client pause
- * client reply
- * client setname
- * client unblock
  * command
  * command count
  * command getkeys
@@ -184,12 +180,16 @@ server
  * debug object
  * debug segfault
  * info
+ * lolwut
  * memory doctor
  * memory help
  * memory malloc-stats
  * memory purge
  * memory stats
  * memory usage
+ * module list
+ * module load
+ * module unload
  * monitor
  * role
  * shutdown
@@ -197,7 +197,32 @@ server
  * replicaof
  * slowlog
  * sync
- * time
+ * psync
+ * latency doctor
+ * latency graph
+ * latency history
+ * latency latest
+ * latency reset
+ * latency help
+
+
+connection
+----------
+
+ * auth
+ * client caching
+ * client id
+ * client kill
+ * client list
+ * client getname
+ * client getredir
+ * client pause
+ * client reply
+ * client setname
+ * client tracking
+ * client unblock
+ * hello
+ * quit
 
 
 string
@@ -206,6 +231,7 @@ string
  * bitfield
  * bitop
  * bitpos
+ * stralgo
 
 
 sorted_set
@@ -221,15 +247,18 @@ cluster
 -------
 
  * cluster addslots
+ * cluster bumpepoch
  * cluster count-failure-reports
  * cluster countkeysinslot
  * cluster delslots
  * cluster failover
+ * cluster flushslots
  * cluster forget
  * cluster getkeysinslot
  * cluster info
  * cluster keyslot
  * cluster meet
+ * cluster myid
  * cluster nodes
  * cluster replicate
  * cluster reset
@@ -263,6 +292,12 @@ geo
  * geodist
  * georadius
  * georadiusbymember
+
+
+list
+----
+
+ * lpos
 
 
 pubsub
