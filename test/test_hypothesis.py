@@ -150,9 +150,6 @@ class Command:
         # reproduce this quirky behaviour, just skip these tests.
         if b'\0' in command:
             return False
-        # 'incr' flag to zadd not implemented yet
-        if command == b'zadd' and 'incr' in self.args:
-            return False
         return True
 
 
@@ -286,9 +283,11 @@ zset_create_commands = (
     commands(st.just('zadd'), keys, st.lists(st.tuples(scores, fields), min_size=1))
 )
 zset_commands = (
-    # TODO: test incr
-    commands(st.just('zadd'), keys, st.none() | st.just('nx'),
-             st.none() | st.just('xx'), st.none() | st.just('ch'),
+    commands(st.just('zadd'), keys,
+             st.none() | st.just('nx'),
+             st.none() | st.just('xx'),
+             st.none() | st.just('ch'),
+             st.none() | st.just('incr'),
              st.lists(st.tuples(scores, fields)))
     | commands(st.just('zcard'), keys)
     | commands(st.just('zcount'), keys, score_tests, score_tests)
@@ -316,8 +315,11 @@ zset_no_score_create_commands = (
 )
 zset_no_score_commands = (
     # TODO: test incr
-    commands(st.just('zadd'), keys, st.none() | st.just('nx'),
-             st.none() | st.just('xx'), st.none() | st.just('ch'),
+    commands(st.just('zadd'), keys,
+             st.none() | st.just('nx'),
+             st.none() | st.just('xx'),
+             st.none() | st.just('ch'),
+             st.none() | st.just('incr'),
              st.lists(st.tuples(st.just(0), fields)))
     | commands(st.just('zlexcount'), keys, string_tests, string_tests)
     | commands(st.sampled_from(['zrangebylex', 'zrevrangebylex']),

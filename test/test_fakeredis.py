@@ -2005,6 +2005,17 @@ def test_zadd_with_nx_and_xx(r, ch):
         zadd(r, 'foo', {'four': -4.0, 'three': -3.0}, nx=True, xx=True, ch=ch)
 
 
+@redis3_only
+@pytest.mark.parametrize('ch', [False, True])
+def test_zadd_incr(r, ch):
+    zadd(r, 'foo', {'four': 4.0, 'three': 3.0})
+    assert zadd(r, 'foo', {'four': 1.0}, incr=True, ch=ch) == 5.0
+    assert zadd(r, 'foo', {'three': 1.0}, incr=True, nx=True, ch=ch) is None
+    assert r.zscore('foo', 'three') == 3.0
+    assert zadd(r, 'foo', {'bar': 1.0}, incr=True, xx=True, ch=ch) is None
+    assert zadd(r, 'foo', {'three': 1.0}, incr=True, xx=True, ch=ch) == 4.0
+
+
 def test_zrange_same_score(r):
     zadd(r, 'foo', {'two_a': 2})
     zadd(r, 'foo', {'two_b': 2})

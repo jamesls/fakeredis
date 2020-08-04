@@ -57,6 +57,7 @@ SRC_DST_SAME_MSG = "ERR source and destination objects are the same"
 NO_KEY_MSG = "ERR no such key"
 INDEX_ERROR_MSG = "ERR index out of range"
 ZADD_NX_XX_ERROR_MSG = "ERR ZADD allows either 'nx' or 'xx', not both"
+ZADD_INCR_LEN_ERROR_MSG = "ERR INCR option supports a single increment-element pair"
 ZUNIONSTORE_KEYS_MSG = "ERR at least 1 input key is needed for ZUNIONSTORE/ZINTERSTORE"
 WRONG_ARGS_MSG = "ERR wrong number of arguments for '{}' command"
 UNKNOWN_COMMAND_MSG = "ERR unknown command '{}'"
@@ -1949,13 +1950,13 @@ class FakeSocket:
 
     @command((Key(ZSet), bytes, bytes), (bytes,))
     def zadd(self, key, *args):
-        # TODO: handle INCR
         zset = key.value
 
         i = 0
         ch = False
         nx = False
         xx = False
+        incr = False
         while i < len(args):
             if casematch(args[i], b'ch'):
                 ch = True
@@ -1965,6 +1966,9 @@ class FakeSocket:
                 i += 1
             elif casematch(args[i], b'xx'):
                 xx = True
+                i += 1
+            elif casematch(args[i], b'incr'):
+                incr = True
                 i += 1
             else:
                 # First argument not matching flags indicates the start of
@@ -1977,6 +1981,8 @@ class FakeSocket:
         elements = args[i:]
         if not elements or len(elements) % 2 != 0:
             raise SimpleError(SYNTAX_ERROR_MSG)
+        if incr and len(elements) != 2:
+            raise SimpleError(ZADD_INCR_LEN_ERROR_MSG)
         # Parse all scores first, before updating
         items = [
             (Float.decode(elements[j]), elements[j + 1])
@@ -1984,6 +1990,12 @@ class FakeSocket:
         ]
         old_len = len(zset)
         changed_items = 0
+
+        if incr:
+            item_score, item_name = items[0]
+            if (nx and item_name in zset) or (xx and item_name not in zset):
+                return None
+            return self.zincrby(key, item_score, item_name)
 
         for item_score, item_name in items:
             if (
