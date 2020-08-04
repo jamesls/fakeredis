@@ -2005,7 +2005,7 @@ def test_zadd_with_nx_and_xx(r, ch):
         zadd(r, 'foo', {'four': -4.0, 'three': -3.0}, nx=True, xx=True, ch=ch)
 
 
-@redis3_only
+@pytest.mark.skipif(REDIS_VERSION < '3.1', reason="Test is only applicable to redis-py 3.1+")
 @pytest.mark.parametrize('ch', [False, True])
 def test_zadd_incr(r, ch):
     zadd(r, 'foo', {'four': 4.0, 'three': 3.0})
