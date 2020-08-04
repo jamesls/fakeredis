@@ -428,6 +428,14 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.4.2
+-----
+- `#269 <https://github.com/jamesls/fakeredis/issues/269>`_ Prevent passing
+  booleans from Lua to redis
+- `#254 <https://github.com/jamesls/fakeredis/issues/254>`_ Implement TIME command
+- `#232 <https://github.com/jamesls/fakeredis/issues/232>`_ Implement ZADD with INCR
+- Rework of unit tests to use more pytest idioms
+
 1.4.1
 -----
 - `#268 <https://github.com/jamesls/fakeredis/pull/268>`_ Support redis-py 3.5
