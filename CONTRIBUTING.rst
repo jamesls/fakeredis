@@ -13,5 +13,5 @@ please follow these guidelines.
 
 In general, new features or bug fixes **will not be merged unless they
 have tests.**  This is not only to ensure the correctness of
-the code, but to also encourage others to expirement without wondering
+the code, but to also encourage others to experiment without wondering
 whether or not they are breaking existing code.
