@@ -3298,6 +3298,17 @@ def test_lastsave(r):
     assert isinstance(r.lastsave(), datetime)
 
 
+@fake_only
+def test_time(r, mocker):
+    fake_time = mocker.patch('time.time')
+    fake_time.return_value = 1234567890.1234567
+    assert r.time() == (1234567890, 123457)
+    fake_time.return_value = 1234567890.000001
+    assert r.time() == (1234567890, 1)
+    fake_time.return_value = 1234567890.9999999
+    assert r.time() == (1234567891, 0)
+
+
 @pytest.mark.slow
 def test_bgsave_timestamp_update(r):
     early_timestamp = r.lastsave()

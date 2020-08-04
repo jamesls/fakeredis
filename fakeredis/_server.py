@@ -2288,6 +2288,13 @@ class FakeSocket:
         self._server.lastsave = int(time.time())
         return OK
 
+    @command(())
+    def time(self):
+        now_us = round(time.time() * 1000000)
+        now_s = now_us // 1000000
+        now_us %= 1000000
+        return [str(now_s).encode(), str(now_us).encode()]
+
     # Script commands
     # TODO: script exists, script flush
     # (script debug and script kill will probably not be supported)
