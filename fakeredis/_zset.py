@@ -90,7 +90,7 @@ class ZSet:
 class ZSetGeospatial(ZSet):
     def __init__(self):
         self._bylex = {}     # Maps value to score
-	self._byscore = sortedcontainers.SortedList()
+        self._byscore = sortedcontainers.SortedList()
 
     def add(self, value, score):
         self._bylex[value] = score
