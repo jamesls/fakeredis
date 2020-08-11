@@ -93,7 +93,15 @@ class ZSetGeospatial(ZSet):
         self._byscore = sortedcontainers.SortedList()
 
     def add(self, value, score):
+        """Update the item and return whether it modified the zset"""
+        old_score = self._bylex.get(value, None)
+        if old_score is not None:
+            if score == old_score:
+                return False
+            self._byscore.remove((old_score, value))
         self._bylex[value] = score
+        calculated_score = score.get('lat') * score.get('lng')
+        self._byscore.add((calculated_score, value))
         return True
 
     def discard(self, key):
