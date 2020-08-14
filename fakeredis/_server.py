@@ -1409,6 +1409,7 @@ class FakeSocket:
         px = None
         xx = False
         nx = False
+        keepttl = False
         while i < len(args):
             if casematch(args[i], b'nx'):
                 nx = True
@@ -1426,16 +1427,22 @@ class FakeSocket:
                 if px <= 0:
                     raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
+            elif casematch(args[i], b'keepttl'):
+                keepttl = True
+                i += 1
             else:
                 raise SimpleError(SYNTAX_ERROR_MSG)
-        if (xx and nx) or (px is not None and ex is not None):
+        if (xx and nx) or ((px is not None) + (ex is not None) + keepttl > 1):
             raise SimpleError(SYNTAX_ERROR_MSG)
 
         if nx and key:
             return None
         if xx and not key:
             return None
-        key.value = value
+        if not keepttl:
+            key.value = value
+        else:
+            key.update(value)
         if ex is not None:
             key.expireat = self._db.time + ex
         if px is not None:
