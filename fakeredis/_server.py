@@ -2573,7 +2573,7 @@ class FakeSelector(BaseSelector):
     def check_can_read(self, timeout):
         if self.sock.responses.qsize():
             return True
-        if timeout <= 0:
+        if timeout is not None and timeout <= 0:
             return False
 
         # A sleep/poll loop is easier to mock out than messing with condition
@@ -2584,7 +2584,7 @@ class FakeSelector(BaseSelector):
                 return True
             time.sleep(0.01)
             now = time.time()
-            if now > start + timeout:
+            if timeout is not None and now > start + timeout:
                 return False
 
     def check_is_ready_for_command(self, timeout):
