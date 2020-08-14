@@ -674,7 +674,7 @@ def test_set_px_using_timedelta(r):
 @pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
 def test_set_keepttl(r):
     r.set('foo', 'bar', ex=100)
-    assert r.set('foo', 'baz', keepttl=100) is True
+    assert r.set('foo', 'baz', keepttl=True) is True
     assert r.ttl('foo') == 100
     assert r.get('foo') == b'baz'
 
