@@ -671,6 +671,26 @@ def test_set_px_using_timedelta(r):
     assert r.get('foo') == b'bar'
 
 
+@pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
+def test_set_keepttl(r):
+    r.set('foo', 'bar', ex=100)
+    assert r.set('foo', 'baz', keepttl=100) is True
+    assert r.ttl('foo') == 100
+    assert r.get('foo') == b'baz'
+
+def test_set_conflicting_expire_options(r):
+    with pytest.raises(ResponseError):
+        r.set('foo', 'bar', ex=1, px=1)
+
+@pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
+def test_set_conflicting_expire_options_w_keepttl(r):
+    with pytest.raises(ResponseError):
+        r.set('foo', 'bar', ex=1, keepttl=True)
+    with pytest.raises(ResponseError):
+        r.set('foo', 'bar', px=1, keepttl=True)
+    with pytest.raises(ResponseError):
+        r.set('foo', 'bar', ex=1, px=1, keepttl=True)
+
 def test_set_raises_wrong_ex(r):
     with pytest.raises(ResponseError):
         r.set('foo', 'bar', ex=-100)
