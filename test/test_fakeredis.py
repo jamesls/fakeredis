@@ -3646,7 +3646,20 @@ def test_pubsub_run_in_thread(r):
 
 
 @pytest.mark.slow
-def test_pubsub_timeout(r):
+@pytest.mark.parametrize(
+    "timeout_value",
+    [
+        1,
+        pytest.param(
+            None,
+            marks=pytest.mark.skipif(
+                REDIS_VERSION >= "3.2" and REDIS_VERSION < "3.3",
+                reason="This test is not applicable to redis-py 3.2"
+            )
+        )
+    ]
+)
+def test_pubsub_timeout(r, timeout_value):
     def publish():
         sleep(0.1)
         r.publish('channel', 'hello')
@@ -3656,14 +3669,17 @@ def test_pubsub_timeout(r):
     p.parse_response()   # Drains the subscribe message
     publish_thread = threading.Thread(target=publish)
     publish_thread.start()
-    message = p.get_message(timeout=1)
+    message = p.get_message(timeout=timeout_value)
     assert message == {
         'type': 'message', 'pattern': None,
         'channel': b'channel', 'data': b'hello'
     }
     publish_thread.join()
-    message = p.get_message(timeout=0.5)
-    assert message is None
+
+    if timeout_value is not None:
+        # For infinite timeout case don't wait for the message that will never appear.
+        message = p.get_message(timeout=timeout_value)
+        assert message is None
 
 
 def test_pfadd(r):
