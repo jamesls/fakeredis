@@ -1048,7 +1048,8 @@ class FakeSocket:
         if not key or key.key in self._server.dbs[db]:
             return 0
         # TODO: what is the interaction with expiry?
-        self._server.dbs[db][key.key] = self._server.dbs[self._db_num].pop(key.key)
+        self._server.dbs[db][key.key] = self._server.dbs[self._db_num][key.key]
+        key.value = None   # Causes deletion
         return 1
 
     @command(())

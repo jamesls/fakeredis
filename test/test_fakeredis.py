@@ -3265,7 +3265,7 @@ def test_pipeline_failed_transaction(r):
 
 
 def test_pipeline_srem_no_change(r):
-    # A regression test for a case picked up by hypothesis tests
+    # A regression test for a case picked up by hypothesis tests.
     p = r.pipeline()
     p.watch('foo')
     r.srem('foo', 'bar')
@@ -3273,6 +3273,23 @@ def test_pipeline_srem_no_change(r):
     p.set('foo', 'baz')
     p.execute()
     assert r.get('foo') == b'baz'
+
+
+def test_pipeline_move(r):
+    # A regression test for a case picked up by hypothesis tests.
+    # The behaviour changed in redis 6.0 (see
+    # https://github.com/redis/redis/issues/6594).
+    if not isinstance(r, fakeredis._server.FakeRedisMixin):
+        redis_version = distutils.version.LooseVersion(r.info()['redis_version'])
+        if redis_version < '6.0':
+            pytest.skip('Behaviour is different prior to redis 6.0')
+    r.set('foo', 'bar')
+    p = r.pipeline()
+    p.watch('foo')
+    p.move('foo', 1)
+    p.multi()
+    with pytest.raises(redis.exceptions.WatchError):
+        p.execute()
 
 
 def test_key_patterns(r):
