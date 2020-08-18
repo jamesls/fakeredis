@@ -95,7 +95,16 @@ def create_redis(request):
             return cls(db=db, decode_responses=decode_responses, server=fake_server)
         else:
             cls = getattr(redis, name)
-            return cls('localhost', port=6379, db=db, decode_responses=decode_responses)
+            conn = cls('localhost', port=6379, db=db, decode_responses=decode_responses)
+            min_server_marker = request.node.get_closest_marker('min_server')
+            if min_server_marker is not None:
+                server_version = conn.info()['redis_version']
+                min_version = min_server_marker.args[0]
+                if distutils.version.LooseVersion(server_version) < min_version:
+                    pytest.skip(
+                        'Redis server {} required but {} found'.format(min_version, server_version)
+                    )
+            return conn
 
     return factory
 
@@ -672,6 +681,7 @@ def test_set_px_using_timedelta(r):
 
 
 @pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
+@pytest.mark.min_server('6.0')
 def test_set_keepttl(r):
     r.set('foo', 'bar', ex=100)
     assert r.set('foo', 'baz', keepttl=True) is True
@@ -3275,14 +3285,10 @@ def test_pipeline_srem_no_change(r):
     assert r.get('foo') == b'baz'
 
 
+# The behaviour changed in redis 6.0 (see https://github.com/redis/redis/issues/6594).
+@pytest.mark.min_server('6.0')
 def test_pipeline_move(r):
     # A regression test for a case picked up by hypothesis tests.
-    # The behaviour changed in redis 6.0 (see
-    # https://github.com/redis/redis/issues/6594).
-    if not isinstance(r, fakeredis._server.FakeRedisMixin):
-        redis_version = distutils.version.LooseVersion(r.info()['redis_version'])
-        if redis_version < '6.0':
-            pytest.skip('Behaviour is different prior to redis 6.0')
     r.set('foo', 'bar')
     p = r.pipeline()
     p.watch('foo')
