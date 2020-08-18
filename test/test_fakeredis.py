@@ -3292,8 +3292,11 @@ def test_pipeline_move(r):
     r.set('foo', 'bar')
     p = r.pipeline()
     p.watch('foo')
-    p.move('foo', 1)
+    r.move('foo', 1)
+    # Ensure the transaction isn't empty, which had different behaviour in
+    # older versions of redis-py.
     p.multi()
+    p.set('bar', 'baz')
     with pytest.raises(redis.exceptions.WatchError):
         p.execute()
 
