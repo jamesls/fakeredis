@@ -428,6 +428,12 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.4.3
+-----
+- `#277 <https://github.com/jamesls/fakeredis/pull/277>`_ Implement SET with KEEPTTL
+- `#278 <https://github.com/jamesls/fakeredis/pull/278>`_ Handle indefinite
+  timeout for PUBSUB commands
+
 1.4.2
 -----
 - `#269 <https://github.com/jamesls/fakeredis/issues/269>`_ Prevent passing
