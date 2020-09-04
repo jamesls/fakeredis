@@ -132,7 +132,7 @@ improve the Lua scripting emulation. It has a few backwards incompatibilities
 that may require changes to your code:
 
 1. By default, each FakeRedis or FakeStrictRedis instance contains its own
-   state. This is equivalent to the `singleton=True` option to previous
+   state. This is equivalent to the `singleton=False` option to previous
    versions of fakeredis. This change was made to improve isolation between
    tests. If you need to share state between instances, create a FakeServer,
    as described above.
