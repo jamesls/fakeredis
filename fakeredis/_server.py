@@ -2316,8 +2316,7 @@ class FakeSocket:
         return [str(now_s).encode(), str(now_us).encode()]
 
     # Script commands
-    # TODO: script flush
-    # (script debug and script kill will probably not be supported)
+    # script debug and script kill will probably not be supported
 
     def _convert_redis_arg(self, lua_runtime, value):
         # Type checks are exact to avoid issues like bool being a subclass of int.
@@ -2477,6 +2476,11 @@ class FakeSocket:
             return sha1
         elif casematch(subcmd, b'exists'):
             return [int(sha1 in self._server.script_cache) for sha1 in args]
+        elif casematch(subcmd, b'flush'):
+            if len(args) != 0:
+                raise SimpleError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
+            self._server.script_cache = {}
+            return OK
         else:
             raise SimpleError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
 

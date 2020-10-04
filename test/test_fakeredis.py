@@ -4506,6 +4506,26 @@ def test_script_exists(r):
     assert r.script_exists("a", sha1_one, "c", sha1_two, "e", "f") == [0, 1, 0, 1, 0, 0]
 
 
+@pytest.mark.parametrize("args", [("a",), tuple("abcdefghijklmn")])
+def test_script_flush_errors_with_args(r, args):
+    with pytest.raises(redis.ResponseError):
+        raw_command(r, "SCRIPT FLUSH %s" % " ".join(args))
+
+
+def test_script_flush(r):
+    # generate/load six unique scripts and store their sha1 hash values
+    sha1_values = [r.script_load("return '%s'" % char) for char in "abcdef"]
+
+    # assert the scripts all exist prior to flushing
+    assert r.script_exists(*sha1_values) == [1] * len(sha1_values)
+
+    # flush and assert OK response
+    assert r.script_flush() is True
+
+    # assert none of the scripts exists after flushing
+    assert r.script_exists(*sha1_values) == [0] * len(sha1_values)
+
+
 @fake_only
 def test_lua_log(r, caplog):
     logger = fakeredis._server.LOGGER
