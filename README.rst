@@ -310,8 +310,6 @@ scripting
 ---------
 
  * script debug
- * script exists
- * script flush
  * script kill
 
 
