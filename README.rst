@@ -426,6 +426,13 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.4.4
+-----
+- `#281 <https://github.com/jamesls/fakeredis/pull/281>`_ Add support for
+  SCRIPT EXISTS and SCRIPT FLUSH subcommands
+- `#280 <https://github.com/jamesls/fakeredis/pull/280>`_ Fix documentation
+  about singleton argument
+
 1.4.3
 -----
 - `#277 <https://github.com/jamesls/fakeredis/pull/277>`_ Implement SET with KEEPTTL
