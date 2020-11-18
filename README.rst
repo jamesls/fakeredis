@@ -275,10 +275,8 @@ cluster
 generic
 -------
 
- * dump
  * migrate
  * object
- * restore
  * touch
  * wait
 
@@ -369,6 +367,10 @@ bugs in Github.
    deleted or renamed during iteration. They also won't necessarily iterate in
    the same chunk sizes or the same order as redis.
 
+8. DUMP/RESTORE will not return or expect data in the RDB format. Instead the
+   `pickle` module is used to mimic an opaque and non-standard format.
+   **WARNING**: Do not use RESTORE with untrusted data, as a malicious pickle
+   can execute arbitrary code.
 
 Contributing
 ============
