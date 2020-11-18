@@ -141,6 +141,55 @@ def test_flushdb(r):
     assert r.keys() == []
 
 
+def test_dump_missing(r):
+    assert r.dump('foo') is None
+
+
+def test_dump_restore(r):
+    r.set('foo', 'bar')
+    dump = r.dump('foo')
+    r.restore('baz', 0, dump)
+    assert r.get('baz') == b'bar'
+    assert r.ttl('baz') == -1
+
+
+def test_dump_restore_ttl(r):
+    r.set('foo', 'bar')
+    dump = r.dump('foo')
+    r.restore('baz', 2000, dump)
+    assert r.get('baz') == b'bar'
+    assert 1000 <= r.pttl('baz') <= 2000
+
+
+def test_dump_restore_replace(r):
+    r.set('foo', 'bar')
+    dump = r.dump('foo')
+    r.set('foo', 'baz')
+    r.restore('foo', 0, dump, replace=True)
+    assert r.get('foo') == b'bar'
+
+
+def test_restore_exists(r):
+    r.set('foo', 'bar')
+    dump = r.dump('foo')
+    with pytest.raises(ResponseError):
+        r.restore('foo', 0, dump)
+
+
+def test_restore_invalid_dump(r):
+    r.set('foo', 'bar')
+    dump = r.dump('foo')
+    with pytest.raises(ResponseError):
+        r.restore('baz', 0, dump[:-1])
+
+
+def test_restore_invalid_ttl(r):
+    r.set('foo', 'bar')
+    dump = r.dump('foo')
+    with pytest.raises(ResponseError):
+        r.restore('baz', -1, dump)
+
+
 def test_set_then_get(r):
     assert r.set('foo', 'bar') is True
     assert r.get('foo') == b'bar'
