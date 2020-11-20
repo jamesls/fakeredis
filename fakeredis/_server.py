@@ -878,7 +878,7 @@ class FakeSocket:
         However, provided the database is not modified, every key will be
         returned exactly once.
         """
-        pattern = None
+        pattern = type = None
         count = 10
         if len(args) % 2 != 0:
             raise SimpleError(SYNTAX_ERROR_MSG)
@@ -889,6 +889,16 @@ class FakeSocket:
                 count = Int.decode(args[i + 1])
                 if count <= 0:
                     raise SimpleError(SYNTAX_ERROR_MSG)
+            elif casematch(args[i], b'type'):
+                type = args[i + 1]
+                is_valid = (casematch(type, b'string') or
+                            casematch(type, b'list') or
+                            casematch(type, b'set') or
+                            casematch(type, b'zset') or
+                            casematch(type, b'stream') or
+                            casematch(type, b'hash'))
+                if not is_valid:
+                    raise SimpleError(SYNTAX_ERROR_MSG)
             else:
                 raise SimpleError(SYNTAX_ERROR_MSG)
 
@@ -898,11 +908,16 @@ class FakeSocket:
         result_cursor = cursor + count
         result_data = []
 
+        match_key = match_type = lambda key: True
         if pattern is not None:
-            regex = compile_pattern(pattern)
+            match_key = compile_pattern(pattern).match
+        if type is not None:
+            match_type = lambda key: self.type(self._db[key]).value == type
+
+        if pattern is not None or type is not None:
             for val in itertools.islice(data, cursor, result_cursor):
                 compare_val = val[0] if isinstance(val, tuple) else val
-                if regex.match(compare_val):
+                if match_key(compare_val) and match_type(compare_val):
                     result_data.append(val)
         else:
             result_data = data[cursor:result_cursor]
