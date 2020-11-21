@@ -908,16 +908,18 @@ class FakeSocket:
         result_cursor = cursor + count
         result_data = []
 
-        match_key = match_type = lambda key: True
-        if pattern is not None:
-            match_key = compile_pattern(pattern).match
-        if type is not None:
-            match_type = lambda key: self.type(self._db[key]).value == type
+        regex = compile_pattern(pattern) if pattern is not None else None
+
+        def _match_key(key):
+            return regex.match(key) if pattern is not None else True
+
+        def _match_type(key):
+            return self.type(self._db[key]).value == type if type else True
 
         if pattern is not None or type is not None:
             for val in itertools.islice(data, cursor, result_cursor):
                 compare_val = val[0] if isinstance(val, tuple) else val
-                if match_key(compare_val) and match_type(compare_val):
+                if _match_key(compare_val) and _match_type(compare_val):
                     result_data.append(val)
         else:
             result_data = data[cursor:result_cursor]
