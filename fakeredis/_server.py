@@ -2330,10 +2330,14 @@ class FakeSocket:
     @command((Key(), Int, bytes), (bytes,))
     def restore(self, key, ttl, value, *args):
         replace = False
+        absttl = False
         i = 0
         while i < len(args):
             if casematch(args[i], b'replace') and not replace:
                 replace = True
+                i += 1
+            elif casematch(args[i], b'absttl') and not absttl:
+                absttl = True
                 i += 1
             else:
                 raise SimpleError(SYNTAX_ERROR_MSG)
@@ -2346,6 +2350,8 @@ class FakeSocket:
             raise redis.ResponseError(RESTORE_INVALID_TTL_MSG)
         if ttl == 0:
             expireat = None
+        elif absttl:
+            expireat = ttl / 1000.0
         else:
             expireat = self._db.time + ttl / 1000.0
         key.value = pickle.loads(value)

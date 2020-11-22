@@ -165,6 +165,15 @@ def test_dump_restore_replace(r):
     assert r.get('foo') == b'bar'
 
 
+def test_dump_restore_absttl(r):
+    r.set('foo', 'bar')
+    dump = r.dump('foo')
+    ttl = int(time() * 1000) + 2000
+    r.restore('baz', ttl, dump, absttl=True)
+    assert r.get('baz') == b'bar'
+    assert 1000 <= r.pttl('baz') <= 2000
+
+
 def test_restore_exists(r):
     r.set('foo', 'bar')
     dump = r.dump('foo')
