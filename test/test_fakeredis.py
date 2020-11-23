@@ -1633,6 +1633,8 @@ def test_scan_iter_multiple_pages_with_match(r):
     assert actual == set(all_keys)
 
 
+@pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
+@pytest.mark.min_server('6.0')
 def test_scan_iter_multiple_pages_with_type(r):
     all_keys = key_val_dict(size=100)
     assert all(r.set(k, v) for k, v in all_keys.items())
