@@ -1643,7 +1643,7 @@ def test_scan_iter_multiple_pages_with_type(r):
     zadd(r, 'zset2', {'andanother': 1})
     actual = set(r.scan_iter(_type='string'))
     assert actual == set(all_keys)
-    actual = set(r.scan_iter(_type='zset'))
+    actual = set(r.scan_iter(_type='ZSET'))
     assert actual == {b'zset1', b'zset2'}
 
 
