@@ -11,6 +11,7 @@ import itertools
 import hashlib
 import weakref
 import queue
+import pickle
 from collections import defaultdict
 from collections.abc import MutableMapping
 
@@ -80,6 +81,9 @@ LOG_INVALID_DEBUG_LEVEL_MSG = "ERR Invalid debug level."
 LUA_COMMAND_ARG_MSG = "ERR Lua redis() command arguments must be strings or integers"
 LUA_WRONG_NUMBER_ARGS_MSG = "ERR wrong number or type of arguments"
 SCRIPT_ERROR_MSG = "ERR Error running script (call to f_{}): @user_script:?: {}"
+RESTORE_KEY_EXISTS = "BUSYKEY Target key name already exists."
+RESTORE_INVALID_CHECKSUM_MSG = "ERR DUMP payload version or checksum are wrong"
+RESTORE_INVALID_TTL_MSG = "ERR Invalid TTL value, must be >= 0"
 
 FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 
@@ -1208,6 +1212,37 @@ class FakeSocket:
             return len(out)
         else:
             return out
+
+    @command((Key(missing_return=None),))
+    def dump(self, key):
+        value = pickle.dumps(key.value)
+        checksum = hashlib.sha1(value).digest()
+        return checksum + value
+
+    @command((Key(), Int, bytes), (bytes,))
+    def restore(self, key, ttl, value, *args):
+        replace = False
+        i = 0
+        while i < len(args):
+            if casematch(args[i], b'replace'):
+                replace = True
+                i += 1
+            else:
+                raise SimpleError(SYNTAX_ERROR_MSG)
+        if key and not replace:
+            raise SimpleError(RESTORE_KEY_EXISTS)
+        checksum, value = value[:20], value[20:]
+        if hashlib.sha1(value).digest() != checksum:
+            raise SimpleError(RESTORE_INVALID_CHECKSUM_MSG)
+        if ttl < 0:
+            raise SimpleError(RESTORE_INVALID_TTL_MSG)
+        if ttl == 0:
+            expireat = None
+        else:
+            expireat = self._db.time + ttl / 1000.0
+        key.value = pickle.loads(value)
+        key.expireat = expireat
+        return OK
 
     # Transaction commands
 
