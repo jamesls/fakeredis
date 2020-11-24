@@ -27,7 +27,7 @@ pytest-asyncio==0.14.0    # via -r requirements.in
 pytest-cov==2.8.1         # via -r requirements.in
 pytest-mock==3.2.0        # via -r requirements.in
 pytest==5.4.3             # via -r requirements.in, pytest-asyncio, pytest-cov, pytest-mock
-redis==3.4.1              # via -r requirements.in
+redis==3.5.3              # via -r requirements.in
 six==1.14.0               # via -r requirements.in, packaging
 sortedcontainers==2.1.0   # via -r requirements.in, hypothesis
 wcwidth==0.1.8            # via pytest

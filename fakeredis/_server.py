@@ -883,6 +883,7 @@ class FakeSocket:
         returned exactly once.
         """
         pattern = None
+        type = None
         count = 10
         if len(args) % 2 != 0:
             raise SimpleError(SYNTAX_ERROR_MSG)
@@ -893,6 +894,8 @@ class FakeSocket:
                 count = Int.decode(args[i + 1])
                 if count <= 0:
                     raise SimpleError(SYNTAX_ERROR_MSG)
+            elif casematch(args[i], b'type'):
+                type = args[i + 1]
             else:
                 raise SimpleError(SYNTAX_ERROR_MSG)
 
@@ -902,11 +905,20 @@ class FakeSocket:
         result_cursor = cursor + count
         result_data = []
 
-        if pattern is not None:
-            regex = compile_pattern(pattern)
+        regex = compile_pattern(pattern) if pattern is not None else None
+
+        def match_key(key):
+            return regex.match(key) if pattern is not None else True
+
+        def match_type(key):
+            if type is not None:
+                return casematch(self.type(self._db[key]).value, type)
+            return True
+
+        if pattern is not None or type is not None:
             for val in itertools.islice(data, cursor, result_cursor):
                 compare_val = val[0] if isinstance(val, tuple) else val
-                if regex.match(compare_val):
+                if match_key(compare_val) and match_type(compare_val):
                     result_data.append(val)
         else:
             result_data = data[cursor:result_cursor]

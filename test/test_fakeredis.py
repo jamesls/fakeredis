@@ -1682,6 +1682,20 @@ def test_scan_iter_multiple_pages_with_match(r):
     assert actual == set(all_keys)
 
 
+@pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
+@pytest.mark.min_server('6.0')
+def test_scan_iter_multiple_pages_with_type(r):
+    all_keys = key_val_dict(size=100)
+    assert all(r.set(k, v) for k, v in all_keys.items())
+    # Now add a few keys of another type
+    zadd(r, 'zset1', {'otherkey': 1})
+    zadd(r, 'zset2', {'andanother': 1})
+    actual = set(r.scan_iter(_type='string'))
+    assert actual == set(all_keys)
+    actual = set(r.scan_iter(_type='ZSET'))
+    assert actual == {b'zset1', b'zset2'}
+
+
 def test_scan_multiple_pages_with_count_arg(r):
     all_keys = key_val_dict(size=100)
     assert all(r.set(k, v) for k, v in all_keys.items())
