@@ -428,6 +428,13 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.4.5
+-----
+- `#285 <https://github.com/jamesls/fakeredis/pull/285>`_ Add support for DUMP
+  and RESTORE commands
+- `#286 <https://github.com/jamesls/fakeredis/pull/286>`_ Add support for TYPE
+  option to SCAN command
+
 1.4.4
 -----
 - `#281 <https://github.com/jamesls/fakeredis/pull/281>`_ Add support for
