@@ -2,14 +2,15 @@ language: python
 sudo: false
 dist: bionic
 env:
-  - REDIS_PY="3.5.0"
+  - REDIS_PY="3.5.3"
 python:
-  - 3.8
+  - 3.9
 jobs:
   include:
     - python: 3.6
     - python: 3.7
     - python: 3.8
+    - python: 3.9
     - python: pypy3
     - env: REDIS_PY="2.10.6"
     - env: REDIS_PY="3.0.1"
@@ -17,7 +18,7 @@ jobs:
     - env: REDIS_PY="3.2.1"
     - env: REDIS_PY="3.3.11"
     - env: REDIS_PY="3.4.1"
-    - env: REDIS_PY="3.5.0"
+    - env: REDIS_PY="3.5.3"
     - env: REDIS_PY="3.5.*" COVERAGE="yes"
 cache:
   - pip
