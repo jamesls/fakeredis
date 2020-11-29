@@ -1287,6 +1287,7 @@ class FakeSocket:
             raise SimpleError(WITHOUT_MULTI_MSG.format('EXEC'))
         if self._transaction_failed:
             self._transaction = None
+            self._clear_watches()
             raise SimpleError(EXECABORT_MSG)
         transaction = self._transaction
         self._transaction = None

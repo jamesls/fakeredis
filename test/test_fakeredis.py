@@ -3266,6 +3266,24 @@ def test_watch_state_is_cleared_across_multiple_watches(r):
         p.reset()
 
 
+def test_watch_state_is_cleared_after_abort(r):
+    # redis-py's pipeline handling and connection pooling interferes with this
+    # test, so raw commands are used instead.
+    raw_command(r, 'watch', 'foo')
+    raw_command(r, 'multi')
+    with pytest.raises(redis.ResponseError):
+        raw_command(r, 'mget')         # Wrong number of arguments
+    with pytest.raises(redis.exceptions.ExecAbortError):
+        raw_command(r, 'exec')
+
+    raw_command(r, 'set', 'foo', 'bar')  # Should NOT trigger the watch from earlier
+    raw_command(r, 'multi')
+    raw_command(r, 'set', 'abc', 'done')
+    raw_command(r, 'exec')
+
+    assert r.get('abc') == b'done'
+
+
 def test_pipeline_transaction_shortcut(r):
     # This example taken pretty much from the redis-py documentation.
     r.set('OUR-SEQUENCE-KEY', 13)
