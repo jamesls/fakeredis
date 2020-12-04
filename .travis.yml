@@ -19,6 +19,26 @@ jobs:
     - env: REDIS_PY="3.4.1"
     - env: REDIS_PY="3.5.0"
     - env: REDIS_PY="3.5.*" COVERAGE="yes"
+    - python: 3.6
+      arch: ppc64le
+    - python: 3.7
+      arch: ppc64le
+    - python: 3.8
+      arch: ppc64le
+    - env: REDIS_PY="3.0.1"
+      arch: ppc64le
+    - env: REDIS_PY="3.1.0"
+      arch: ppc64le
+    - env: REDIS_PY="3.2.1"
+      arch: ppc64le
+    - env: REDIS_PY="3.3.11"
+      arch: ppc64le
+    - env: REDIS_PY="3.4.1"
+      arch: ppc64le
+    - env: REDIS_PY="3.5.0"
+      arch: ppc64le
+    - env: REDIS_PY="3.5.*" COVERAGE="yes"
+      arch: ppc64le
 cache:
   - pip
 services:
