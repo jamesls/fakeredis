@@ -2649,39 +2649,28 @@ class FakeSelector(BaseSelector):
 class FakeConnection(redis.Connection):
     description_format = "FakeConnection<db=%(db)s>"
 
-    def __init__(self, server, db=0, username=None, password=None,
+    def __init__(self, server, host='localhost', port=6379, db=0, password=None,
                  socket_timeout=None, socket_connect_timeout=None,
                  socket_keepalive=False, socket_keepalive_options=None,
-                 socket_type=0, retry_on_timeout=False,
-                 encoding='utf-8', encoding_errors='strict',
-                 decode_responses=False, parser_class=_DummyParser,
-                 socket_read_size=65536, health_check_interval=0,
-                 client_name=None):
-        self.pid = os.getpid()
-        self.db = db
-        self.username = username
-        self.client_name = client_name
-        self.password = password
-        # Allow socket attributes to be passed in and saved even if they aren't used
-        self.socket_timeout = socket_timeout
-        self.socket_connect_timeout = socket_connect_timeout or socket_timeout
-        self.socket_keepalive = socket_keepalive
-        self.socket_keepalive_options = socket_keepalive_options or {}
-        self.socket_type = socket_type
-        self.retry_on_timeout = retry_on_timeout
-        self.encoder = redis.connection.Encoder(encoding, encoding_errors, decode_responses)
-        self._description_args = {'db': self.db}
-        self._connect_callbacks = []
-        self._buffer_cutoff = 6000
+                 socket_type=0, retry_on_timeout=False, encoding='utf-8',
+                 encoding_errors='strict', decode_responses=False,
+                 parser_class=_DummyParser, socket_read_size=65536,
+                 health_check_interval=0, client_name=None, username=None):
         self._server = server
-        # self._parser isn't used for anything, but some of the
-        # base class methods depend on it and it's easier not to
-        # override them.
-        self._parser = parser_class(socket_read_size=socket_read_size)
-        self._sock = None
-        # added in redis==3.3.0
-        self.health_check_interval = health_check_interval
-        self.next_health_check = 0
+        self._description_args = {'db': db}
+        super().__init__(
+            host=host, port=port, db=db, password=password,
+            socket_timeout=socket_timeout,
+            socket_connect_timeout=socket_connect_timeout,
+            socket_keepalive=socket_keepalive,
+            socket_keepalive_options=socket_keepalive_options,
+            socket_type=socket_type, retry_on_timeout=retry_on_timeout,
+            encoding=encoding, encoding_errors=encoding_errors,
+            decode_responses=decode_responses, parser_class=parser_class,
+            socket_read_size=socket_read_size,
+            health_check_interval=health_check_interval,
+            client_name=client_name, username=username
+        )
 
     def connect(self):
         super().connect()
