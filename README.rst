@@ -96,7 +96,7 @@ your error handling. Simply set the connected attribute of the server to
 
 Fakeredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
-of redis 5.0.
+of redis 6.0 (although most new feature in 6.0 are not supported).
 
 Support for aioredis
 ====================

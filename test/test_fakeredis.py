@@ -3382,6 +3382,14 @@ def test_pipeline_move(r):
         p.execute()
 
 
+@pytest.mark.min_server('6.0.6')
+def test_exec_bad_arguments(r):
+    # Redis 6.0.6 changed the behaviour of exec so that it always fails with
+    # EXECABORT, even when it's just bad syntax.
+    with pytest.raises(redis.exceptions.ExecAbortError):
+        r.execute_command('exec', 'blahblah')
+
+
 def test_key_patterns(r):
     r.mset({'one': 1, 'two': 2, 'three': 3, 'four': 4})
     assert sorted(r.keys('*o*')) == [b'four', b'one', b'two']

@@ -815,6 +815,7 @@ class FakeSocket:
     def _process_command(self, fields):
         if not fields:
             return
+        func_name = None
         try:
             func, func_name = self._name_to_func(fields[0])
             sig = func._fakeredis_sig
@@ -835,6 +836,8 @@ class FakeSocket:
                 # TODO: should not apply if the exception is from _run_command
                 # e.g. watch inside multi
                 self._transaction_failed = True
+            if func_name == 'exec' and exc.value.startswith('ERR '):
+                exc.value = 'EXECABORT Transaction discarded because of: ' + exc.value[4:]
             result = exc
         result = self._decode_result(result)
         if not isinstance(result, NoResponse):
