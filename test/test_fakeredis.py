@@ -3390,6 +3390,19 @@ def test_exec_bad_arguments(r):
         r.execute_command('exec', 'blahblah')
 
 
+@pytest.mark.min_server('6.0.6')
+def test_exec_bad_arguments_abort(r):
+    r.execute_command('multi')
+    with pytest.raises(redis.exceptions.ExecAbortError):
+        r.execute_command('exec', 'blahblah')
+    # Should have aborted the transaction, so we can run another one
+    p = r.pipeline()
+    p.multi()
+    p.set('bar', 'baz')
+    p.execute()
+    assert r.get('bar') == b'baz'
+
+
 def test_key_patterns(r):
     r.mset({'one': 1, 'two': 2, 'three': 3, 'four': 4})
     assert sorted(r.keys('*o*')) == [b'four', b'one', b'two']
