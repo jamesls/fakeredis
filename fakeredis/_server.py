@@ -2656,7 +2656,6 @@ class FakeConnection(redis.Connection):
 
     def __init__(self, *args, **kwargs):
         self._server = kwargs.pop('server')
-        self._description_args = {'db': kwargs.get('db', 0)}
         super().__init__(*args, **kwargs)
 
     def connect(self):
