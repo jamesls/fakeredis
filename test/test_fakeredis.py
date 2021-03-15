@@ -4988,6 +4988,7 @@ class TestInitArgs:
         db.set('foo', 'bar')
         assert db.get('foo') == 'bar'
 
+    @redis3_only
     def test_can_allow_extra_args(self):
         db = fakeredis.FakeStrictRedis.from_url(
             'redis://localhost:6379/0',
