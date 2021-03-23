@@ -366,12 +366,15 @@ class CommonMachine(hypothesis.stateful.RuleBasedStateMachine):
 
     def __init__(self):
         super().__init__()
-        self.fake = fakeredis.FakeStrictRedis()
         try:
             self.real = redis.StrictRedis('localhost', port=6379)
             self.real.ping()
         except redis.ConnectionError:
             pytest.skip('redis is not running')
+        if self.real.info('server').get('arch_bits') != 64:
+            self.real.connection_pool.disconnect()
+            pytest.skip('redis server is not 64-bit')
+        self.fake = fakeredis.FakeStrictRedis()
         # Disable the response parsing so that we can check the raw values returned
         self.fake.response_callbacks.clear()
         self.real.response_callbacks.clear()
