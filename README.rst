@@ -428,6 +428,15 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.5.0
+-----
+- Fix clearing of watches when a transaction is aborted.
+- Support Python 3.9 and drop support for Python 3.5.
+- Update handling of EXEC failures to match redis 6.0.6+.
+- `#293 <https://github.com/jamesls/fakeredis/pull/293>`_ Align
+  `FakeConnection` constructor signature to base class
+- Skip hypothesis tests on 32-bit Redis servers.
+
 1.4.5
 -----
 - `#285 <https://github.com/jamesls/fakeredis/pull/285>`_ Add support for DUMP
