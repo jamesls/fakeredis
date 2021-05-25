@@ -274,7 +274,7 @@ class Database(MutableMapping):
     def __init__(self, lock, *args, **kwargs):
         self._dict = dict(*args, **kwargs)
         self.time = 0.0
-        self._watches = defaultdict(set)      # key to set of connections
+        self._watches = defaultdict(weakref.WeakSet)      # key to set of connections
         self.condition = threading.Condition(lock)
         self._change_callbacks = set()
 
@@ -640,6 +640,8 @@ class FakeServer:
         self.psubscribers = defaultdict(weakref.WeakSet)
         self.lastsave = int(time.time())
         self.connected = True
+        # List of weakrefs to sockets that are being closed lazily
+        self.closed_sockets = []
 
 
 class FakeSocket:
@@ -664,7 +666,12 @@ class FakeSocket:
         self._parser.send(None)
 
     def put_response(self, msg):
-        self.responses.put(msg)
+        # redis.Connection.__del__ might call self.close at any time, which
+        # will set self.responses to None. We assume this will happen
+        # atomically, and the code below then protects us against this.
+        responses = self.responses
+        if responses:
+            self.responses.put(msg)
 
     def pause(self):
         self._paused = True
@@ -682,13 +689,25 @@ class FakeSocket:
         # `FakeSelector` before it is ever used.
         return 0
 
-    def close(self):
+    def _cleanup(self, server):
+        """Remove all the references to `self` from `server`.
+
+        This is called with the server lock held, but it may be some time after
+        self.close.
+        """
         with self._server.lock:
             for subs in self._server.subscribers.values():
                 subs.discard(self)
             for subs in self._server.psubscribers.values():
                 subs.discard(self)
             self._clear_watches()
+
+    def close(self):
+        # Mark ourselves for cleanup. This might be called from
+        # redis.Connection.__del__, which the garbage collection could call
+        # at any time, and hence we can't safely take the server lock.
+        # We rely on list.append being atomic.
+        self._server.closed_sockets.append(weakref.ref(self))
         self._server = None
         self._db = None
         self.responses = None
@@ -819,6 +838,16 @@ class FakeSocket:
             func, func_name = self._name_to_func(fields[0])
             sig = func._fakeredis_sig
             with self._server.lock:
+                # Clean out old connections
+                while True:
+                    try:
+                        weak_sock = self._server.closed_sockets.pop()
+                    except IndexError:
+                        break
+                    else:
+                        sock = weak_sock()
+                        if sock:
+                            sock._cleanup(self._server)
                 now = time.time()
                 for db in self._server.dbs.values():
                     db.time = now
