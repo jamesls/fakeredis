@@ -695,12 +695,11 @@ class FakeSocket:
         This is called with the server lock held, but it may be some time after
         self.close.
         """
-        with self._server.lock:
-            for subs in self._server.subscribers.values():
-                subs.discard(self)
-            for subs in self._server.psubscribers.values():
-                subs.discard(self)
-            self._clear_watches()
+        for subs in self._server.subscribers.values():
+            subs.discard(self)
+        for subs in self._server.psubscribers.values():
+            subs.discard(self)
+        self._clear_watches()
 
     def close(self):
         # Mark ourselves for cleanup. This might be called from
