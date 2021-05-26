@@ -4694,6 +4694,7 @@ def test_unlink(r):
     assert r.get('foo') is None
 
 
+@pytest.mark.skipif(REDIS_VERSION < "3.4", reason="Test requires redis-py 3.4+")
 @pytest.mark.fake
 def test_socket_cleanup_pubsub(fake_server):
     r1 = fakeredis.FakeStrictRedis(server=fake_server)
