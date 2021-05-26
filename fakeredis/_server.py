@@ -671,7 +671,7 @@ class FakeSocket:
         # atomically, and the code below then protects us against this.
         responses = self.responses
         if responses:
-            self.responses.put(msg)
+            responses.put(msg)
 
     def pause(self):
         self._paused = True
