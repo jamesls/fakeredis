@@ -4694,6 +4694,34 @@ def test_unlink(r):
     assert r.get('foo') is None
 
 
+@pytest.mark.skipif(REDIS_VERSION < "3.4", reason="Test requires redis-py 3.4+")
+@pytest.mark.fake
+def test_socket_cleanup_pubsub(fake_server):
+    r1 = fakeredis.FakeStrictRedis(server=fake_server)
+    r2 = fakeredis.FakeStrictRedis(server=fake_server)
+    ps = r1.pubsub()
+    with ps:
+        ps.subscribe('test')
+        ps.psubscribe('test*')
+    r2.publish('test', 'foo')
+
+
+@pytest.mark.fake
+def test_socket_cleanup_watch(fake_server):
+    r1 = fakeredis.FakeStrictRedis(server=fake_server)
+    r2 = fakeredis.FakeStrictRedis(server=fake_server)
+    pipeline = r1.pipeline(transaction=False)
+    # This needs some poking into redis-py internals to ensure that we reach
+    # FakeSocket._cleanup. We need to close the socket while there is still
+    # a watch in place, but not allow it to be garbage collected (hence we
+    # set 'sock' even though it is unused).
+    with pipeline:
+        pipeline.watch('test')
+        sock = pipeline.connection._sock  # noqa: F841
+        pipeline.connection.disconnect()
+    r2.set('test', 'foo')
+
+
 @redis2_only
 @pytest.mark.parametrize(
     'create_redis',
