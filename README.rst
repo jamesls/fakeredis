@@ -428,6 +428,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.5.1
+-----
+- `#298 <https://github.com/jamesls/fakeredis/pull/298>`_ Fix a deadlock caused
+  by garbage collection
+
 1.5.0
 -----
 - Fix clearing of watches when a transaction is aborted.
