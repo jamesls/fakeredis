@@ -2695,7 +2695,7 @@ class FakeConnection(redis.Connection):
 
     def _connect(self):
         if not self._server.connected:
-            raise self._connection_error_class(CONNECTION_ERROR_MSG)
+            raise redis.ConnectionError(CONNECTION_ERROR_MSG)
         return FakeSocket(self._server)
 
     def can_read(self, timeout=0):
@@ -2723,7 +2723,7 @@ class FakeConnection(redis.Connection):
             try:
                 response = self._sock.responses.get_nowait()
             except queue.Empty:
-                raise self._connection_error_class(CONNECTION_ERROR_MSG)
+                raise redis.ConnectionError(CONNECTION_ERROR_MSG)
         else:
             response = self._sock.responses.get()
         if isinstance(response, redis.ResponseError):
