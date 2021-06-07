@@ -1,5 +1,7 @@
 import asyncio
 
+import async_timeout
+
 from . import _server
 
 

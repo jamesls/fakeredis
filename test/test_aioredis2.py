@@ -62,25 +62,25 @@ async def test_types(r):
 
 
 async def test_transaction(r):
-    tr = r.multi_exec()
-    tr.set('key1', 'value1')
-    tr.set('key2', 'value2')
-    ok1, ok2 = await tr.execute()
+    async with r.pipeline(transaction=True) as tr:
+        tr.set('key1', 'value1')
+        tr.set('key2', 'value2')
+        ok1, ok2 = await tr.execute()
     assert ok1
     assert ok2
     result = await r.get('key1')
     assert result == b'value1'
 
 
-async def test_transaction_fail(r, conn):
-    # ensure that the WATCH applies to the same connection as the MULTI/EXEC.
+async def test_transaction_fail(r):
     await r.set('foo', '1')
-    await conn.watch('foo')
-    await conn.set('foo', '2')    # Different connection
-    tr = conn.multi_exec()
-    tr.get('foo')
-    with pytest.raises(aioredis.MultiExecError):
-        await tr.execute()
+    async with r.pipeline(transaction=True) as tr:
+        await tr.watch('foo')
+        await r.set('foo', '2')    # Different connection
+        tr.multi()
+        tr.get('foo')
+        with pytest.raises(aioredis.exceptions.WatchError):
+            await tr.execute()
 
 
 async def test_pubsub(r, event_loop):
@@ -142,15 +142,6 @@ async def test_blocking_unblock(r, conn, event_loop):
     result = await conn.blpop('list', timeout=1)
     assert result == (b'list', b'y')
     await task
-
-
-@pytest.mark.slow
-async def test_blocking_pipeline(conn):
-    """Blocking command with another command issued behind it."""
-    await conn.set('foo', 'bar')
-    fut = asyncio.ensure_future(conn.blpop('list', timeout=1))
-    assert (await conn.get('foo')) == b'bar'
-    assert (await fut) is None
 
 
 async def test_wrongtype_error(r):

@@ -81,7 +81,7 @@ class FakeConnection(aioredis.Connection):
             try:
                 response = self._sock.responses.get_nowait()
             except asyncio.QueueEmpty:
-                raise aioredis.ConnectionError(CONNECTION_ERROR_MSG)
+                raise aioredis.ConnectionError(_server.CONNECTION_ERROR_MSG)
         else:
             response = await self._sock.responses.get()
         if isinstance(response, aioredis.ResponseError):
@@ -159,7 +159,7 @@ class FakeRedis(aioredis.Redis):
         server = kwargs.pop('server', None)
         if server is None:
             server = _server.FakeServer()
-        self = super().from_url(url, db, **kwargs)
+        self = super().from_url(url, **kwargs)
         # Now override how it creates connections
         pool = self.connection_pool
         pool.connection_class = FakeConnection

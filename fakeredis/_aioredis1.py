@@ -3,7 +3,6 @@ import sys
 import warnings
 
 import aioredis
-import async_timeout
 
 from . import _async, _server
 
