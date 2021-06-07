@@ -3,6 +3,7 @@ import distutils.version
 
 import pytest
 import aioredis
+import async_timeout
 from async_generator import yield_, async_generator
 
 import fakeredis.aioredis
@@ -87,13 +88,13 @@ async def test_pubsub(r, event_loop):
 
     async def reader(ps):
         while True:
-            message = await ps.get_message(ignore_subscribe_messages=True)
+            message = await ps.get_message(ignore_subscribe_messages=True, timeout=5)
             if message is not None:
                 if message.get('data') == b'stop':
                     break
                 queue.put_nowait(message)
 
-    async with r.pubsub() as ps:
+    async with async_timeout.timeout(5), r.pubsub() as ps:
         await ps.subscribe('channel')
         task = event_loop.create_task(reader(ps))
         await r.publish('channel', 'message1')
@@ -113,7 +114,7 @@ async def test_pubsub(r, event_loop):
             'data': b'message2'
         }
         await r.publish('channel', 'stop')
-    await task
+        await task
 
 
 async def test_blocking_ready(r, conn):
