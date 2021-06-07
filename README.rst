@@ -100,9 +100,9 @@ of redis 6.0 (although most new feature in 6.0 are not supported).
 
 Support for aioredis
 ====================
-You can also use fakeredis to mock out aioredis_. This is a much newer
-addition (added in 1.4.0) with less testing, so your mileage may vary. For
-example:
+You can also use fakeredis to mock out aioredis_, although at present only
+aioredis 1.x is supported. This is a much newer addition to fakeredis (added in
+1.4.0) with less testing, so your mileage may vary. For example:
 
 .. code-block:: python
 
