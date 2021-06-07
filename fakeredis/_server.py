@@ -645,6 +645,8 @@ class FakeServer:
 
 
 class FakeSocket:
+    _connection_error_class = redis.ConnectionError
+
     def __init__(self, server):
         self._server = server
         self._db = server.dbs[0]
@@ -824,7 +826,7 @@ class FakeSocket:
 
     def sendall(self, data):
         if not self._server.connected:
-            raise redis.ConnectionError(CONNECTION_ERROR_MSG)
+            raise self._connection_error_class(CONNECTION_ERROR_MSG)
         if isinstance(data, str):
             data = data.encode('ascii')
         self._parser.send(data)
@@ -2693,7 +2695,7 @@ class FakeConnection(redis.Connection):
 
     def _connect(self):
         if not self._server.connected:
-            raise redis.ConnectionError(CONNECTION_ERROR_MSG)
+            raise self._connection_error_class(CONNECTION_ERROR_MSG)
         return FakeSocket(self._server)
 
     def can_read(self, timeout=0):
@@ -2721,7 +2723,7 @@ class FakeConnection(redis.Connection):
             try:
                 response = self._sock.responses.get_nowait()
             except queue.Empty:
-                raise redis.ConnectionError(CONNECTION_ERROR_MSG)
+                raise self._connection_error_class(CONNECTION_ERROR_MSG)
         else:
             response = self._sock.responses.get()
         if isinstance(response, redis.ResponseError):

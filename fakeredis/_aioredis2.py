@@ -7,6 +7,8 @@ from . import _async, _server
 
 
 class FakeSocket(_async.AsyncFakeSocket):
+    _connection_error_class = aioredis.ConnectionError
+
     def _decode_error(self, error):
         return aioredis.connection.BaseParser(1).parse_error(error.value)
 
@@ -155,6 +157,7 @@ class FakeRedis(aioredis.Redis):
             **kwargs
         )
 
+    @classmethod
     def from_url(cls, url: str, **kwargs):
         server = kwargs.pop('server', None)
         if server is None:

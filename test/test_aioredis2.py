@@ -1,5 +1,6 @@
 import asyncio
 import distutils.version
+import re
 
 import pytest
 import aioredis
@@ -14,6 +15,11 @@ pytestmark = [
     pytest.mark.asyncio,
     pytest.mark.skipif(not aioredis2, reason="Test is only applicable to aioredis 2.x")
 ]
+fake_only = pytest.mark.parametrize(
+    'r',
+    [pytest.param('fake', marks=pytest.mark.fake)],
+    indirect=True
+)
 
 
 @pytest.fixture(
@@ -25,16 +31,20 @@ pytestmark = [
 @async_generator
 async def r(request):
     if request.param == 'fake':
-        ret = fakeredis.aioredis.FakeRedis()
+        fake_server = request.getfixturevalue('fake_server')
+        ret = fakeredis.aioredis.FakeRedis(server=fake_server)
     else:
         if not request.getfixturevalue('is_redis_running'):
             pytest.skip('Redis is not running')
         ret = aioredis.Redis()
-    await ret.flushall()
+    connected = request.node.get_closest_marker('disconnected') is None
+    if connected:
+        await ret.flushall()
 
     await yield_(ret)
 
-    await ret.flushall()
+    if connected:
+        await ret.flushall()
     await ret.connection_pool.disconnect()
 
 
@@ -165,3 +175,47 @@ async def test_failed_script_error(r):
     await r.set('foo', 'bar')
     with pytest.raises(aioredis.ResponseError, match='^Error running script'):
         await r.eval('return redis.call("ZCOUNT", KEYS[1])', 1, 'foo')
+
+
+@fake_only
+def test_repr(r):
+    assert re.fullmatch(
+        r'ConnectionPool<FakeConnection<server=<fakeredis._server.FakeServer object at .*>,db=0>>',
+        repr(r.connection_pool)
+    )
+
+
+@fake_only
+@pytest.mark.disconnected
+async def test_not_connected(r):
+    with pytest.raises(aioredis.ConnectionError):
+        await r.ping()
+
+
+@fake_only
+async def test_disconnect_server(r, fake_server):
+    await r.ping()
+    fake_server.connected = False
+    with pytest.raises(aioredis.ConnectionError):
+        await r.ping()
+    fake_server.connected = True
+
+
+async def test_from_url():
+    r0 = fakeredis.aioredis.FakeRedis.from_url('redis://localhost?db=0')
+    r1 = fakeredis.aioredis.FakeRedis.from_url('redis://localhost?db=1')
+    # Check that they are indeed different databases
+    await r0.set('foo', 'a')
+    await r1.set('foo', 'b')
+    assert await r0.get('foo') == b'a'
+    assert await r1.get('foo') == b'b'
+    await r0.connection_pool.disconnect()
+    await r1.connection_pool.disconnect()
+
+
+@fake_only
+async def test_from_url_with_server(r, fake_server):
+    r2 = fakeredis.aioredis.FakeRedis.from_url('redis://localhost', server=fake_server)
+    await r.set('foo', 'bar')
+    assert await r2.get('foo') == b'bar'
+    await r2.connection_pool.disconnect()
