@@ -2802,9 +2802,6 @@ class FakeRedisMixin:
         pool = self.connection_pool
         pool.connection_class = FakeConnection
         pool.connection_kwargs['server'] = server
-        for key in ['password', 'host', 'port', 'path']:
-            if key in pool.connection_kwargs:
-                del pool.connection_kwargs[key]
         return self
 
 

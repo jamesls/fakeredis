@@ -1,4 +1,5 @@
 import asyncio
+import distutils.version
 
 import pytest
 import aioredis
@@ -7,7 +8,11 @@ from async_generator import yield_, async_generator
 import fakeredis.aioredis
 
 
-pytestmark = [pytest.mark.asyncio]
+aioredis2 = aioredis.__version__ >= distutils.version.StrictVersion('2.0.0a1')
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.skipif(not aioredis2, reason="Test is only applicable to aioredis 2.x")
+]
 
 
 @pytest.fixture(
@@ -19,40 +24,39 @@ pytestmark = [pytest.mark.asyncio]
 @async_generator
 async def r(request):
     if request.param == 'fake':
-        ret = await fakeredis.aioredis.create_redis_pool()
+        ret = fakeredis.aioredis.FakeRedis()
     else:
         if not request.getfixturevalue('is_redis_running'):
             pytest.skip('Redis is not running')
-        ret = await aioredis.create_redis_pool('redis://localhost')
+        ret = aioredis.Redis()
     await ret.flushall()
 
     await yield_(ret)
 
     await ret.flushall()
-    ret.close()
-    await ret.wait_closed()
+    await ret.connection_pool.disconnect()
 
 
 @pytest.fixture
 @async_generator
 async def conn(r):
     """A single connection, rather than a pool."""
-    with await r as conn:
+    async with r.client() as conn:
         await yield_(conn)
 
 
 async def test_ping(r):
     pong = await r.ping()
-    assert pong == b'PONG'
+    assert pong is True
 
 
 async def test_types(r):
-    await r.hmset_dict('hash', key1='value1', key2='value2', key3=123)
-    result = await r.hgetall('hash', encoding='utf-8')
+    await r.hset('hash', mapping={'key1': 'value1', 'key2': 'value2', 'key3': 123})
+    result = await r.hgetall('hash')
     assert result == {
-        'key1': 'value1',
-        'key2': 'value2',
-        'key3': '123'
+        b'key1': b'value1',
+        b'key2': b'value2',
+        b'key3': b'123'
     }
 
 
@@ -79,21 +83,36 @@ async def test_transaction_fail(r, conn):
 
 
 async def test_pubsub(r, event_loop):
-    ch, = await r.subscribe('channel')
     queue = asyncio.Queue()
 
-    async def reader(channel):
-        async for message in ch.iter():
-            queue.put_nowait(message)
+    async def reader(ps):
+        while True:
+            message = await ps.get_message(ignore_subscribe_messages=True)
+            if message is not None:
+                if message.get('data') == b'stop':
+                    break
+                queue.put_nowait(message)
 
-    task = event_loop.create_task(reader(ch))
-    await r.publish('channel', 'message1')
-    await r.publish('channel', 'message2')
-    result1 = await queue.get()
-    result2 = await queue.get()
-    assert result1 == b'message1'
-    assert result2 == b'message2'
-    ch.close()
+    async with r.pubsub() as ps:
+        await ps.subscribe('channel')
+        task = event_loop.create_task(reader(ps))
+        await r.publish('channel', 'message1')
+        await r.publish('channel', 'message2')
+        result1 = await queue.get()
+        result2 = await queue.get()
+        assert result1 == {
+            'channel': b'channel',
+            'pattern': None,
+            'type': 'message',
+            'data': b'message1'
+        }
+        assert result2 == {
+            'channel': b'channel',
+            'pattern': None,
+            'type': 'message',
+            'data': b'message2'
+        }
+        await r.publish('channel', 'stop')
     await task
 
 
@@ -101,7 +120,7 @@ async def test_blocking_ready(r, conn):
     """Blocking command which does not need to block."""
     await r.rpush('list', 'x')
     result = await conn.blpop('list', timeout=1)
-    assert result == [b'list', b'x']
+    assert result == (b'list', b'x')
 
 
 @pytest.mark.slow
@@ -120,7 +139,7 @@ async def test_blocking_unblock(r, conn, event_loop):
 
     task = event_loop.create_task(unblock())
     result = await conn.blpop('list', timeout=1)
-    assert result == [b'list', b'y']
+    assert result == (b'list', b'y')
     await task
 
 
@@ -135,22 +154,22 @@ async def test_blocking_pipeline(conn):
 
 async def test_wrongtype_error(r):
     await r.set('foo', 'bar')
-    with pytest.raises(aioredis.ReplyError, match='^WRONGTYPE'):
+    with pytest.raises(aioredis.ResponseError, match='^WRONGTYPE'):
         await r.rpush('foo', 'baz')
 
 
 async def test_syntax_error(r):
-    with pytest.raises(aioredis.ReplyError,
-                       match="^ERR wrong number of arguments for 'get' command$"):
-        await r.execute('get')
+    with pytest.raises(aioredis.ResponseError,
+                       match="^wrong number of arguments for 'get' command$"):
+        await r.execute_command('get')
 
 
 async def test_no_script_error(r):
-    with pytest.raises(aioredis.ReplyError, match='^NOSCRIPT '):
-        await r.evalsha('0123456789abcdef0123456789abcdef')
+    with pytest.raises(aioredis.exceptions.NoScriptError):
+        await r.evalsha('0123456789abcdef0123456789abcdef', 0)
 
 
 async def test_failed_script_error(r):
     await r.set('foo', 'bar')
-    with pytest.raises(aioredis.ReplyError, match='^ERR Error running script'):
-        await r.eval('return redis.call("ZCOUNT", KEYS[1])', ['foo'])
+    with pytest.raises(aioredis.ResponseError, match='^Error running script'):
+        await r.eval('return redis.call("ZCOUNT", KEYS[1])', 1, 'foo')
