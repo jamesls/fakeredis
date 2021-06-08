@@ -38,7 +38,6 @@ async def r(request):
             pytest.skip('Redis is not running')
         ret = aioredis.Redis()
         fake_server = None
-    connected = request.node.get_closest_marker('disconnected') is None
     if not fake_server or fake_server.connected:
         await ret.flushall()
 
@@ -145,7 +144,7 @@ async def test_pubsub_disconnect(r):
         message = await ps.get_message(timeout=0.5)  # Subscription message
         assert message is not None
         message = await ps.get_message(timeout=0.5)
-        assert message == None
+        assert message is None
 
 
 async def test_blocking_ready(r, conn):
