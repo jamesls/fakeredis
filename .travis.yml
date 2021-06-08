@@ -26,8 +26,8 @@ services:
   - redis-server
 install:
   - pip install -r requirements.txt
-  - [ -n "$REDIS_PY" ] && pip install redis==$REDIS_PY
-  - [ -n "$AIOREDIS" ] && pip install aioredis==$AIOREDIS
+  - '[ -n "$REDIS_PY" ] && pip install redis==$REDIS_PY'
+  - '[ -n "$AIOREDIS" ] && pip install aioredis==$AIOREDIS'
   - pip install coveralls
   - if [ "$COVERAGE" = "yes" ]; then pip install -e .; else pip install .; fi
 before_script:
