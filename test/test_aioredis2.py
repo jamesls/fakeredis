@@ -37,13 +37,14 @@ async def r(request):
         if not request.getfixturevalue('is_redis_running'):
             pytest.skip('Redis is not running')
         ret = aioredis.Redis()
+        fake_server = None
     connected = request.node.get_closest_marker('disconnected') is None
-    if connected:
+    if not fake_server or fake_server.connected:
         await ret.flushall()
 
     await yield_(ret)
 
-    if connected:
+    if not fake_server or fake_server.connected:
         await ret.flushall()
     await ret.connection_pool.disconnect()
 
@@ -127,6 +128,26 @@ async def test_pubsub(r, event_loop):
         await task
 
 
+@pytest.mark.slow
+async def test_pubsub_timeout(r):
+    async with r.pubsub() as ps:
+        await ps.subscribe('channel')
+        await ps.get_message(timeout=0.5)  # Subscription message
+        message = await ps.get_message(timeout=0.5)
+        assert message is None
+
+
+@pytest.mark.slow
+async def test_pubsub_disconnect(r):
+    async with r.pubsub() as ps:
+        await ps.subscribe('channel')
+        await ps.connection.disconnect()
+        message = await ps.get_message(timeout=0.5)  # Subscription message
+        assert message is not None
+        message = await ps.get_message(timeout=0.5)
+        assert message == None
+
+
 async def test_blocking_ready(r, conn):
     """Blocking command which does not need to block."""
     await r.rpush('list', 'x')
@@ -201,6 +222,7 @@ async def test_disconnect_server(r, fake_server):
     fake_server.connected = True
 
 
+@pytest.mark.fake
 async def test_from_url():
     r0 = fakeredis.aioredis.FakeRedis.from_url('redis://localhost?db=0')
     r1 = fakeredis.aioredis.FakeRedis.from_url('redis://localhost?db=1')
@@ -219,3 +241,16 @@ async def test_from_url_with_server(r, fake_server):
     await r.set('foo', 'bar')
     assert await r2.get('foo') == b'bar'
     await r2.connection_pool.disconnect()
+
+
+@pytest.mark.fake
+async def test_without_server():
+    r = fakeredis.aioredis.FakeRedis()
+    assert await r.ping()
+
+
+@pytest.mark.fake
+async def test_without_server_disconnected():
+    r = fakeredis.aioredis.FakeRedis(connected=False)
+    with pytest.raises(aioredis.ConnectionError):
+        await r.ping()
