@@ -1,0 +1,64 @@
+name: Unit tests
+on: [push, pull_request]
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    runs-on: ubuntu-20.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.6", "3.7", "3.8", "3.9", "pypy-3.7"]
+        redis-py: ["3.5.3"]
+        include:
+          - python-version: "3.9"
+            redis-py: "2.10.6"
+          - python-version: "3.9"
+            redis-py: "3.0.1"
+          - python-version: "3.9"
+            redis-py: "3.1.0"
+          - python-version: "3.9"
+            redis-py: "3.2.1"
+          - python-version: "3.9"
+            redis-py: "3.3.11"
+          - python-version: "3.9"
+            redis-py: "3.4.1"
+          - python-version: "3.9"
+            redis-py: "3.5.3"
+          - python-version: "3.9"
+            redis-py: "3.5.*"
+            coverage: yes
+    services:
+      redis:
+        image: redis:6.0.10
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-cache-v2-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-cache-v2-${{ matrix.python-version }}-
+            ${{ runner.os }}-pip-cache-v2-
+      - uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -U pip setuptools wheel
+      - run: pip install -r requirements.txt
+      - run: pip install redis==${{ matrix.redis-py }} coveralls
+      - run: pip install -e .
+        if: ${{ matrix.coverage == 'yes' }}
+      - run: pip install .
+        if: ${{ matrix.coverage != 'yes' }}
+      - run: flake8
+      - run: pytest --cov=fakeredis --cov-branch
+        if: ${{ matrix.coverage == 'yes' }}
+      - run: pytest
+        if: ${{ matrix.coverage != 'yes' }}
+      - run: coveralls --service=github
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ matrix.coverage == 'yes' }}
