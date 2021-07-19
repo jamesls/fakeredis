@@ -1,9 +1,8 @@
 fakeredis: A fake version of a redis-py
 =======================================
 
-.. image:: https://secure.travis-ci.org/jamesls/fakeredis.svg?branch=master
-   :target: http://travis-ci.org/jamesls/fakeredis
-
+.. image:: https://github.com/jamesls/fakeredis/actions/workflows/test.yml/badge.svg
+   :target: https://github.com/jamesls/fakeredis/actions/workflows/test.yml
 
 .. image:: https://coveralls.io/repos/jamesls/fakeredis/badge.svg?branch=master
    :target: https://coveralls.io/r/jamesls/fakeredis
