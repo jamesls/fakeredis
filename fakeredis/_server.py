@@ -1900,13 +1900,11 @@ class FakeSocket:
     def sdiffstore(self, dst, *keys):
         return self._setop(lambda a, b: a - b, False, dst, *keys)
 
-    # The following keys can't be marked as sets because of the
-    # stop_if_empty early-out.
-    @command((Key(set),), (Key(),))
+    @command((Key(set),), (Key(set),))
     def sinter(self, *keys):
         return self._setop(lambda a, b: a & b, True, None, *keys)
 
-    @command((Key(), Key(set)), (Key(),))
+    @command((Key(), Key(set)), (Key(set),))
     def sinterstore(self, dst, *keys):
         return self._setop(lambda a, b: a & b, True, dst, *keys)
 
