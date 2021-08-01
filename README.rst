@@ -1,9 +1,8 @@
 fakeredis: A fake version of a redis-py
 =======================================
 
-.. image:: https://secure.travis-ci.org/jamesls/fakeredis.svg?branch=master
-   :target: http://travis-ci.org/jamesls/fakeredis
-
+.. image:: https://github.com/jamesls/fakeredis/actions/workflows/test.yml/badge.svg
+   :target: https://github.com/jamesls/fakeredis/actions/workflows/test.yml
 
 .. image:: https://coveralls.io/repos/jamesls/fakeredis/badge.svg?branch=master
    :target: https://coveralls.io/r/jamesls/fakeredis
@@ -26,13 +25,13 @@ be automatically installed.
 Alternatives
 ============
 
-Consider using birdisle_ or redislite_ instead of fakeredis. They embed the redis codebase
-into Python, so they implement the full redis command set and
-behave far more similarly to a real redis implementation.
+Consider using redislite_ instead of fakeredis. It runs a real redis server and
+connects to it over a UNIX domain socket, so it will behave just like a real
+server. Another alternative is birdisle_, which runs the redis code as a Python
+extension (no separate process), but which is currently unmaintained.
 
 .. _birdisle: https://birdisle.readthedocs.io/en/latest/
 .. _redislite: https://redislite.readthedocs.io/en/latest/
-
 
 
 How to Use

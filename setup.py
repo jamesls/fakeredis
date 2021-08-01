@@ -29,7 +29,7 @@ setup(
     install_requires=[
         # Minor version updates to redis tend to break fakeredis. If you
         # need to use fakeredis with a newer redis, please submit a PR that
-        # relaxes this restriction and adds it to the Travis tests.
+        # relaxes this restriction and adds it to the Github Actions tests.
         'redis<3.6.0', 'six>=1.12', 'sortedcontainers'
     ],
     extras_require={
