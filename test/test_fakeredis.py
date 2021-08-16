@@ -6,9 +6,9 @@ import math
 import threading
 import logging
 from queue import Queue
-import distutils.version
 
 import six
+from packaging.version import Version
 import pytest
 import redis
 import redis.client
@@ -17,8 +17,8 @@ import fakeredis
 from datetime import datetime, timedelta
 
 
-REDIS_VERSION = distutils.version.LooseVersion(redis.__version__)
-REDIS3 = REDIS_VERSION >= '3'
+REDIS_VERSION = Version(redis.__version__)
+REDIS3 = REDIS_VERSION >= Version('3')
 
 
 redis2_only = pytest.mark.skipif(REDIS3, reason="Test is only applicable to redis-py 2.x")
@@ -99,8 +99,8 @@ def create_redis(request):
             min_server_marker = request.node.get_closest_marker('min_server')
             if min_server_marker is not None:
                 server_version = conn.info()['redis_version']
-                min_version = min_server_marker.args[0]
-                if distutils.version.LooseVersion(server_version) < min_version:
+                min_version = Version(min_server_marker.args[0])
+                if Version(server_version) < min_version:
                     pytest.skip(
                         'Redis server {} required but {} found'.format(min_version, server_version)
                     )
@@ -729,7 +729,7 @@ def test_set_px_using_timedelta(r):
     assert r.get('foo') == b'bar'
 
 
-@pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
+@pytest.mark.skipif(REDIS_VERSION < Version('3.5'), reason="Test is only applicable to redis-py 3.5+")
 @pytest.mark.min_server('6.0')
 def test_set_keepttl(r):
     r.set('foo', 'bar', ex=100)
@@ -743,7 +743,7 @@ def test_set_conflicting_expire_options(r):
         r.set('foo', 'bar', ex=1, px=1)
 
 
-@pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
+@pytest.mark.skipif(REDIS_VERSION < Version('3.5'), reason="Test is only applicable to redis-py 3.5+")
 def test_set_conflicting_expire_options_w_keepttl(r):
     with pytest.raises(ResponseError):
         r.set('foo', 'bar', ex=1, keepttl=True)
@@ -1682,7 +1682,7 @@ def test_scan_iter_multiple_pages_with_match(r):
     assert actual == set(all_keys)
 
 
-@pytest.mark.skipif(REDIS_VERSION < '3.5', reason="Test is only applicable to redis-py 3.5+")
+@pytest.mark.skipif(REDIS_VERSION < Version('3.5'), reason="Test is only applicable to redis-py 3.5+")
 @pytest.mark.min_server('6.0')
 def test_scan_iter_multiple_pages_with_type(r):
     all_keys = key_val_dict(size=100)
@@ -2101,7 +2101,7 @@ def test_zadd_with_nx_and_xx(r, ch):
         zadd(r, 'foo', {'four': -4.0, 'three': -3.0}, nx=True, xx=True, ch=ch)
 
 
-@pytest.mark.skipif(REDIS_VERSION < '3.1', reason="Test is only applicable to redis-py 3.1+")
+@pytest.mark.skipif(REDIS_VERSION < Version('3.1'), reason="Test is only applicable to redis-py 3.1+")
 @pytest.mark.parametrize('ch', [False, True])
 def test_zadd_incr(r, ch):
     zadd(r, 'foo', {'four': 4.0, 'three': 3.0})
@@ -3335,7 +3335,7 @@ def test_pipeline_no_commands(r):
     p = r.pipeline()
     p.watch('foo')
     r.set('foo', '2')
-    if REDIS_VERSION >= '3.4':
+    if REDIS_VERSION >= Version('3.4'):
         with pytest.raises(redis.WatchError):
             p.execute()
     else:
@@ -3781,7 +3781,7 @@ def test_pubsub_run_in_thread(r):
         pytest.param(
             None,
             marks=pytest.mark.skipif(
-                REDIS_VERSION >= "3.2" and REDIS_VERSION < "3.3",
+                Version("3.2") <= REDIS_VERSION < Version("3.3"),
                 reason="This test is not applicable to redis-py 3.2"
             )
         )
@@ -4694,7 +4694,7 @@ def test_unlink(r):
     assert r.get('foo') is None
 
 
-@pytest.mark.skipif(REDIS_VERSION < "3.4", reason="Test requires redis-py 3.4+")
+@pytest.mark.skipif(REDIS_VERSION < Version("3.4"), reason="Test requires redis-py 3.4+")
 @pytest.mark.fake
 def test_socket_cleanup_pubsub(fake_server):
     r1 = fakeredis.FakeStrictRedis(server=fake_server)
