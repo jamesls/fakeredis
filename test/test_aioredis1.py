@@ -1,4 +1,5 @@
 import asyncio
+import distutils.version
 
 import pytest
 import aioredis
@@ -7,7 +8,11 @@ from async_generator import yield_, async_generator
 import fakeredis.aioredis
 
 
-pytestmark = [pytest.mark.asyncio]
+aioredis2 = aioredis.__version__ >= distutils.version.StrictVersion('2.0.0a1')
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.skipif(aioredis2, reason="Test is only applicable to aioredis 1.x")
+]
 
 
 @pytest.fixture(

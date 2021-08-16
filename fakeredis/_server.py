@@ -645,6 +645,8 @@ class FakeServer:
 
 
 class FakeSocket:
+    _connection_error_class = redis.ConnectionError
+
     def __init__(self, server):
         self._server = server
         self._db = server.dbs[0]
@@ -824,7 +826,7 @@ class FakeSocket:
 
     def sendall(self, data):
         if not self._server.connected:
-            raise redis.ConnectionError(CONNECTION_ERROR_MSG)
+            raise self._connection_error_class(CONNECTION_ERROR_MSG)
         if isinstance(data, str):
             data = data.encode('ascii')
         self._parser.send(data)
@@ -2802,9 +2804,6 @@ class FakeRedisMixin:
         pool = self.connection_pool
         pool.connection_class = FakeConnection
         pool.connection_kwargs['server'] = server
-        for key in ['password', 'host', 'port', 'path']:
-            if key in pool.connection_kwargs:
-                del pool.connection_kwargs[key]
         return self
 
 

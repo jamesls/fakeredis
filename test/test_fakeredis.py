@@ -1597,12 +1597,12 @@ def test_hsetnx(r):
     assert r.hget('foo', 'newkey') == b'v1'
 
 
-def test_hmsetset_empty_raises_error(r):
+def test_hmset_empty_raises_error(r):
     with pytest.raises(redis.DataError):
         r.hmset('foo', {})
 
 
-def test_hmsetset(r):
+def test_hmset(r):
     r.hset('foo', 'k1', 'v1')
     assert r.hmset('foo', {'k2': 'v2', 'k3': 'v3'}) is True
 

@@ -34,6 +34,6 @@ setup(
     ],
     extras_require={
         'lua': ['lupa'],
-        'aioredis': ['aioredis<2']
+        'aioredis': ['aioredis']
     }
 )

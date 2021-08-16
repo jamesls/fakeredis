@@ -1,4 +1,4 @@
-aioredis<2
+aioredis
 async_generator
 coverage
 flake8

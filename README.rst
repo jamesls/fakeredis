@@ -99,9 +99,19 @@ of redis 6.0 (although most new feature in 6.0 are not supported).
 
 Support for aioredis
 ====================
-You can also use fakeredis to mock out aioredis_, although at present only
-aioredis 1.x is supported. This is a much newer addition to fakeredis (added in
-1.4.0) with less testing, so your mileage may vary. For example:
+
+You can also use fakeredis to mock out aioredis_.  This is a much newer
+addition to fakeredis (added in 1.4.0) with less testing, so your mileage may
+vary. Both version 1 and version 2 (which have very different APIs) are
+supported. The API provided by fakeredis depends on the version of aioredis that is
+installed.
+
+.. _aioredis: https://aioredis.readthedocs.io/
+
+aioredis 1.x
+------------
+
+Example:
 
 .. code-block:: python
 
@@ -112,8 +122,6 @@ aioredis 1.x is supported. This is a much newer addition to fakeredis (added in
   >>> await r.get('foo')
   b'bar'
 
-.. _aioredis: https://aioredis.readthedocs.io/
-
 You can pass a `FakeServer` as the first argument to `create_redis` or
 `create_redis_pool` to share state (you can even share state with a
 `fakeredis.FakeRedis`). It should even be safe to do this state sharing between
@@ -122,6 +130,23 @@ threads (as long as each connection/pool is only used in one thread).
 It is highly recommended that you only use the aioredis support with
 Python 3.5.3 or higher. Earlier versions will not work correctly with
 non-default event loops.
+
+aioredis 2.x
+------------
+
+Example:
+
+.. code-block:: python
+
+  >>> import fakeredis.aioredis
+  >>> r = fakeredis.aioredis.FakeRedis()
+  >>> await r.set('foo', 'bar')
+  True
+  >>> await r.get('foo')
+  b'bar'
+
+The support is essentially the same as for redis-py e.g., you can pass a
+`server` keyword argument to the `FakeRedis` constructor.
 
 Porting to fakeredis 1.0
 ========================
