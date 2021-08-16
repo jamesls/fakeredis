@@ -452,6 +452,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.6.0
+-----
+- `#304 <https://github.com/jamesls/fakeredis/pull/304>`_ Support aioredis 2
+- `#302 <https://github.com/jamesls/fakeredis/pull/302>`_ Switch CI from Travis CI to Github Actions
+
 1.5.2
 -----
 - Depend on `aioredis<2` (aioredis 2.x is a backwards-incompatible rewrite).
