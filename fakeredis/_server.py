@@ -2804,6 +2804,9 @@ class FakeRedisMixin:
         pool = self.connection_pool
         pool.connection_class = FakeConnection
         pool.connection_kwargs['server'] = server
+        # FakeConnection cannot handle the path kwarg (present when from_url
+        # is called with a unix socket)
+        pool.connection_kwargs.pop('path', None)
         return self
 
 

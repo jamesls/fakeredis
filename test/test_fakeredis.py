@@ -5048,6 +5048,11 @@ class TestInitArgs:
         rep = repr(db)
         assert 'db=11' in rep
 
+    def test_from_unix_socket(self):
+        db = fakeredis.FakeStrictRedis.from_url('unix://a/b/c')
+        db.set('foo', 'bar')
+        assert db.get('foo') == b'bar'
+
 
 @pytest.mark.disconnected
 @fake_only
