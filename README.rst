@@ -452,6 +452,11 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.6.1
+-----
+- `#305 <https://github.com/jamesls/fakeredis/pull/305>`_ Some packaging modernisation
+- `#306 <https://github.com/jamesls/fakeredis/pull/306>`_ Fix FakeRedisMixin.from_url for unix sockets
+
 1.6.0
 -----
 - `#304 <https://github.com/jamesls/fakeredis/pull/304>`_ Support aioredis 2
