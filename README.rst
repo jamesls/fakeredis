@@ -456,6 +456,7 @@ Revision history
 -----
 - `#305 <https://github.com/jamesls/fakeredis/pull/305>`_ Some packaging modernisation
 - `#306 <https://github.com/jamesls/fakeredis/pull/306>`_ Fix FakeRedisMixin.from_url for unix sockets
+- `#308 <https://github.com/jamesls/fakeredis/pull/308>`_ Remove use of async_generator from tests
 
 1.6.0
 -----
