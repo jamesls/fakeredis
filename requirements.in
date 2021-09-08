@@ -1,5 +1,4 @@
 aioredis
-async_generator
 coverage
 flake8
 hypothesis

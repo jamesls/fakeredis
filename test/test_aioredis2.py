@@ -5,7 +5,6 @@ from packaging.version import Version
 import pytest
 import aioredis
 import async_timeout
-from async_generator import yield_, async_generator
 
 import fakeredis.aioredis
 
@@ -28,7 +27,6 @@ fake_only = pytest.mark.parametrize(
         pytest.param('real', marks=pytest.mark.real)
     ]
 )
-@async_generator
 async def r(request):
     if request.param == 'fake':
         fake_server = request.getfixturevalue('fake_server')
@@ -41,7 +39,7 @@ async def r(request):
     if not fake_server or fake_server.connected:
         await ret.flushall()
 
-    await yield_(ret)
+    yield ret
 
     if not fake_server or fake_server.connected:
         await ret.flushall()
@@ -49,11 +47,10 @@ async def r(request):
 
 
 @pytest.fixture
-@async_generator
 async def conn(r):
     """A single connection, rather than a pool."""
     async with r.client() as conn:
-        await yield_(conn)
+        yield conn
 
 
 async def test_ping(r):

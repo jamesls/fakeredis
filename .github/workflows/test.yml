@@ -63,9 +63,9 @@ jobs:
       - run: pip install .
         if: ${{ matrix.coverage != 'yes' }}
       - run: flake8
-      - run: pytest --cov=fakeredis --cov-branch
+      - run: pytest -v --cov=fakeredis --cov-branch
         if: ${{ matrix.coverage == 'yes' }}
-      - run: pytest
+      - run: pytest -v
         if: ${{ matrix.coverage != 'yes' }}
       - run: coveralls --service=github
         env:

@@ -3,7 +3,6 @@ import asyncio
 from packaging.version import Version
 import pytest
 import aioredis
-from async_generator import yield_, async_generator
 
 import fakeredis.aioredis
 
@@ -21,7 +20,6 @@ pytestmark = [
         pytest.param('real', marks=pytest.mark.real)
     ]
 )
-@async_generator
 async def r(request):
     if request.param == 'fake':
         ret = await fakeredis.aioredis.create_redis_pool()
@@ -31,7 +29,7 @@ async def r(request):
         ret = await aioredis.create_redis_pool('redis://localhost')
     await ret.flushall()
 
-    await yield_(ret)
+    yield ret
 
     await ret.flushall()
     ret.close()
@@ -39,11 +37,10 @@ async def r(request):
 
 
 @pytest.fixture
-@async_generator
 async def conn(r):
     """A single connection, rather than a pool."""
     with await r as conn:
-        await yield_(conn)
+        yield conn
 
 
 async def test_ping(r):
