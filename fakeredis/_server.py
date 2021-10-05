@@ -2013,7 +2013,7 @@ class FakeSocket:
         return OK
 
     # Sorted set commands
-    # TODO: [b]zpopmin/zpopmax,
+    # TODO: bzpopmin/[b]zpopmax,
 
     @staticmethod
     def _limit_items(items, offset, count):
@@ -2128,6 +2128,20 @@ class FakeSocket:
     @command((Key(ZSet), StringTest, StringTest))
     def zlexcount(self, key, min, max):
         return key.value.zlexcount(min.value, min.exclusive, max.value, max.exclusive)
+
+    @command((Key(ZSet),), (Int,))
+    def zpopmin(self, key, count=None):
+        zset = key.value
+        min_score = ScoreTest.decode(b'-inf').lower_bound
+        max_score = ScoreTest.decode(b'inf').upper_bound
+        items = list(zset.irange_score(min_score, max_score))
+        if count is None:
+            count = 1
+
+        items = self._limit_items(items, 0, count)
+        self.zrem(key, *[value for score, value in items])
+        items = self._apply_withscores(items, True)
+        return items
 
     def _zrange(self, key, start, stop, reverse, *args):
         zset = key.value

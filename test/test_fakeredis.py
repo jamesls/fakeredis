@@ -2112,6 +2112,37 @@ def test_zadd_incr(r, ch):
     assert zadd(r, 'foo', {'three': 1.0}, incr=True, xx=True, ch=ch) == 4.0
 
 
+def test_zpopmin_empty(r):
+    assert r.zpopmin('foo') == []
+
+
+def test_zpopmin_default_count(r):
+    zadd(r, 'foo', {'one_a': 1})
+    zadd(r, 'foo', {'one_b': 1})
+    zadd(r, 'foo', {'two_a': 2})
+    assert r.zpopmin('foo') == [(b'one_a', 1.0)]
+    assert r.zcard('foo') == 2
+
+
+def test_zpopmin_zero_count(r):
+    zadd(r, 'foo', {'one_a': 1})
+    zadd(r, 'foo', {'one_b': 1})
+    zadd(r, 'foo', {'two_a': 2})
+    assert r.zpopmin('foo', count=0) == []
+    assert r.zcard('foo') == 3
+
+
+def test_zpopmin_more_than_available(r):
+    zadd(r, 'foo', {'one_a': 1})
+    zadd(r, 'foo', {'one_b': 1})
+    zadd(r, 'foo', {'two_a': 2})
+    zadd(r, 'foo', {'two_b': 2})
+    assert r.zpopmin('foo', count=5) == [
+        (b'one_a', 1.0), (b'one_b', 1.0), (b'two_a', 2.0), (b'two_b', 2.0)
+    ]
+    assert r.zcard('foo') == 0
+
+
 def test_zrange_same_score(r):
     zadd(r, 'foo', {'two_a': 2})
     zadd(r, 'foo', {'two_b': 2})
