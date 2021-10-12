@@ -1937,7 +1937,7 @@ class FakeSocket:
         if count is None:
             if not key.value:
                 return None
-            item = random.sample(key.value, 1)[0]
+            item = random.sample(list(key.value), 1)[0]
             key.value.remove(item)
             key.updated()
             return item
@@ -1956,10 +1956,10 @@ class FakeSocket:
             if not key.value:
                 return None
             else:
-                return random.sample(key.value, 1)[0]
+                return random.sample(list(key.value), 1)[0]
         elif count >= 0:
             count = min(count, len(key.value))
-            return random.sample(key.value, count)
+            return random.sample(list(key.value), count)
         else:
             items = list(key.value)
             return [random.choice(items) for _ in range(-count)]
