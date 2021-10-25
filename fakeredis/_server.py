@@ -2562,7 +2562,7 @@ class FakeSocket:
         elif casematch(subcmd, b'exists'):
             return [int(sha1 in self._server.script_cache) for sha1 in args]
         elif casematch(subcmd, b'flush'):
-            if len(args) != 0:
+            if len(args) > 1 or (len(args) == 1 and casenorm(args[0]) not in {b'sync', b'async'}):
                 raise SimpleError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
             self._server.script_cache = {}
             return OK
