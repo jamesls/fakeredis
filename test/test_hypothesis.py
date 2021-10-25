@@ -239,7 +239,7 @@ list_commands = (
                st.sampled_from(['before', 'after', 'BEFORE', 'AFTER']) | st.binary(),
                values, values)
     | commands(st.just('llen'), keys)
-    | commands(st.sampled_from(['lpop', 'rpop']), keys)
+    | commands(st.sampled_from(['lpop', 'rpop']), keys, st.just(None) | st.integers())
     | commands(st.sampled_from(['lpush', 'lpushx', 'rpush', 'rpushx']), keys, st.lists(values))
     | commands(st.just('lrange'), keys, counts, counts)
     | commands(st.just('lrem'), keys, counts, values)

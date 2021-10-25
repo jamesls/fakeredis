@@ -1041,6 +1041,22 @@ def test_lpop_wrong_type(r):
         r.lpop('foo')
 
 
+@pytest.mark.min_server('6.2')
+def test_lpop_count(r):
+    assert r.rpush('foo', 'one') == 1
+    assert r.rpush('foo', 'two') == 2
+    assert r.rpush('foo', 'three') == 3
+    assert raw_command(r, 'lpop', 'foo', 2) == [b'one', b'two']
+    # See https://github.com/redis/redis/issues/9680
+    assert raw_command(r, 'lpop', 'foo', 0) is None
+
+
+@pytest.mark.min_server('6.2')
+def test_lpop_count_negative(r):
+    with pytest.raises(redis.ResponseError):
+        raw_command(r, 'lpop', 'foo', -1)
+
+
 def test_lset(r):
     r.rpush('foo', 'one')
     r.rpush('foo', 'two')
@@ -1146,6 +1162,22 @@ def test_rpop_wrong_type(r):
     r.set('foo', 'bar')
     with pytest.raises(redis.ResponseError):
         r.rpop('foo')
+
+
+@pytest.mark.min_server('6.2')
+def test_rpop_count(r):
+    assert r.rpush('foo', 'one') == 1
+    assert r.rpush('foo', 'two') == 2
+    assert r.rpush('foo', 'three') == 3
+    assert raw_command(r, 'rpop', 'foo', 2) == [b'three', b'two']
+    # See https://github.com/redis/redis/issues/9680
+    assert raw_command(r, 'rpop', 'foo', 0) is None
+
+
+@pytest.mark.min_server('6.2')
+def test_rpop_count_negative(r):
+    with pytest.raises(redis.ResponseError):
+        raw_command(r, 'rpop', 'foo', -1)
 
 
 def test_linsert_before(r):
