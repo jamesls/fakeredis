@@ -5008,10 +5008,10 @@ class TestInitArgs:
         assert db2.get('foo') == b'foo2'
 
     def test_from_url_db_value_error(self):
-        # In ValueError, should default to 0
+        # In case of ValueError, should default to 0, or be absent in redis-py 4.0
         db = fakeredis.FakeStrictRedis.from_url(
             'redis://localhost:6379/a')
-        assert db.connection_pool.connection_kwargs['db'] == 0
+        assert db.connection_pool.connection_kwargs.get('db', 0) == 0
 
     def test_can_pass_through_extra_args(self):
         db = fakeredis.FakeStrictRedis.from_url(
