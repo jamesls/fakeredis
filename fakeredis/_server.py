@@ -1,24 +1,23 @@
+import functools
+import hashlib
+import itertools
 import logging
-import time
-import threading
 import math
+import pickle
+import queue
 import random
 import re
+import threading
+import time
 import warnings
-import functools
-import itertools
-import hashlib
 import weakref
-import queue
-import pickle
 from collections import defaultdict
 from collections.abc import MutableMapping
 
-import six
 import redis
+import six
 
 from ._zset import ZSet
-
 
 LOGGER = logging.getLogger('fakeredis')
 REDIS_LOG_LEVELS = {
@@ -2493,7 +2492,7 @@ class FakeSocket:
 
     @command((bytes, Int), (bytes,), flags='s')
     def eval(self, script, numkeys, *keys_and_args):
-        from lupa import LuaRuntime, LuaError, as_attrgetter
+        from lupa import LuaError, LuaRuntime, as_attrgetter
 
         if numkeys > len(keys_and_args):
             raise SimpleError(TOO_MANY_KEYS_MSG)
