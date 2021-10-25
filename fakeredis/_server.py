@@ -2787,11 +2787,11 @@ class FakeRedisMixin:
         super().__init__(*bound.args, **bound.kwargs)
 
     @classmethod
-    def from_url(cls, url, db=None, **kwargs):
+    def from_url(cls, *args, **kwargs):
         server = kwargs.pop('server', None)
         if server is None:
             server = FakeServer()
-        self = super().from_url(url, db, **kwargs)
+        self = super().from_url(*args, **kwargs)
         # Now override how it creates connections
         pool = self.connection_pool
         pool.connection_class = FakeConnection
