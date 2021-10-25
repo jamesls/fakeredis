@@ -1,5 +1,6 @@
 import functools
 import hashlib
+import inspect
 import itertools
 import logging
 import math
@@ -2740,58 +2741,50 @@ class FakeConnection(redis.Connection):
 
 
 class FakeRedisMixin:
-    def __init__(self, host='localhost', port=6379,
-                 db=0, password=None, socket_timeout=None,
-                 socket_connect_timeout=None,
-                 socket_keepalive=None, socket_keepalive_options=None,
-                 connection_pool=None, unix_socket_path=None,
-                 encoding='utf-8', encoding_errors='strict',
-                 charset=None, errors=None,
-                 decode_responses=False, retry_on_timeout=False,
-                 ssl=False, ssl_keyfile=None, ssl_certfile=None,
-                 ssl_cert_reqs=None, ssl_ca_certs=None,
-                 max_connections=None, server=None,
-                 connected=True):
-        if not connection_pool:
+    def __init__(self, *args, server=None, connected=True, **kwargs):
+        # Interpret the positional and keyword arguments according to the
+        # version of redis in use.
+        sig = inspect.signature(redis.Redis)
+        bound = sig.bind(*args, **kwargs)
+        bound.apply_defaults()
+        if not bound.arguments['connection_pool']:
+            charset = bound.arguments['charset']
+            errors = bound.arguments['errors']
             # Adapted from redis-py
             if charset is not None:
                 warnings.warn(DeprecationWarning(
                     '"charset" is deprecated. Use "encoding" instead'))
-                encoding = charset
+                bound.arguments['encoding'] = charset
             if errors is not None:
                 warnings.warn(DeprecationWarning(
                     '"errors" is deprecated. Use "encoding_errors" instead'))
-                encoding_errors = errors
+                bound.arguments['encoding_errors'] = errors
 
             if server is None:
                 server = FakeServer()
                 server.connected = connected
             kwargs = {
-                'db': db,
-                'password': password,
-                'encoding': encoding,
-                'encoding_errors': encoding_errors,
-                'decode_responses': decode_responses,
-                'max_connections': max_connections,
                 'connection_class': FakeConnection,
                 'server': server
             }
-            connection_pool = redis.connection.ConnectionPool(**kwargs)
-        # These need to be passed by name due to
-        # https://github.com/andymccurdy/redis-py/issues/1276
-        super().__init__(
-            host=host, port=port, db=db, password=password, socket_timeout=socket_timeout,
-            socket_connect_timeout=socket_connect_timeout,
-            socket_keepalive=socket_keepalive,
-            socket_keepalive_options=socket_keepalive_options,
-            connection_pool=connection_pool,
-            unix_socket_path=unix_socket_path,
-            encoding=encoding, encoding_errors=encoding_errors,
-            charset=charset, errors=errors,
-            decode_responses=decode_responses, retry_on_timeout=retry_on_timeout,
-            ssl=ssl, ssl_keyfile=ssl_keyfile, ssl_certfile=ssl_certfile,
-            ssl_cert_reqs=ssl_cert_reqs, ssl_ca_certs=ssl_ca_certs,
-            max_connections=max_connections)
+            conn_pool_args = [
+                'db',
+                'username',
+                'password',
+                'socket_timeout',
+                'encoding',
+                'encoding_errors',
+                'decode_responses',
+                'retry_on_timeout',
+                'max_connections',
+                'health_check_interval',
+                'client_name'
+            ]
+            for arg in conn_pool_args:
+                if arg in bound.arguments:
+                    kwargs[arg] = bound.arguments[arg]
+            bound.arguments['connection_pool'] = redis.connection.ConnectionPool(**kwargs)
+        super().__init__(*bound.args, **bound.kwargs)
 
     @classmethod
     def from_url(cls, url, db=None, **kwargs):
