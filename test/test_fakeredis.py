@@ -3454,6 +3454,10 @@ def test_save(r):
 
 def test_bgsave(r):
     assert r.bgsave()
+    with pytest.raises(ResponseError):
+        r.execute_command('BGSAVE', 'SCHEDULE', 'FOO')
+    with pytest.raises(ResponseError):
+        r.execute_command('BGSAVE', 'FOO')
 
 
 def test_lastsave(r):

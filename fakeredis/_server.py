@@ -2355,8 +2355,10 @@ class FakeSocket:
     # Server commands
     # TODO: lots
 
-    @command((), flags='s')
-    def bgsave(self):
+    @command((), (bytes,), flags='s')
+    def bgsave(self, *args):
+        if len(args) > 1 or (len(args) == 1 and not casematch(args[0], b'schedule')):
+            raise SimpleError(SYNTAX_ERROR_MSG)
         self._server.lastsave = int(time.time())
         return BGSAVE_STARTED
 
