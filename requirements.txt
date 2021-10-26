@@ -24,7 +24,7 @@ hypothesis==5.41.4
     # via -r requirements.in
 iniconfig==1.1.1
     # via pytest
-lupa==1.9
+lupa==1.10
     # via -r requirements.in
 mccabe==0.6.1
     # via flake8
