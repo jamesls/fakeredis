@@ -86,6 +86,9 @@ RESTORE_INVALID_TTL_MSG = "ERR Invalid TTL value, must be >= 0"
 
 FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 
+# This needs to be grabbed early to avoid breaking tests that mock redis.Redis.
+_ORIG_SIG = inspect.signature(redis.Redis)
+
 
 class SimpleString:
     def __init__(self, value):
@@ -2744,8 +2747,7 @@ class FakeRedisMixin:
     def __init__(self, *args, server=None, connected=True, **kwargs):
         # Interpret the positional and keyword arguments according to the
         # version of redis in use.
-        sig = inspect.signature(redis.Redis)
-        bound = sig.bind(*args, **kwargs)
+        bound = _ORIG_SIG.bind(*args, **kwargs)
         bound.apply_defaults()
         if not bound.arguments['connection_pool']:
             charset = bound.arguments['charset']
