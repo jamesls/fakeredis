@@ -1757,14 +1757,38 @@ class FakeSocket:
     def llen(self, key):
         return len(key.value)
 
-    @command((Key(list),))
-    def lpop(self, key):
-        try:
-            ret = key.value.pop(0)
-            key.updated()
-            return ret
-        except IndexError:
+    def _list_pop(self, get_slice, key, *args):
+        """Implements lpop and rpop.
+
+        `get_slice` must take a count and return a slice expression for the
+        range to pop.
+        """
+        # This implementation is somewhat contorted to match the odd
+        # behaviours described in https://github.com/redis/redis/issues/9680.
+        count = 1
+        if len(args) > 1:
+            raise SimpleError(SYNTAX_ERROR_MSG)
+        elif len(args) == 1:
+            count = args[0]
+            if count < 0:
+                raise SimpleError(INDEX_ERROR_MSG)
+            elif count == 0:
+                return None
+        if not key:
             return None
+        elif type(key.value) != list:
+            raise SimpleError(WRONGTYPE_MSG)
+        slc = get_slice(count)
+        ret = key.value[slc]
+        del key.value[slc]
+        key.updated()
+        if not args:
+            ret = ret[0]
+        return ret
+
+    @command((Key(),), (Int(),))
+    def lpop(self, key, *args):
+        return self._list_pop(lambda count: slice(None, count), key, *args)
 
     @command((Key(list), bytes), (bytes,))
     def lpush(self, key, *values):
@@ -1829,14 +1853,9 @@ class FakeSocket:
                 key.update(new_value)
         return OK
 
-    @command((Key(list),))
-    def rpop(self, key):
-        try:
-            ret = key.value.pop()
-            key.updated()
-            return ret
-        except IndexError:
-            return None
+    @command((Key(list),), (Int(),))
+    def rpop(self, key, *args):
+        return self._list_pop(lambda count: slice(None, -count - 1, -1), key, *args)
 
     @command((Key(list, None), Key(list)))
     def rpoplpush(self, src, dst):
@@ -1905,13 +1924,11 @@ class FakeSocket:
     def sdiffstore(self, dst, *keys):
         return self._setop(lambda a, b: a - b, False, dst, *keys)
 
-    # The following keys can't be marked as sets because of the
-    # stop_if_empty early-out.
-    @command((Key(set),), (Key(),))
+    @command((Key(set),), (Key(set),))
     def sinter(self, *keys):
         return self._setop(lambda a, b: a & b, True, None, *keys)
 
-    @command((Key(), Key(set)), (Key(),))
+    @command((Key(), Key(set)), (Key(set),))
     def sinterstore(self, dst, *keys):
         return self._setop(lambda a, b: a & b, True, dst, *keys)
 
@@ -2358,8 +2375,10 @@ class FakeSocket:
     # Server commands
     # TODO: lots
 
-    @command((), flags='s')
-    def bgsave(self):
+    @command((), (bytes,), flags='s')
+    def bgsave(self, *args):
+        if len(args) > 1 or (len(args) == 1 and not casematch(args[0], b'schedule')):
+            raise SimpleError(SYNTAX_ERROR_MSG)
         self._server.lastsave = int(time.time())
         return BGSAVE_STARTED
 
@@ -2563,7 +2582,7 @@ class FakeSocket:
         elif casematch(subcmd, b'exists'):
             return [int(sha1 in self._server.script_cache) for sha1 in args]
         elif casematch(subcmd, b'flush'):
-            if len(args) != 0:
+            if len(args) > 1 or (len(args) == 1 and casenorm(args[0]) not in {b'sync', b'async'}):
                 raise SimpleError(BAD_SUBCOMMAND_MSG.format('SCRIPT'))
             self._server.script_cache = {}
             return OK

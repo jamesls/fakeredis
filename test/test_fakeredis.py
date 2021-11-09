@@ -1041,6 +1041,22 @@ def test_lpop_wrong_type(r):
         r.lpop('foo')
 
 
+@pytest.mark.min_server('6.2')
+def test_lpop_count(r):
+    assert r.rpush('foo', 'one') == 1
+    assert r.rpush('foo', 'two') == 2
+    assert r.rpush('foo', 'three') == 3
+    assert raw_command(r, 'lpop', 'foo', 2) == [b'one', b'two']
+    # See https://github.com/redis/redis/issues/9680
+    assert raw_command(r, 'lpop', 'foo', 0) is None
+
+
+@pytest.mark.min_server('6.2')
+def test_lpop_count_negative(r):
+    with pytest.raises(redis.ResponseError):
+        raw_command(r, 'lpop', 'foo', -1)
+
+
 def test_lset(r):
     r.rpush('foo', 'one')
     r.rpush('foo', 'two')
@@ -1146,6 +1162,22 @@ def test_rpop_wrong_type(r):
     r.set('foo', 'bar')
     with pytest.raises(redis.ResponseError):
         r.rpop('foo')
+
+
+@pytest.mark.min_server('6.2')
+def test_rpop_count(r):
+    assert r.rpush('foo', 'one') == 1
+    assert r.rpush('foo', 'two') == 2
+    assert r.rpush('foo', 'three') == 3
+    assert raw_command(r, 'rpop', 'foo', 2) == [b'three', b'two']
+    # See https://github.com/redis/redis/issues/9680
+    assert raw_command(r, 'rpop', 'foo', 0) is None
+
+
+@pytest.mark.min_server('6.2')
+def test_rpop_count_negative(r):
+    with pytest.raises(redis.ResponseError):
+        raw_command(r, 'rpop', 'foo', -1)
 
 
 def test_linsert_before(r):
@@ -3454,6 +3486,10 @@ def test_save(r):
 
 def test_bgsave(r):
     assert r.bgsave()
+    with pytest.raises(ResponseError):
+        r.execute_command('BGSAVE', 'SCHEDULE', 'FOO')
+    with pytest.raises(ResponseError):
+        r.execute_command('BGSAVE', 'FOO')
 
 
 def test_lastsave(r):
@@ -5004,10 +5040,10 @@ class TestInitArgs:
         assert db2.get('foo') == b'foo2'
 
     def test_from_url_db_value_error(self):
-        # In ValueError, should default to 0
+        # In case of ValueError, should default to 0, or be absent in redis-py 4.0
         db = fakeredis.FakeStrictRedis.from_url(
             'redis://localhost:6379/a')
-        assert db.connection_pool.connection_kwargs['db'] == 0
+        assert db.connection_pool.connection_kwargs.get('db', 0) == 0
 
     def test_can_pass_through_extra_args(self):
         db = fakeredis.FakeStrictRedis.from_url(
