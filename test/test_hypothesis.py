@@ -204,7 +204,10 @@ string_commands = (
     | commands(st.just('mget'), st.lists(keys))
     | commands(st.sampled_from(['mset', 'msetnx']), st.lists(st.tuples(keys, values)))
     | commands(st.just('set'), keys, values,
-               st.none() | st.just('nx'), st.none() | st.just('xx'))
+               st.none() | st.just('nx'),
+               st.none() | st.just('xx'),
+               st.none() | st.just('keepttl'),
+               st.none() | st.just('get'))
     | commands(st.just('setex'), keys, expires_seconds, values)
     | commands(st.just('psetex'), keys, expires_ms, values)
     | commands(st.just('setnx'), keys, values)

@@ -1497,6 +1497,7 @@ class FakeSocket:
         xx = False
         nx = False
         keepttl = False
+        get = False
         while i < len(args):
             if casematch(args[i], b'nx'):
                 nx = True
@@ -1517,15 +1518,27 @@ class FakeSocket:
             elif casematch(args[i], b'keepttl'):
                 keepttl = True
                 i += 1
+            elif casematch(args[i], b'get'):
+                get = True
+                i += 1
             else:
                 raise SimpleError(SYNTAX_ERROR_MSG)
         if (xx and nx) or ((px is not None) + (ex is not None) + keepttl > 1):
             raise SimpleError(SYNTAX_ERROR_MSG)
+        if nx and get:
+            # The command docs say this is allowed from Redis 7.0.
+            raise SimpleError(SYNTAX_ERROR_MSG)
+
+        old_value = None
+        if get:
+            if key.value is not None and type(key.value) is not bytes:
+                raise SimpleError(WRONGTYPE_MSG)
+            old_value = key.value
 
         if nx and key:
-            return None
+            return old_value
         if xx and not key:
-            return None
+            return old_value
         if not keepttl:
             key.value = value
         else:
@@ -1534,7 +1547,7 @@ class FakeSocket:
             key.expireat = self._db.time + ex
         if px is not None:
             key.expireat = self._db.time + px / 1000.0
-        return OK
+        return OK if not get else old_value
 
     @command((Key(), Int, bytes))
     def setex(self, key, seconds, value):
@@ -1853,7 +1866,7 @@ class FakeSocket:
                 key.update(new_value)
         return OK
 
-    @command((Key(list),), (Int(),))
+    @command((Key(),), (Int(),))
     def rpop(self, key, *args):
         return self._list_pop(lambda count: slice(None, -count - 1, -1), key, *args)
 
