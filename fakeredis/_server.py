@@ -1866,7 +1866,7 @@ class FakeSocket:
                 key.update(new_value)
         return OK
 
-    @command((Key(list),), (Int(),))
+    @command((Key(),), (Int(),))
     def rpop(self, key, *args):
         return self._list_pop(lambda count: slice(None, -count - 1, -1), key, *args)
 
