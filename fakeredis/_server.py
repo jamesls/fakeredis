@@ -2812,15 +2812,14 @@ class FakeRedisMixin:
         server = kwargs.pop('server', None)
         if server is None:
             server = FakeServer()
-        self = super().from_url(*args, **kwargs)
+        pool = redis.ConnectionPool.from_url(*args, **kwargs)
         # Now override how it creates connections
-        pool = self.connection_pool
         pool.connection_class = FakeConnection
         pool.connection_kwargs['server'] = server
         # FakeConnection cannot handle the path kwarg (present when from_url
         # is called with a unix socket)
         pool.connection_kwargs.pop('path', None)
-        return self
+        return cls(connection_pool=pool)
 
 
 class FakeStrictRedis(FakeRedisMixin, redis.StrictRedis):
