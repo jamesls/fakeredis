@@ -821,6 +821,38 @@ def test_set_xx(r):
     assert r.set('foo', 'bar', xx=True) is True
 
 
+@pytest.mark.min_server('6.2')
+def test_set_get(r):
+    assert raw_command(r, 'set', 'foo', 'bar', 'GET') is None
+    assert r.get('foo') == b'bar'
+    assert raw_command(r, 'set', 'foo', 'baz', 'GET') == b'bar'
+    assert r.get('foo') == b'baz'
+
+
+@pytest.mark.min_server('6.2')
+def test_set_get_xx(r):
+    assert raw_command(r, 'set', 'foo', 'bar', 'XX', 'GET') is None
+    assert r.get('foo') is None
+    r.set('foo', 'bar')
+    assert raw_command(r, 'set', 'foo', 'baz', 'XX', 'GET') == b'bar'
+    assert r.get('foo') == b'baz'
+    assert raw_command(r, 'set', 'foo', 'baz', 'GET') == b'baz'
+
+
+@pytest.mark.min_server('6.2')
+def test_set_get_nx(r):
+    # Note: this will most likely fail on a 7.0 server, based on the docs for SET
+    with pytest.raises(redis.ResponseError):
+        raw_command(r, 'set', 'foo', 'bar', 'NX', 'GET')
+
+
+@pytest.mark.min_server('6.2')
+def set_get_wrongtype(r):
+    r.lpush('foo', 'bar')
+    with pytest.raises(redis.ResponseError):
+        raw_command(r, 'set', 'foo', 'bar', 'GET')
+
+
 def test_del_operator(r):
     r['foo'] = 'bar'
     del r['foo']
