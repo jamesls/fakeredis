@@ -7,7 +7,7 @@ pytest
 pytest-asyncio
 pytest-cov
 pytest-mock
-redis==3.5.3       # Latest at time of writing
+redis==4.0.0       # Latest at time of writing
 six
 sortedcontainers
 
