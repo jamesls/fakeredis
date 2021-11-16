@@ -2164,14 +2164,17 @@ class FakeSocket:
 
     def _zrange(self, key, start, stop, reverse, *args):
         zset = key.value
-        # TODO: does redis allow multiple WITHSCORES?
-        if len(args) > 1 or (args and not casematch(args[0], b'withscores')):
-            raise SimpleError(SYNTAX_ERROR_MSG)
+        withscores = False
+        for arg in args:
+            if casematch(arg, b'withscores'):
+                withscores = True
+            else:
+                raise SimpleError(SYNTAX_ERROR_MSG)
         start, stop = self._fix_range(start, stop, len(zset))
         if reverse:
             start, stop = len(zset) - stop, len(zset) - start
         items = zset.islice_score(start, stop, reverse)
-        items = self._apply_withscores(items, bool(args))
+        items = self._apply_withscores(items, withscores)
         return items
 
     @command((Key(ZSet), Int, Int), (bytes,))
