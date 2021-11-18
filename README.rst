@@ -97,9 +97,25 @@ Fakeredis implements the same interface as `redis-py`_, the
 popular redis client for python, and models the responses
 of redis 6.0 (although most new feature in 6.0 are not supported).
 
+Pytest Fixture via Plugin
+------------
+You can also use the pytest fixture by declaring ``fakeredis.plugins`` in your plugins
+and including ``_fake_redis`` in your test parameters.
+
+.. code-block:: python
+
+  import redis
+  import fakeredis
+
+  pytest_plugins = "fakeredis.plugins"
+
+
+  def test_fake_redis_plugin(_fake_redis):
+      assert isinstance(redis.Redis(), fakeredis.FakeStrictRedis)
+
+
 Support for aioredis
 ====================
-
 You can also use fakeredis to mock out aioredis_.  This is a much newer
 addition to fakeredis (added in 1.4.0) with less testing, so your mileage may
 vary. Both version 1 and version 2 (which have very different APIs) are
