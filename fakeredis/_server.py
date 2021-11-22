@@ -1507,12 +1507,12 @@ class FakeSocket:
                 i += 1
             elif casematch(args[i], b'ex') and i + 1 < len(args):
                 ex = Int.decode(args[i + 1])
-                if ex <= 0:
+                if ex <= 0 or (self._db.time + ex) * 1000 >= 2**63:
                     raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             elif casematch(args[i], b'px') and i + 1 < len(args):
                 px = Int.decode(args[i + 1])
-                if px <= 0:
+                if px <= 0 or self._db.time * 1000 + px >= 2**63:
                     raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             elif casematch(args[i], b'keepttl'):
@@ -1551,7 +1551,7 @@ class FakeSocket:
 
     @command((Key(), Int, bytes))
     def setex(self, key, seconds, value):
-        if seconds <= 0:
+        if seconds <= 0 or (self._db.time + seconds) * 1000 >= 2**63:
             raise SimpleError(INVALID_EXPIRE_MSG.format('setex'))
         key.value = value
         key.expireat = self._db.time + seconds
@@ -1559,7 +1559,7 @@ class FakeSocket:
 
     @command((Key(), Int, bytes))
     def psetex(self, key, ms, value):
-        if ms <= 0:
+        if ms <= 0 or self._db.time * 1000 + ms >= 2**63:
             raise SimpleError(INVALID_EXPIRE_MSG.format('psetex'))
         key.value = value
         key.expireat = self._db.time + ms / 1000.0
