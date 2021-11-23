@@ -243,6 +243,7 @@ class CommandItem:
     def expireat(self, value):
         self._expireat = value
         self._expireat_modified = True
+        self._modified = True  # Since redis 6.0.7
 
     def get(self, default):
         return self._value if self else default

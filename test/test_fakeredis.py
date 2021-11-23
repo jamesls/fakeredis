@@ -4136,6 +4136,18 @@ def test_expire_should_expire_immediately_with_millisecond_timedelta(r):
     assert r.expire('bar', 1) is False
 
 
+def test_watch_expire(r):
+    """EXPIRE should mark a key as changed for WATCH."""
+    r.set('foo', 'bar')
+    with r.pipeline() as p:
+        p.watch('foo')
+        r.expire('foo', 10000)
+        p.multi()
+        p.get('foo')
+        with pytest.raises(redis.exceptions.WatchError):
+            p.execute()
+
+
 @pytest.mark.slow
 def test_pexpire_should_expire_key(r):
     r.set('foo', 'bar')
@@ -4261,6 +4273,18 @@ def test_persist(r):
     assert r.persist('foo') == 1
     assert r.ttl('foo') == -1
     assert r.persist('foo') == 0
+
+
+def test_watch_persist(r):
+    """PERSIST should mark a variable as changed."""
+    r.set('foo', 'bar', ex=10000)
+    with r.pipeline() as p:
+        p.watch('foo')
+        r.persist('foo')
+        p.multi()
+        p.get('foo')
+        with pytest.raises(redis.exceptions.WatchError):
+            p.execute()
 
 
 def test_set_existing_key_persists(r):
