@@ -1507,12 +1507,12 @@ class FakeSocket:
                 i += 1
             elif casematch(args[i], b'ex') and i + 1 < len(args):
                 ex = Int.decode(args[i + 1])
-                if ex <= 0:
+                if ex <= 0 or (self._db.time + ex) * 1000 >= 2**63:
                     raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             elif casematch(args[i], b'px') and i + 1 < len(args):
                 px = Int.decode(args[i + 1])
-                if px <= 0:
+                if px <= 0 or self._db.time * 1000 + px >= 2**63:
                     raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             elif casematch(args[i], b'keepttl'):
@@ -1551,7 +1551,7 @@ class FakeSocket:
 
     @command((Key(), Int, bytes))
     def setex(self, key, seconds, value):
-        if seconds <= 0:
+        if seconds <= 0 or (self._db.time + seconds) * 1000 >= 2**63:
             raise SimpleError(INVALID_EXPIRE_MSG.format('setex'))
         key.value = value
         key.expireat = self._db.time + seconds
@@ -1559,7 +1559,7 @@ class FakeSocket:
 
     @command((Key(), Int, bytes))
     def psetex(self, key, ms, value):
-        if ms <= 0:
+        if ms <= 0 or self._db.time * 1000 + ms >= 2**63:
             raise SimpleError(INVALID_EXPIRE_MSG.format('psetex'))
         key.value = value
         key.expireat = self._db.time + ms / 1000.0
@@ -2164,14 +2164,17 @@ class FakeSocket:
 
     def _zrange(self, key, start, stop, reverse, *args):
         zset = key.value
-        # TODO: does redis allow multiple WITHSCORES?
-        if len(args) > 1 or (args and not casematch(args[0], b'withscores')):
-            raise SimpleError(SYNTAX_ERROR_MSG)
+        withscores = False
+        for arg in args:
+            if casematch(arg, b'withscores'):
+                withscores = True
+            else:
+                raise SimpleError(SYNTAX_ERROR_MSG)
         start, stop = self._fix_range(start, stop, len(zset))
         if reverse:
             start, stop = len(zset) - stop, len(zset) - start
         items = zset.islice_score(start, stop, reverse)
-        items = self._apply_withscores(items, bool(args))
+        items = self._apply_withscores(items, withscores)
         return items
 
     @command((Key(ZSet), Int, Int), (bytes,))
@@ -2825,15 +2828,14 @@ class FakeRedisMixin:
         server = kwargs.pop('server', None)
         if server is None:
             server = FakeServer()
-        self = super().from_url(*args, **kwargs)
+        pool = redis.ConnectionPool.from_url(*args, **kwargs)
         # Now override how it creates connections
-        pool = self.connection_pool
         pool.connection_class = FakeConnection
         pool.connection_kwargs['server'] = server
         # FakeConnection cannot handle the path kwarg (present when from_url
         # is called with a unix socket)
         pool.connection_kwargs.pop('path', None)
-        return self
+        return cls(connection_pool=pool)
 
 
 class FakeStrictRedis(FakeRedisMixin, redis.StrictRedis):

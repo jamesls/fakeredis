@@ -16,6 +16,8 @@ coverage==5.3
     # via
     #   -r requirements.in
     #   pytest-cov
+deprecated==1.2.13
+    # via redis
 flake8==3.8.4
     # via -r requirements.in
 hiredis==1.1.0
@@ -52,7 +54,7 @@ pytest-cov==2.10.1
     # via -r requirements.in
 pytest-mock==3.3.1
     # via -r requirements.in
-redis==3.5.3
+redis==4.0.0
     # via -r requirements.in
 six==1.15.0
     # via -r requirements.in
@@ -62,5 +64,7 @@ sortedcontainers==2.3.0
     #   hypothesis
 toml==0.10.2
     # via pytest
+wrapt==1.13.3
+    # via deprecated
 zipp==1.2.0
     # via -r requirements.in
