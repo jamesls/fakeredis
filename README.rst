@@ -459,6 +459,7 @@ Revision history
 - `#315 <https://github.com/jamesls/fakeredis/pull/315>`_ Improved support for constructor arguments
 - `#316 <https://github.com/jamesls/fakeredis/pull/316>`_ Support redis-py 4
 - `#319 <https://github.com/jamesls/fakeredis/pull/319>`_ Add support for GET option to SET
+- `#323 <https://github.com/jamesls/fakeredis/pull/323>`_ PERSIST and EXPIRE should invalidate watches
 
 1.6.1
 -----
