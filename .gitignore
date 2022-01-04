@@ -10,3 +10,4 @@ extras/*
 cover/
 venv/
 dist/
+build/*
