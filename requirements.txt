@@ -30,7 +30,7 @@ lupa==1.10
     # via -r requirements.in
 mccabe==0.6.1
     # via flake8
-packaging==20.7
+packaging==21.3
     # via pytest
 pluggy==0.13.1
     # via pytest
@@ -54,7 +54,7 @@ pytest-cov==2.10.1
     # via -r requirements.in
 pytest-mock==3.3.1
     # via -r requirements.in
-redis==4.0.0
+redis==4.1.0
     # via -r requirements.in
 six==1.15.0
     # via -r requirements.in
