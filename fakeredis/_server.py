@@ -2757,7 +2757,7 @@ class FakeConnection(redis.Connection):
         else:
             return response
 
-    def read_response(self):
+    def read_response(self, disable_decoding=False):
         if not self._server.connected:
             try:
                 response = self._sock.responses.get_nowait()
@@ -2767,7 +2767,10 @@ class FakeConnection(redis.Connection):
             response = self._sock.responses.get()
         if isinstance(response, redis.ResponseError):
             raise response
-        return self._decode(response)
+        if disable_decoding:
+            return response
+        else:
+            return self._decode(response)
 
     def repr_pieces(self):
         pieces = [
