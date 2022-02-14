@@ -452,6 +452,10 @@ they have all been tagged as 'slow' so you can skip them by running::
 Revision history
 ================
 
+1.7.1
+-----
+- `#324 <https://github.com/jamesls/fakeredis/pull/324>`_ Support redis-py 4.1.x
+
 1.7.0
 -----
 - Change a number of corner-case behaviours to match Redis 6.2.6.
