@@ -1,7 +1,6 @@
 import asyncio
 from typing import Union
-
-import aioredis
+import redis.asyncio as aioredis
 
 from . import _async, _server
 
@@ -78,7 +77,7 @@ class FakeConnection(aioredis.Connection):
         else:
             return response
 
-    async def read_response(self):
+    async def read_response(self, *args):
         if not self._server.connected:
             try:
                 response = self._sock.responses.get_nowait()

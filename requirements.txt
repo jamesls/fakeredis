@@ -4,10 +4,6 @@
 #
 #    pip-compile requirements.in
 #
-aioredis==1.3.1
-    # via -r requirements.in
-async-timeout==3.0.1
-    # via aioredis
 attrs==20.3.0
     # via
     #   hypothesis
@@ -20,8 +16,6 @@ deprecated==1.2.13
     # via redis
 flake8==3.8.4
     # via -r requirements.in
-hiredis==1.1.0
-    # via aioredis
 hypothesis==5.41.4
     # via -r requirements.in
 iniconfig==1.1.1
@@ -56,7 +50,7 @@ pytest-cov==2.10.1
     # via -r requirements.in
 pytest-mock==3.3.1
     # via -r requirements.in
-redis==4.1.3
+redis==4.2.0rc3
     # via -r requirements.in
 six==1.15.0
     # via -r requirements.in
