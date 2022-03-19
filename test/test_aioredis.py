@@ -3,13 +3,19 @@ import re
 
 import pytest
 import redis
-import redis.asyncio as aioredis
-import async_timeout
+from packaging.version import Version
 
-import fakeredis.aioredis
+# Only import async packages and run tests if redis version supports it
+aioredis_supported = Version(redis.__version__) > Version('4.1.9')
+if aioredis_supported:
+    import async_timeout
+    import redis.asyncio as aioredis
+    import fakeredis.aioredis
 
-
-pytestmark = [pytest.mark.asyncio]
+pytestmark = [
+    pytest.mark.asyncio,
+    pytest.mark.skipif(not aioredis_supported, reason="Test is only applicable to redis versions that support asyncio")
+]
 fake_only = pytest.mark.parametrize(
     'r',
     [pytest.param('fake', marks=pytest.mark.fake)],
