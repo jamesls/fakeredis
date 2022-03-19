@@ -16,7 +16,6 @@ from collections import defaultdict
 from collections.abc import MutableMapping
 
 import redis
-import redis.asyncio
 import six
 
 from ._zset import ZSet
