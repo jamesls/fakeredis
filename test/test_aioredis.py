@@ -6,7 +6,7 @@ import redis
 import redis.asyncio as aioredis
 import async_timeout
 
-import fakeredis._aioredis as fakeaioredis
+import fakeredis.aioredis
 
 
 pytestmark = [pytest.mark.asyncio]
@@ -26,7 +26,7 @@ fake_only = pytest.mark.parametrize(
 async def r(request):
     if request.param == 'fake':
         fake_server = request.getfixturevalue('fake_server')
-        ret = fakeaioredis.FakeRedis(server=fake_server)
+        ret = fakeredis.aioredis.FakeRedis(server=fake_server)
     else:
         if not request.getfixturevalue('is_redis_running'):
             pytest.skip('Redis is not running')
@@ -216,8 +216,8 @@ async def test_disconnect_server(r, fake_server):
 
 @pytest.mark.fake
 async def test_from_url():
-    r0 = fakeaioredis.FakeRedis.from_url('redis://localhost?db=0')
-    r1 = fakeaioredis.FakeRedis.from_url('redis://localhost?db=1')
+    r0 = fakeredis.aioredis.FakeRedis.from_url('redis://localhost?db=0')
+    r1 = fakeredis.aioredis.FakeRedis.from_url('redis://localhost?db=1')
     # Check that they are indeed different databases
     await r0.set('foo', 'a')
     await r1.set('foo', 'b')
@@ -229,7 +229,7 @@ async def test_from_url():
 
 @fake_only
 async def test_from_url_with_server(r, fake_server):
-    r2 = fakeaioredis.FakeRedis.from_url('redis://localhost', server=fake_server)
+    r2 = fakeredis.aioredis.FakeRedis.from_url('redis://localhost', server=fake_server)
     await r.set('foo', 'bar')
     assert await r2.get('foo') == b'bar'
     await r2.connection_pool.disconnect()
@@ -237,12 +237,12 @@ async def test_from_url_with_server(r, fake_server):
 
 @pytest.mark.fake
 async def test_without_server():
-    r = fakeaioredis.FakeRedis()
+    r = fakeredis.aioredis.FakeRedis()
     assert await r.ping()
 
 
 @pytest.mark.fake
 async def test_without_server_disconnected():
-    r = fakeaioredis.FakeRedis(connected=False)
+    r = fakeredis.aioredis.FakeRedis(connected=False)
     with pytest.raises(aioredis.ConnectionError):
         await r.ping()

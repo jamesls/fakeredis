@@ -4,6 +4,8 @@
 #
 #    pip-compile requirements.in
 #
+async-timeout==4.0.2
+    # via redis
 attrs==20.3.0
     # via
     #   hypothesis
