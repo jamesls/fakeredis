@@ -77,7 +77,7 @@ class FakeConnection(aioredis.Connection):
         else:
             return response
 
-    async def read_response(self, *args):
+    async def read_response(self, disable_decoding=False):
         if not self._server.connected:
             try:
                 response = self._sock.responses.get_nowait()
@@ -87,7 +87,10 @@ class FakeConnection(aioredis.Connection):
             response = await self._sock.responses.get()
         if isinstance(response, aioredis.ResponseError):
             raise response
-        return self._decode(response)
+        if disable_decoding:
+            return response
+        else:
+            return self._decode(response)
 
     def repr_pieces(self):
         pieces = [
