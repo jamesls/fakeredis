@@ -87,7 +87,7 @@ RESTORE_INVALID_TTL_MSG = "ERR Invalid TTL value, must be >= 0"
 FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 
 # This needs to be grabbed early to avoid breaking tests that mock redis.Redis.
-_ORIG_SIG = redis.Redis.__init__
+_ORIG_SIG = inspect.signature(redis.Redis.__init__)
 
 
 class SimpleString:
@@ -2786,21 +2786,21 @@ class FakeRedisMixin:
     def __init__(self, *args, server=None, connected=True, **kwargs):
         # Interpret the positional and keyword arguments according to the
         # version of redis in use.
-        call_args = inspect.getcallargs(_ORIG_SIG, redis.Redis, *args, **kwargs)
-        call_args.pop('self')
-
-        if not call_args['connection_pool']:
-            charset = call_args['charset']
-            errors = call_args['errors']
+        bound = _ORIG_SIG.bind(redis.Redis, *args, **kwargs)
+        bound.arguments.pop('self')
+        bound.apply_defaults()
+        if not bound.arguments['connection_pool']:
+            charset = bound.arguments['charset']
+            errors = bound.arguments['errors']
             # Adapted from redis-py
             if charset is not None:
                 warnings.warn(DeprecationWarning(
                     '"charset" is deprecated. Use "encoding" instead'))
-                call_args['encoding'] = charset
+                bound.arguments['encoding'] = charset
             if errors is not None:
                 warnings.warn(DeprecationWarning(
                     '"errors" is deprecated. Use "encoding_errors" instead'))
-                call_args['encoding_errors'] = errors
+                bound.arguments['encoding_errors'] = errors
 
             if server is None:
                 server = FakeServer()
@@ -2823,10 +2823,10 @@ class FakeRedisMixin:
                 'client_name'
             ]
             for arg in conn_pool_args:
-                if arg in call_args:
-                    kwargs[arg] = call_args[arg]
-            call_args['connection_pool'] = redis.connection.ConnectionPool(**kwargs)
-        super().__init__(**call_args)
+                if arg in bound.arguments:
+                    kwargs[arg] = bound.arguments[arg]
+            bound.arguments['connection_pool'] = redis.connection.ConnectionPool(**kwargs)
+        super().__init__(*bound.args, **bound.kwargs)
 
     @classmethod
     def from_url(cls, *args, **kwargs):

@@ -62,6 +62,8 @@ sortedcontainers==2.3.0
     #   hypothesis
 toml==0.10.2
     # via pytest
+typing-extensions==4.1.1
+    # via redis
 wrapt==1.13.3
     # via deprecated
 zipp==1.2.0
