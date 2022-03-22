@@ -9,6 +9,10 @@ I don't have admin rights on PyPI so I'm not able to transfer control; thus,
 you'll need to either create a fork or persuade **@jamesls** to make you the
 new maintainer.
 
+If you do publish a fork, feel free to send me an email (see `maintainer_email`
+in setup.cfg) to let me know and I'll link to it from here.
+
+
 fakeredis: A fake version of a redis-py
 =======================================
 
