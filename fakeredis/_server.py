@@ -2492,7 +2492,7 @@ class FakeSocket:
 
     @command((Key(ZSetGeospatial), bytes), (bytes,))
     def georadius(self, key, longitude, latitude, radius, unit=None,
-                  withdist=False, withcoord=False, exclude=None):
+                  withcoord=False, withdist=False, exclude=None):
         # withhash, count, sort, store, store_dist NOT IMPLEMENTED
         result = []
         for name, item in key.value.items():
