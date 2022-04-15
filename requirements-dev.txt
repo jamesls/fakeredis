@@ -2,3 +2,8 @@ invoke==0.22.1
 wheel==0.31.1
 tox==3.6.1
 twine==1.12.1
+coverage
+pytest
+pytest-asyncio
+pytest-cov
+pytest-mock
