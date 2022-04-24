@@ -87,7 +87,7 @@ RESTORE_INVALID_TTL_MSG = "ERR Invalid TTL value, must be >= 0"
 FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
 
 # This needs to be grabbed early to avoid breaking tests that mock redis.Redis.
-_ORIG_SIG = inspect.signature(redis.Redis)
+_ORIG_SIG = inspect.signature(redis.Redis.__init__)
 
 
 class SimpleString:
