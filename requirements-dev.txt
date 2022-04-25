@@ -1,9 +1,10 @@
-invoke==0.22.1
-wheel==0.31.1
-tox==3.6.1
-twine==1.12.1
+invoke==1.7.0
+wheel==0.37.1
+tox==3.25.0
+twine==4.0.0
 coverage
-pytest
+pytest==7.1.2
 pytest-asyncio
 pytest-cov
 pytest-mock
+flake8==4.0.1

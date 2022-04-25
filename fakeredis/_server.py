@@ -84,7 +84,7 @@ RESTORE_KEY_EXISTS = "BUSYKEY Target key name already exists."
 RESTORE_INVALID_CHECKSUM_MSG = "ERR DUMP payload version or checksum are wrong"
 RESTORE_INVALID_TTL_MSG = "ERR Invalid TTL value, must be >= 0"
 
-FLAG_NO_SCRIPT = 's'      # Command not allowed in scripts
+FLAG_NO_SCRIPT = 's'  # Command not allowed in scripts
 
 # This needs to be grabbed early to avoid breaking tests that mock redis.Redis.
 _ORIG_SIG = inspect.signature(redis.Redis)
@@ -141,11 +141,11 @@ def compile_pattern(pattern):
     """
     # It's easier to work with text than bytes, because indexing bytes
     # doesn't behave the same in Python 3. Latin-1 will round-trip safely.
-    pattern = pattern.decode('latin-1')
+    pattern = pattern.decode('latin-1', )
     parts = ['^']
     i = 0
-    L = len(pattern)
-    while i < L:
+    pattern_len = len(pattern)
+    while i < pattern_len:
         c = pattern[i]
         i += 1
         if c == '?':
@@ -153,24 +153,24 @@ def compile_pattern(pattern):
         elif c == '*':
             parts.append('.*')
         elif c == '\\':
-            if i == L:
+            if i == pattern_len:
                 i -= 1
             parts.append(re.escape(pattern[i]))
             i += 1
         elif c == '[':
             parts.append('[')
-            if i < L and pattern[i] == '^':
+            if i < pattern_len and pattern[i] == '^':
                 i += 1
                 parts.append('^')
             parts_len = len(parts)  # To detect if anything was added
-            while i < L:
-                if pattern[i] == '\\' and i + 1 < L:
+            while i < pattern_len:
+                if pattern[i] == '\\' and i + 1 < pattern_len:
                     i += 1
                     parts.append(re.escape(pattern[i]))
                 elif pattern[i] == ']':
                     i += 1
                     break
-                elif i + 2 < L and pattern[i + 1] == '-':
+                elif i + 2 < pattern_len and pattern[i + 1] == '-':
                     start = pattern[i]
                     end = pattern[i + 2]
                     if start > end:
@@ -213,6 +213,7 @@ class CommandItem:
 
     It wraps an Item but has extra fields to manage updates and notifications.
     """
+
     def __init__(self, key, db, item=None, default=None):
         if item is None:
             self._value = default
@@ -271,14 +272,14 @@ class CommandItem:
     def __bool__(self):
         return bool(self._value) or isinstance(self._value, bytes)
 
-    __nonzero__ = __bool__    # For Python 2
+    __nonzero__ = __bool__  # For Python 2
 
 
 class Database(MutableMapping):
     def __init__(self, lock, *args, **kwargs):
         self._dict = dict(*args, **kwargs)
         self.time = 0.0
-        self._watches = defaultdict(weakref.WeakSet)      # key to set of connections
+        self._watches = defaultdict(weakref.WeakSet)  # key to set of connections
         self.condition = threading.Condition(lock)
         self._change_callbacks = set()
 
@@ -359,8 +360,8 @@ class Int:
 
     DECODE_ERROR = INVALID_INT_MSG
     ENCODE_ERROR = OVERFLOW_MSG
-    MIN_VALUE = -2**63
-    MAX_VALUE = 2**63 - 1
+    MIN_VALUE = -2 ** 63
+    MAX_VALUE = 2 ** 63 - 1
 
     @classmethod
     def valid(cls, value):
@@ -389,7 +390,7 @@ class BitOffset(Int):
 
     DECODE_ERROR = INVALID_BIT_OFFSET_MSG
     MIN_VALUE = 0
-    MAX_VALUE = 8 * MAX_STRING_SIZE - 1     # Redis imposes 512MB limit on keys
+    MAX_VALUE = 8 * MAX_STRING_SIZE - 1  # Redis imposes 512MB limit on keys
 
 
 class BitValue(Int):
@@ -460,7 +461,7 @@ class Float:
         elif humanfriendly:
             # Algorithm from ld2string in redis
             out = '{:.17f}'.format(value)
-            out = re.sub(r'(?:\.)?0+$', '', out)
+            out = re.sub(r'\.?0+$', '', out)
             return out.encode()
         else:
             return '{:.17g}'.format(value).encode()
@@ -470,13 +471,14 @@ class SortFloat(Float):
     DECODE_ERROR = INVALID_SORT_FLOAT_MSG
 
     @classmethod
-    def decode(cls, value):
+    def decode(cls, value, **kwargs):
         return super().decode(
             value, allow_leading_whitespace=True, allow_empty=True, crop_null=True)
 
 
 class ScoreTest:
     """Argument converter for sorted set score endpoints."""
+
     def __init__(self, value, exclusive=False):
         self.value = value
         self.exclusive = exclusive
@@ -503,15 +505,16 @@ class ScoreTest:
 
     @property
     def lower_bound(self):
-        return (self.value, AfterAny() if self.exclusive else BeforeAny())
+        return self.value, AfterAny() if self.exclusive else BeforeAny()
 
     @property
     def upper_bound(self):
-        return (self.value, BeforeAny() if self.exclusive else AfterAny())
+        return self.value, BeforeAny() if self.exclusive else AfterAny()
 
 
 class StringTest:
     """Argument converter for sorted set LEX endpoints."""
+
     def __init__(self, value, exclusive):
         self.value = value
         self.exclusive = exclusive
@@ -592,7 +595,7 @@ class Signature:
                 if type_.missing_return is not Key.UNSPECIFIED and arg not in db:
                     return (type_.missing_return,)
             elif type_ != bytes:
-                args[i] = type_.decode(args[i])
+                args[i] = type_.decode(args[i], )
 
         # Second pass: read keys and check their types
         command_items = []
@@ -662,7 +665,7 @@ class FakeSocket:
         self._in_transaction = False
         self._watch_notified = False
         self._watches = set()
-        self._pubsub = 0      # Count of subscriptions
+        self._pubsub = 0  # Count of subscriptions
         self.responses = queue.Queue()
         # Prevents parser from processing commands. Not used in this module,
         # but set by aioredis module to prevent new commands being processed
@@ -737,19 +740,19 @@ class FakeSocket:
             while self._paused or b'\n' not in buf:
                 buf += yield
             line, buf = self._extract_line(buf)
-            assert line[:1] == b'*'      # array
+            assert line[:1] == b'*'  # array
             n_fields = int(line[1:-2])
             fields = []
             for i in range(n_fields):
                 while b'\n' not in buf:
                     buf += yield
                 line, buf = self._extract_line(buf)
-                assert line[:1] == b'$'    # string
+                assert line[:1] == b'$'  # string
                 length = int(line[1:-2])
                 while len(buf) < length + 2:
                     buf += yield
                 fields.append(buf[:length])
-                buf = buf[length+2:]       # +2 to skip the CRLF
+                buf = buf[length + 2:]  # +2 to skip the CRLF
             self._process_command(fields)
 
     def _run_command(self, func, sig, args, from_script):
@@ -763,8 +766,13 @@ class FakeSocket:
                 if from_script and FLAG_NO_SCRIPT in sig.flags:
                     raise SimpleError(COMMAND_IN_SCRIPT_MSG)
                 if self._pubsub and sig.name not in [
-                        'ping', 'subscribe', 'unsubscribe',
-                        'psubscribe', 'punsubscribe', 'quit']:
+                    'ping',
+                    'subscribe',
+                    'unsubscribe',
+                    'psubscribe',
+                    'punsubscribe',
+                    'quit'
+                ]:
                     raise SimpleError(BAD_COMMAND_IN_PUBSUB_MSG)
                 result = func(*args)
                 assert valid_response_type(result)
@@ -813,7 +821,7 @@ class FakeSocket:
             # Python <3.2 doesn't return a status from wait. On Python 3.2+
             # we bail out early on False.
             if self._db.condition.wait(timeout=timeout) is False:
-                return None     # Timeout expired
+                return None  # Timeout expired
             ret = func(False)
             if ret is not None:
                 return ret
@@ -1079,7 +1087,7 @@ class FakeSocket:
         elif isinstance(key.value, dict):
             return SimpleString(b'hash')
         else:
-            assert False      # pragma: nocover
+            assert False  # pragma: nocover
 
     @command((Key(),))
     def persist(self, key):
@@ -1104,7 +1112,7 @@ class FakeSocket:
             return 0
         # TODO: what is the interaction with expiry?
         self._server.dbs[db][key.key] = self._server.dbs[self._db_num][key.key]
-        key.value = None   # Causes deletion
+        key.value = None  # Causes deletion
         return 1
 
     @command(())
@@ -1146,10 +1154,10 @@ class FakeSocket:
         if p == -1:
             return None
         prefix = pattern[:p]
-        suffix = pattern[p+1:]
+        suffix = pattern[p + 1:]
         arrow = suffix.find(b'->', 0, -1)
         if arrow != -1:
-            field = suffix[arrow+2:]
+            field = suffix[arrow + 2:]
             suffix = suffix[:arrow]
         else:
             field = None
@@ -1242,7 +1250,7 @@ class FakeSocket:
             else:
                 def sort_key(v):
                     byval = self._lookup_key(v, sortby)
-                    score = SortFloat.decode(byval) if byval is not None else 0.0
+                    score = SortFloat.decode(byval, ) if byval is not None else 0.0
                     return (score, v)
 
             items.sort(key=sort_key, reverse=desc)
@@ -1508,12 +1516,12 @@ class FakeSocket:
                 i += 1
             elif casematch(args[i], b'ex') and i + 1 < len(args):
                 ex = Int.decode(args[i + 1])
-                if ex <= 0 or (self._db.time + ex) * 1000 >= 2**63:
+                if ex <= 0 or (self._db.time + ex) * 1000 >= 2 ** 63:
                     raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             elif casematch(args[i], b'px') and i + 1 < len(args):
                 px = Int.decode(args[i + 1])
-                if px <= 0 or self._db.time * 1000 + px >= 2**63:
+                if px <= 0 or self._db.time * 1000 + px >= 2 ** 63:
                     raise SimpleError(INVALID_EXPIRE_MSG.format('set'))
                 i += 2
             elif casematch(args[i], b'keepttl'):
@@ -1552,7 +1560,7 @@ class FakeSocket:
 
     @command((Key(), Int, bytes))
     def setex(self, key, seconds, value):
-        if seconds <= 0 or (self._db.time + seconds) * 1000 >= 2**63:
+        if seconds <= 0 or (self._db.time + seconds) * 1000 >= 2 ** 63:
             raise SimpleError(INVALID_EXPIRE_MSG.format('setex'))
         key.value = value
         key.expireat = self._db.time + seconds
@@ -1560,7 +1568,7 @@ class FakeSocket:
 
     @command((Key(), Int, bytes))
     def psetex(self, key, ms, value):
-        if ms <= 0 or self._db.time * 1000 + ms >= 2**63:
+        if ms <= 0 or self._db.time * 1000 + ms >= 2 ** 63:
             raise SimpleError(INVALID_EXPIRE_MSG.format('psetex'))
         key.value = value
         key.expireat = self._db.time + ms / 1000.0
@@ -1585,7 +1593,7 @@ class FakeSocket:
             out = key.get(b'')
             if len(out) < offset:
                 out += b'\x00' * (offset - len(out))
-            out = out[0:offset] + value + out[offset+len(value):]
+            out = out[0:offset] + value + out[offset + len(value):]
             key.update(out)
             return len(out)
 
@@ -1724,7 +1732,7 @@ class FakeSocket:
             else:
                 return None
         if not src.value:
-            return None    # Empty list
+            return None  # Empty list
         dst = CommandItem(destination, self._db, item=self._db.get(destination), default=[])
         if not isinstance(dst.value, list):
             raise SimpleError(WRONGTYPE_MSG)
@@ -1903,7 +1911,8 @@ class FakeSocket:
     def scard(self, key):
         return len(key.value)
 
-    def _calc_setop(self, op, stop_if_missing, key, *keys):
+    @staticmethod
+    def _calc_setop(op, stop_if_missing, key, *keys):
         if stop_if_missing and not key.value:
             return set()
         ans = key.value.copy()
@@ -1963,7 +1972,7 @@ class FakeSocket:
             return 0
         else:
             dst.value.add(member)
-            dst.updated()   # TODO: is it updated if member was already present?
+            dst.updated()  # TODO: is it updated if member was already present?
             return 1
 
     @command((Key(set),), (Int,))
@@ -1981,7 +1990,7 @@ class FakeSocket:
             items = self.srandmember(key, count)
             for item in items:
                 key.value.remove(item)
-                key.updated()   # Inside the loop because redis special-cases count=0
+                key.updated()  # Inside the loop because redis special-cases count=0
             return items
 
     @command((Key(set),), (Int,))
@@ -2053,7 +2062,7 @@ class FakeSocket:
     def _limit_items(items, offset, count):
         out = []
         for item in items:
-            if offset:    # Note: not offset > 0, in order to match redis
+            if offset:  # Note: not offset > 0, in order to match redis
                 offset -= 1
                 continue
             if count == 0:
@@ -2124,8 +2133,8 @@ class FakeSocket:
 
         for item_score, item_name in items:
             if (
-                (not nx or item_name not in zset)
-                and (not xx or item_name in zset)
+                    (not nx or item_name not in zset)
+                    and (not xx or item_name in zset)
             ):
                 if zset.add(item_name, item_score):
                     changed_items += 1
@@ -2186,7 +2195,7 @@ class FakeSocket:
     def zrevrange(self, key, start, stop, *args):
         return self._zrange(key, start, stop, True, *args)
 
-    def _zrangebylex(self, key, min, max, reverse, *args):
+    def _zrangebylex(self, key, _min, _max, reverse, *args):
         if args:
             if len(args) != 3 or not casematch(args[0], b'limit'):
                 raise SimpleError(SYNTAX_ERROR_MSG)
@@ -2196,21 +2205,21 @@ class FakeSocket:
             offset = 0
             count = -1
         zset = key.value
-        items = zset.irange_lex(min.value, max.value,
-                                inclusive=(not min.exclusive, not max.exclusive),
+        items = zset.irange_lex(_min.value, _max.value,
+                                inclusive=(not _min.exclusive, not _max.exclusive),
                                 reverse=reverse)
         items = self._limit_items(items, offset, count)
         return items
 
     @command((Key(ZSet), StringTest, StringTest), (bytes,))
-    def zrangebylex(self, key, min, max, *args):
-        return self._zrangebylex(key, min, max, False, *args)
+    def zrangebylex(self, key, _min, _max, *args):
+        return self._zrangebylex(key, _min, _max, False, *args)
 
     @command((Key(ZSet), StringTest, StringTest), (bytes,))
-    def zrevrangebylex(self, key, max, min, *args):
-        return self._zrangebylex(key, min, max, True, *args)
+    def zrevrangebylex(self, key, _max, _min, *args):
+        return self._zrangebylex(key, _min, _max, True, *args)
 
-    def _zrangebyscore(self, key, min, max, reverse, *args):
+    def _zrangebyscore(self, key, _min, _max, reverse, *args):
         withscores = False
         offset = 0
         count = -1
@@ -2226,18 +2235,18 @@ class FakeSocket:
             else:
                 raise SimpleError(SYNTAX_ERROR_MSG)
         zset = key.value
-        items = list(zset.irange_score(min.lower_bound, max.upper_bound, reverse=reverse))
+        items = list(zset.irange_score(_min.lower_bound, _max.upper_bound, reverse=reverse))
         items = self._limit_items(items, offset, count)
         items = self._apply_withscores(items, withscores)
         return items
 
     @command((Key(ZSet), ScoreTest, ScoreTest), (bytes,))
-    def zrangebyscore(self, key, min, max, *args):
-        return self._zrangebyscore(key, min, max, False, *args)
+    def zrangebyscore(self, key, _min, _max, *args):
+        return self._zrangebyscore(key, _min, _max, False, *args)
 
     @command((Key(ZSet), ScoreTest, ScoreTest), (bytes,))
-    def zrevrangebyscore(self, key, max, min, *args):
-        return self._zrangebyscore(key, min, max, True, *args)
+    def zrevrangebyscore(self, key, _max, _min, *args):
+        return self._zrangebyscore(key, _min, _max, True, *args)
 
     @command((Key(ZSet), bytes))
     def zrank(self, key, member):
@@ -2369,7 +2378,7 @@ class FakeSocket:
                     elif aggregate == b'min':
                         score = min(old, score)
                     else:
-                        assert False     # pragma: nocover
+                        assert False  # pragma: nocover
                 if math.isnan(score):
                     score = 0.0
                 out[member] = score
@@ -2724,6 +2733,10 @@ class FakeConnection(redis.Connection):
     description_format = "FakeConnection<db=%(db)s>"
 
     def __init__(self, *args, **kwargs):
+        self.encoder = None
+        self.client_name = None
+        self._sock = None
+        self._selector = None
         self._server = kwargs.pop('server')
         super().__init__(*args, **kwargs)
 
@@ -2753,7 +2766,7 @@ class FakeConnection(redis.Connection):
         if isinstance(response, list):
             return [self._decode(item) for item in response]
         elif isinstance(response, bytes):
-            return self.encoder.decode(response)
+            return self.encoder.decode(response, )
         else:
             return response
 

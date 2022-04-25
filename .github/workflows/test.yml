@@ -1,11 +1,20 @@
-name: Unit tests 
-on: [push, pull_request]
+name: Unit tests
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
 concurrency:
   group: test-${{ github.ref }}
   cancel-in-progress: true
+
 jobs:
   test:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:

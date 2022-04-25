@@ -1,4 +1,6 @@
 from time import sleep, time
+
+import pytest_asyncio
 from redis.exceptions import ResponseError
 from collections import OrderedDict
 import os
@@ -65,7 +67,7 @@ def zincrby(r, key, amount, value):
         return r.zincrby(key, value, amount)
 
 
-@pytest.fixture(scope="session")
+@pytest_asyncio.fixture(scope="session")
 def is_redis_running():
     try:
         r = redis.StrictRedis('localhost', port=6379)
@@ -76,7 +78,7 @@ def is_redis_running():
         return True
 
 
-@pytest.fixture(
+@pytest_asyncio.fixture(
     params=[
         pytest.param('StrictRedis', marks=pytest.mark.real),
         pytest.param('FakeStrictRedis', marks=pytest.mark.fake)
@@ -109,7 +111,7 @@ def create_redis(request):
     return factory
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 def r(request, create_redis):
     r = create_redis(db=0)
     connected = request.node.get_closest_marker('disconnected') is None

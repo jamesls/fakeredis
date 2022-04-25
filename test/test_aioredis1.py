@@ -1,5 +1,6 @@
 import asyncio
 
+import pytest_asyncio
 from packaging.version import Version
 import pytest
 import aioredis
@@ -14,7 +15,7 @@ pytestmark = [
 ]
 
 
-@pytest.fixture(
+@pytest_asyncio.fixture(
     params=[
         pytest.param('fake', marks=pytest.mark.fake),
         pytest.param('real', marks=pytest.mark.real)
@@ -36,7 +37,7 @@ async def r(request):
     await ret.wait_closed()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def conn(r):
     """A single connection, rather than a pool."""
     with await r as conn:

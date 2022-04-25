@@ -74,7 +74,7 @@ class FakeConnection(aioredis.Connection):
         if isinstance(response, list):
             return [self._decode(item) for item in response]
         elif isinstance(response, bytes):
-            return self.encoder.decode(response)
+            return self.encoder.decode(response, )
         else:
             return response
 
