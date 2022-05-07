@@ -1,11 +1,7 @@
 fakeredis: A fake version of a redis-py
 =======================================
 
-.. image:: https://github.com/jamesls/fakeredis/actions/workflows/test.yml/badge.svg
-   :target: https://github.com/jamesls/fakeredis/actions/workflows/test.yml
-
-.. image:: https://coveralls.io/repos/jamesls/fakeredis/badge.svg?branch=master
-   :target: https://coveralls.io/r/jamesls/fakeredis
+![badge](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/cunla/b756396efb895f0e34558c980f1ca0c7/raw/fakeredis-py.json)
 
 
 fakeredis is a pure-Python implementation of the redis-py python client
