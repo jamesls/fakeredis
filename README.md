@@ -11,23 +11,18 @@ many times you want to write unittests that do not talk to an external server
 (such as redis).  This module now allows tests to simply use this
 module as a reasonable substitute for redis.
 
-Although fakeredis is pure Python, you will need lupa_ if you want to run Lua
+Although fakeredis is pure Python, you will need [lupa](https://pypi.org/project/lupa/) if you want to run Lua
 scripts (this includes features like ``redis.lock.Lock``, which are implemented
 in Lua). If you install fakeredis with ``pip install fakeredis[lua]`` it will
 be automatically installed.
 
-.. _lupa: https://pypi.org/project/lupa/
-
 Alternatives
 ============
 
-Consider using redislite_ instead of fakeredis. It runs a real redis server and
+Consider using [redislite](https://redislite.readthedocs.io/en/latest/) instead of fakeredis. It runs a real redis server and
 connects to it over a UNIX domain socket, so it will behave just like a real
-server. Another alternative is birdisle_, which runs the redis code as a Python
+server. Another alternative is [birdisle](https://birdisle.readthedocs.io/en/latest/), which runs the redis code as a Python
 extension (no separate process), but which is currently unmaintained.
-
-.. _birdisle: https://birdisle.readthedocs.io/en/latest/
-.. _redislite: https://redislite.readthedocs.io/en/latest/
 
 
 How to Use
@@ -37,86 +32,85 @@ The intent is for fakeredis to act as though you're talking to a real
 redis server.  It does this by storing state internally.
 For example:
 
-.. code-block:: python
-
-  >>> import fakeredis
-  >>> r = fakeredis.FakeStrictRedis()
-  >>> r.set('foo', 'bar')
-  True
-  >>> r.get('foo')
-  'bar'
-  >>> r.lpush('bar', 1)
-  1
-  >>> r.lpush('bar', 2)
-  2
-  >>> r.lrange('bar', 0, -1)
-  [2, 1]
+```
+>>> import fakeredis
+>>> r = fakeredis.FakeStrictRedis()
+>>> r.set('foo', 'bar')
+True
+>>> r.get('foo')
+'bar'
+>>> r.lpush('bar', 1)
+1
+>>> r.lpush('bar', 2)
+2
+>>> r.lrange('bar', 0, -1)
+[2, 1]
+```
 
 The state is stored in an instance of `FakeServer`. If one is not provided at
 construction, a new instance is automatically created for you, but you can
 explicitly create one to share state:
 
-.. code-block:: python
-
-  >>> import fakeredis
-  >>> server = fakeredis.FakeServer()
-  >>> r1 = fakeredis.FakeStrictRedis(server=server)
-  >>> r1.set('foo', 'bar')
-  True
-  >>> r2 = fakeredis.FakeStrictRedis(server=server)
-  >>> r2.get('foo')
-  'bar'
-  >>> r2.set('bar', 'baz')
-  True
-  >>> r1.get('bar')
-  'baz'
-  >>> r2.get('bar')
-  'baz'
+```
+>>> import fakeredis
+>>> server = fakeredis.FakeServer()
+>>> r1 = fakeredis.FakeStrictRedis(server=server)
+>>> r1.set('foo', 'bar')
+True
+>>> r2 = fakeredis.FakeStrictRedis(server=server)
+>>> r2.get('foo')
+'bar'
+>>> r2.set('bar', 'baz')
+True
+>>> r1.get('bar')
+'baz'
+>>> r2.get('bar')
+'baz'
+```
 
 It is also possible to mock connection errors so you can effectively test
 your error handling. Simply set the connected attribute of the server to
 `False` after initialization.
 
-.. code-block:: python
 
-  >>> import fakeredis
-  >>> server = fakeredis.FakeServer()
-  >>> server.connected = False
-  >>> r = fakeredis.FakeStrictRedis(server=server)
-  >>> r.set('foo', 'bar')
-  ConnectionError: FakeRedis is emulating a connection error.
-  >>> server.connected = True
-  >>> r.set('foo', 'bar')
-  True
+```
+>>> import fakeredis
+>>> server = fakeredis.FakeServer()
+>>> server.connected = False
+>>> r = fakeredis.FakeStrictRedis(server=server)
+>>> r.set('foo', 'bar')
+ConnectionError: FakeRedis is emulating a connection error.
+>>> server.connected = True
+>>> r.set('foo', 'bar')
+True
+```
 
-Fakeredis implements the same interface as `redis-py`_, the
+Fakeredis implements the same interface as `redis-py`, the
 popular redis client for python, and models the responses
 of redis 6.2 (although most new features are not supported).
 
 Support for aioredis
 ====================
 
-You can also use fakeredis to mock out aioredis_.  This is a much newer
+You can also use fakeredis to mock out [aioredis](https://aioredis.readthedocs.io/).  This is a much newer
 addition to fakeredis (added in 1.4.0) with less testing, so your mileage may
 vary. Both version 1 and version 2 (which have very different APIs) are
 supported. The API provided by fakeredis depends on the version of aioredis that is
 installed.
-
-.. _aioredis: https://aioredis.readthedocs.io/
 
 aioredis 1.x
 ------------
 
 Example:
 
-.. code-block:: python
-
-  >>> import fakeredis.aioredis
-  >>> r = await fakeredis.aioredis.create_redis_pool()
-  >>> await r.set('foo', 'bar')
-  True
-  >>> await r.get('foo')
-  b'bar'
+```
+>>> import fakeredis.aioredis
+>>> r = await fakeredis.aioredis.create_redis_pool()
+>>> await r.set('foo', 'bar')
+True
+>>> await r.get('foo')
+b'bar'
+```
 
 You can pass a `FakeServer` as the first argument to `create_redis` or
 `create_redis_pool` to share state (you can even share state with a
@@ -132,14 +126,14 @@ aioredis 2.x
 
 Example:
 
-.. code-block:: python
-
-  >>> import fakeredis.aioredis
-  >>> r = fakeredis.aioredis.FakeRedis()
-  >>> await r.set('foo', 'bar')
-  True
-  >>> await r.get('foo')
-  b'bar'
+```
+>>> import fakeredis.aioredis
+>>> r = fakeredis.aioredis.FakeRedis()
+>>> await r.set('foo', 'bar')
+True
+>>> await r.get('foo')
+b'bar'
+```
 
 The support is essentially the same as for redis-py e.g., you can pass a
 `server` keyword argument to the `FakeRedis` constructor.
@@ -379,7 +373,7 @@ fakeredis, so the best way to get a bug fixed is to contribute a pull
 request.
 
 If you'd like to help out, you can start with any of the issues
-labeled with `HelpWanted`_.
+labeled with `Help wanted`.
 
 
 Running the Tests
@@ -406,7 +400,7 @@ If you only want to run tests against fake redis, without a real redis::
 
     pytest -m fake
 
-Because this module is attempting to provide the same interface as `redis-py`_,
+Because this module is attempting to provide the same interface as `redis-py`,
 the python bindings to redis, a reasonable way to test this to to take each
 unittest and run it against a real redis server.  fakeredis and the real redis
 server should give the same result. To run tests against a real redis instance
