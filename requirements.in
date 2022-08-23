@@ -4,7 +4,7 @@ hypothesis
 lupa
 pytest
 pytest-cov
-redis
+redis==4.3.4
 six
 sortedcontainers
 python-geohash

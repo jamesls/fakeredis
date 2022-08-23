@@ -4,6 +4,8 @@
 #
 #    pip-compile requirements.in
 #
+async-timeout==4.0.2
+    # via redis
 attrs==19.3.0
     # via
     #   hypothesis
@@ -12,6 +14,8 @@ coverage==5.0.3
     # via
     #   -r requirements.in
     #   pytest-cov
+deprecated==1.2.13
+    # via redis
 entrypoints==0.3
     # via flake8
 flake8==3.7.9
@@ -24,8 +28,10 @@ mccabe==0.6.1
     # via flake8
 more-itertools==8.2.0
     # via pytest
-packaging==20.1
-    # via pytest
+packaging==21.3
+    # via
+    #   pytest
+    #   redis
 pluggy==0.13.1
     # via pytest
 py==1.8.1
@@ -44,17 +50,17 @@ pytest-cov==2.8.1
     # via -r requirements.in
 python-geohash==0.8.5
     # via -r requirements.in
-redis==3.4.1
+redis==4.3.4
     # via -r requirements.in
 six==1.14.0
-    # via
-    #   -r requirements.in
-    #   packaging
+    # via -r requirements.in
 sortedcontainers==2.1.0
     # via
     #   -r requirements.in
     #   hypothesis
 wcwidth==0.1.8
     # via pytest
+wrapt==1.14.1
+    # via deprecated
 zipp==1.1.0
     # via -r requirements.in
