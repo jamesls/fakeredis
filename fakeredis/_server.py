@@ -17,6 +17,8 @@ from math import radians, cos, sin, asin, sqrt
 
 import redis
 import six
+from redis.backoff import NoBackoff
+from redis.retry import Retry
 
 from ._zset import ZSet, ZSetGeospatial
 
@@ -2199,8 +2201,8 @@ class FakeSocket:
     # Server commands
     # TODO: lots
 
-    @command((), flags='s')
-    def bgsave(self):
+    @command((bytes,))
+    def bgsave(self, *args):
         self._server.lastsave = int(time.time())
         return BGSAVE_STARTED
 
@@ -2615,6 +2617,8 @@ class FakeConnection(redis.Connection):
         # override them.
         self._parser = parser_class(socket_read_size=socket_read_size)
         self._sock = None
+        self.retry = Retry(NoBackoff(), 0)
+        self.redis_connect_func = None
         # added in redis==3.3.0
         self.health_check_interval = health_check_interval
         self.next_health_check = 0
